@@ -7,6 +7,8 @@
         <intent>
             <action android:name="android.intent.action.MAIN" />
         </intent>
+        <!-- Needed to detect Google Play Services availability for telemetry init -->
+        <package android:name="com.google.android.gms" />
     </queries>
 
     <!-- Internet -->

@@ -40,6 +40,7 @@ object TelemetryConfig {
                 .applicationInfo
                 ?.enabled == true
         } catch (e: PackageManager.NameNotFoundException) {
+            logcat(LogPriority.WARN, e) { "Unable to check Google Play Services availability" }
             false
         }
     }
