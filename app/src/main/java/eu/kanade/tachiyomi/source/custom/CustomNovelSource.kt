@@ -740,11 +740,11 @@ class CustomNovelSource(
         return super.getImageUrl(page)
     }
 
-    override suspend fun getImage(page: Page): Response {
+    override suspend fun getImage(page: Page, existingSize: Long): Response {
         (baseSource as? HttpSource)?.let { source ->
-            return source.getImage(toBaseSourcePage(page))
+            return source.getImage(toBaseSourcePage(page), existingSize)
         }
-        return super.getImage(page)
+        return super.getImage(page, existingSize)
     }
 
     // Route through buildAbsoluteUrl so an already-absolute stored url isn't glued onto baseUrl.

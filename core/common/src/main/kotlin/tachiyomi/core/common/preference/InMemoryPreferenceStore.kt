@@ -32,9 +32,8 @@ class InMemoryPreferenceStore(
 
     override fun getBoolean(key: String, defaultValue: Boolean): Preference<Boolean> = preference(key, defaultValue)
 
-    override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> {
-        TODO("Not yet implemented")
-    }
+    override fun getStringSet(key: String, defaultValue: Set<String>): Preference<Set<String>> =
+        preference(key, defaultValue)
 
     override fun <T> getObjectFromString(
         key: String,
@@ -49,6 +48,13 @@ class InMemoryPreferenceStore(
         serializer: (T) -> Int,
         deserializer: (Int) -> T,
     ): Preference<T> = preference(key, defaultValue)
+
+    override fun <T> getObjectSetFromStringSet(
+        key: String,
+        defaultValue: Set<T>,
+        serializer: (T) -> String,
+        deserializer: (String) -> T?,
+    ): Preference<Set<T>> = preference(key, defaultValue)
 
     override fun getAll(): Map<String, *> = data
 

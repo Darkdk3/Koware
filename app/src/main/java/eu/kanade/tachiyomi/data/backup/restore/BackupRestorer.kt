@@ -15,13 +15,16 @@ import eu.kanade.tachiyomi.data.backup.restore.restorers.CategoriesRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.ExtensionStoreRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.MangaRestorer
 import eu.kanade.tachiyomi.data.backup.restore.restorers.PreferenceRestorer
+import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.util.system.createFileInCacheDir
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.protobuf.ProtoBuf
+import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.Database
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.i18n.MR
@@ -75,6 +78,15 @@ class BackupRestorer(
             try {
                 getLibraryManga.refreshForced()
             } catch (_: Exception) {
+            }
+        }
+
+        // Invalidate download cache to ensure UI reflects any restored downloads
+        if (options.libraryEntries) {
+            try {
+                Injekt.get<DownloadCache>().invalidateCache()
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Failed to invalidate download cache after restore" }
             }
         }
 

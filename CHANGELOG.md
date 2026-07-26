@@ -81,6 +81,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Added missing proguard rule to fix zstd requests [@mrissaoussama](https://github.com/mrissaoussama) [#353](https://github.com/tsundoku-otaku/tsundoku/pull/353)
 
 ### Other
+- Merged v0.20.1 from Mihon [@Rojikku](https://github.com/Rojikku) [#356](https://github.com/tsundoku-otaku/tsundoku/pull/356)
 - Deprecate RefreshContext for 1.6 [@Rojikku](https://github.com/Rojikku) [#325](https://github.com/tsundoku-otaku/tsundoku/pull/325)
 - Exposed reader events and runtime state to JS [@mrissaoussama](https://github.com/mrissaoussama) [#350](https://github.com/tsundoku-otaku/tsundoku/pull/350)
 - jsplugins should surface fetch errors [@mrissaoussama](https://github.com/mrissaoussama) [#293](https://github.com/tsundoku-otaku/tsundoku/pull/293)
@@ -326,6 +327,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 This project was originally forked from Mihon, and, while we keep separate version numbers, we would like to note in our changelog when we merge from upstream, and link to their changelog to try to give appropriate credit.
 This project is greatly advantaged by building off all of their work, and their continued contributions!
 
+Merged from v0.20.1 [a8d3e39](https://github.com/mihonapp/mihon/commit/a8d3e397794aa7ecf51e1a8a85f9c247c14b1430)
 Merged from v0.20.0 [19f1d00](https://github.com/mihonapp/mihon/commit/19f1d00fcbef6ab7783066ff9ae8e377f696b231)
 Merged from v0.19.9 [7a91796](https://github.com/mihonapp/mihon/commit/7a917968e3bf71c4a665e6655a550877d81ead1d)
 Merged from v0.19.7 [25d4bf5](https://github.com/mihonapp/mihon/commit/25d4bf5e2ffdcb84f6469f5e0a81108777a98e85)

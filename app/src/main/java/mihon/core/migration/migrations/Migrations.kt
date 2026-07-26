@@ -10,4 +10,5 @@ val migrations: List<Migration>
         CategoryPreferencesCleanupMigration(),
         InstallationIdMigration(),
         NovelRateLimitPreferencesMigration(),
+        VerticalNavigatorMigration(),
     )

@@ -82,8 +82,8 @@ android {
             isPseudoLocalesEnabled = true
         }
         val release = getByName("release") {
-            isMinifyEnabled = Config.enableCodeShrink
-            isShrinkResources = Config.enableCodeShrink
+            isMinifyEnabled = true
+            isShrinkResources = true
 
             signingConfig = debug.signingConfig
 

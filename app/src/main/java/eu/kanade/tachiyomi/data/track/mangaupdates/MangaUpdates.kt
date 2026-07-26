@@ -118,8 +118,10 @@ class MangaUpdates(id: Long) : BaseTracker(id, "MangaUpdates"), DeletableTracker
     override suspend fun login(username: String, password: String) {
         val authenticated = api.authenticate(username, password)
             ?: throw Exception("Failed to authenticate with MangaUpdates")
-        saveCredentials(authenticated.uid.toString(), authenticated.sessionToken)
         interceptor.newAuth(authenticated.sessionToken)
+        val currentUser = api.getCurrentUser()
+        saveDisplayUsername(currentUser.username)
+        saveCredentials(authenticated.uid.toString(), authenticated.sessionToken)
     }
 
     fun restoreSession(): String? {

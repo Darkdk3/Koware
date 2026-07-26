@@ -453,7 +453,7 @@ abstract class HttpSource : CatalogueSource {
      * @since extensions-lib 1.5
      * @param page the page whose source image has to be downloaded.
      */
-    open suspend fun getImage(page: Page): Response {
+    open suspend fun getImage(page: Page, existingSize: Long = 0L): Response {
         if (this.isNovelSource()) {
             return Response.Builder()
                 .request(imageRequest(page)) // still need a Request object, but it won't be executed
@@ -463,7 +463,7 @@ abstract class HttpSource : CatalogueSource {
                 .body(ResponseBody.create(null, ""))
                 .build()
         }
-        return client.newCachelessCallWithProgress(imageRequest(page), page)
+        return client.newCachelessCallWithProgress(imageRequest(page), page, existingSize)
             .awaitSuccess()
     }
 

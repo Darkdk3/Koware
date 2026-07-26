@@ -1247,8 +1247,12 @@ class ReaderActivity : BaseActivity() {
             val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
             val isPagerType = ReadingMode.isPagerType(viewModel.getMangaReadingMode())
             val cropEnabled = if (isPagerType) cropBorderPaged else cropBorderWebtoon
-            val verticalNavigatorForLongStrip by readerPreferences.verticalNavigatorForLongStrip.collectAsState()
+            val verticalNavigatorModes by readerPreferences.verticalNavigator.collectAsState()
+            val verticalNavigator = verticalNavigatorModes.contains(
+                ReadingMode.fromPreference(viewModel.getMangaReadingMode()),
+            )
             val verticalNavigatorOnLeft by readerPreferences.verticalNavigatorOnLeft.collectAsState()
+            val verticalNavigatorHeight by readerPreferences.verticalNavigatorHeight.collectAsState()
 
             ReaderAppBars(
                 visible = state.menuVisible,
@@ -1263,7 +1267,7 @@ class ReaderActivity : BaseActivity() {
                 onOpenInBrowser = ::openChapterInBrowser.takeIf { hasWebViewSupport },
                 onShare = ::shareChapter.takeIf { hasWebViewSupport },
 
-                chapterNavigatorType = if (isPagerType || !verticalNavigatorForLongStrip) {
+                chapterNavigatorType = if (!verticalNavigator) {
                     if (state.viewer is R2LPagerViewer) {
                         ChapterNavigatorType.HORIZONTAL_RTL
                     } else {
@@ -1276,6 +1280,7 @@ class ReaderActivity : BaseActivity() {
                         ChapterNavigatorType.VERTICAL_RIGHT
                     }
                 },
+                verticalNavigatorHeight = verticalNavigatorHeight / 100f,
                 onNextChapter = ::loadNextChapter,
                 enabledNext = state.viewerChapters?.nextChapter != null,
                 onPreviousChapter = ::loadPreviousChapter,

@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.track
 
 import eu.kanade.tachiyomi.data.track.anilist.Anilist
 import eu.kanade.tachiyomi.data.track.bangumi.Bangumi
+import eu.kanade.tachiyomi.data.track.hikka.Hikka
 import eu.kanade.tachiyomi.data.track.kavita.Kavita
 import eu.kanade.tachiyomi.data.track.kitsu.Kitsu
 import eu.kanade.tachiyomi.data.track.komga.Komga
@@ -21,6 +22,7 @@ class TrackerManager {
         const val ANILIST = 2L
         const val KITSU = 3L
         const val KAVITA = 8L
+        const val MANGABAKA = 13L
     }
 
     val myAnimeList = MyAnimeList(1L)
@@ -35,7 +37,8 @@ class TrackerManager {
     val novelUpdates = NovelUpdates(10L)
     val novelList = NovelList(11L)
     val ranobeDb = RanobeDb(12L)
-    val mangaBaka = MangaBaka(13L)
+    val mangaBaka = MangaBaka(MANGABAKA)
+    val hikka = Hikka(14L)
 
     val trackers = listOf(
         myAnimeList,
@@ -51,6 +54,7 @@ class TrackerManager {
         novelList,
         ranobeDb,
         mangaBaka,
+        hikka,
     )
 
     /**
@@ -64,7 +68,7 @@ class TrackerManager {
      * Trackers that are only for manga (no novel support).
      * These should be hidden when tracking novels.
      */
-    val mangaOnlyTrackers = listOf(kitsu, shikimori, bangumi, komga, kavita, suwayomi)
+    val mangaOnlyTrackers = listOf(kitsu, shikimori, bangumi, komga, kavita, suwayomi, hikka)
 
     /**
      * Trackers that are only for novels.

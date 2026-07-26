@@ -119,7 +119,7 @@ interface SearchableSettings : Screen {
             when (item) {
                 is Preference.PreferenceItem.SwitchPreference -> item.preference.delete()
                 is Preference.PreferenceItem.ListPreference<*> -> item.preference.delete()
-                is Preference.PreferenceItem.MultiSelectListPreference -> item.preference.delete()
+                is Preference.PreferenceItem.MultiSelectListPreference<*> -> item.preference.delete()
                 is Preference.PreferenceItem.EditTextPreference -> item.preference.delete()
                 is Preference.PreferenceItem.SliderPreference -> item.preference?.delete()
                 is Preference.PreferenceItem.TextPreference -> {}
