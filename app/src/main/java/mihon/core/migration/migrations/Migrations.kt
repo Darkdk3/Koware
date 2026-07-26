@@ -11,4 +11,5 @@ val migrations: List<Migration>
         InstallationIdMigration(),
         NovelRateLimitPreferencesMigration(),
         VerticalNavigatorMigration(),
+        TrackerIdRekeyMigration(),
     )
