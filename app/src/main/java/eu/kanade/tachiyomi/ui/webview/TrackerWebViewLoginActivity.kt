@@ -106,10 +106,10 @@ class TrackerWebViewLoginActivity : BaseActivity() {
                     configuredUserAgent = configuredUserAgent,
                     onLoginSuccess = { token ->
                         val tracker = when (trackerId) {
-                            10L -> trackerManager.novelUpdates
-                            11L -> trackerManager.novelList
-                            12L -> trackerManager.ranobeDb
-                            13L -> trackerManager.mangaBaka
+                            TrackerManager.NOVELUPDATES -> trackerManager.novelUpdates
+                            TrackerManager.NOVELLIST -> trackerManager.novelList
+                            TrackerManager.RANOBEDB -> trackerManager.ranobeDb
+                            TrackerManager.MANGABAKA -> trackerManager.mangaBaka
                             else -> null
                         }
                         tracker?.let {
@@ -205,7 +205,10 @@ private fun TrackerWebViewLoginScreen(
                             contentDescription = "Refresh",
                         )
                     }
-                    if (trackerId == 11L || trackerId == 12L || trackerId == 13L) {
+                    if (trackerId == TrackerManager.NOVELLIST ||
+                        trackerId == TrackerManager.RANOBEDB ||
+                        trackerId == TrackerManager.MANGABAKA
+                    ) {
                         IconButton(onClick = { showManualTokenDialog = true }) {
                             Icon(
                                 imageVector = Icons.Outlined.Edit,
@@ -284,10 +287,10 @@ private fun TrackerWebViewLoginScreen(
                 val instructions =
                     @Suppress("ktlint:standard:max-line-length")
                     when (trackerId) {
-                        10L -> "Login to NovelUpdates, then tap the ✓ button to complete login."
-                        11L -> "Login to NovelList, then tap the ✓ button to complete login. Use the edit icon to paste token/cookie manually."
-                        12L -> "Login to RanobeDB, then tap the ✓ button to complete login. Use the edit icon to paste the auth_session cookie manually."
-                        13L -> "Login to MangaBaka, navigate to your API keys page, then paste the PAT (mb-...) via the edit icon. The ✓ button also tries to extract a session cookie."
+                        TrackerManager.NOVELUPDATES -> "Login to NovelUpdates, then tap the ✓ button to complete login."
+                        TrackerManager.NOVELLIST -> "Login to NovelList, then tap the ✓ button to complete login. Use the edit icon to paste token/cookie manually."
+                        TrackerManager.RANOBEDB -> "Login to RanobeDB, then tap the ✓ button to complete login. Use the edit icon to paste the auth_session cookie manually."
+                        TrackerManager.MANGABAKA -> "Login to MangaBaka, navigate to your API keys page, then paste the PAT (mb-...) via the edit icon. The ✓ button also tries to extract a session cookie."
                         else -> "Login, then tap the ✓ button to complete."
                     }
                 Text(
@@ -298,15 +301,21 @@ private fun TrackerWebViewLoginScreen(
                 )
             }
 
-            if (showManualTokenDialog && (trackerId == 11L || trackerId == 12L || trackerId == 13L)) {
+            if (showManualTokenDialog &&
+                (
+                    trackerId == TrackerManager.NOVELLIST ||
+                        trackerId == TrackerManager.RANOBEDB ||
+                        trackerId == TrackerManager.MANGABAKA
+                    )
+            ) {
                 AlertDialog(
                     onDismissRequest = { showManualTokenDialog = false },
                     title = {
                         Text(
                             when (trackerId) {
-                                11L -> "NovelList token/cookie"
-                                12L -> "RanobeDB cookie"
-                                13L -> "MangaBaka PAT"
+                                TrackerManager.NOVELLIST -> "NovelList token/cookie"
+                                TrackerManager.RANOBEDB -> "RanobeDB cookie"
+                                TrackerManager.MANGABAKA -> "MangaBaka PAT"
                                 else -> "Token"
                             },
                         )
@@ -319,9 +328,9 @@ private fun TrackerWebViewLoginScreen(
                             label = { Text("Token or cookie") },
                             placeholder = {
                                 val hint = when (trackerId) {
-                                    11L -> "Paste JWT, novellist cookie, or full cookie header"
-                                    12L -> "Paste auth_session value or full cookie header"
-                                    13L -> "Paste your mb-... PAT from mangabaka.org account"
+                                    TrackerManager.NOVELLIST -> "Paste JWT, novellist cookie, or full cookie header"
+                                    TrackerManager.RANOBEDB -> "Paste auth_session value or full cookie header"
+                                    TrackerManager.MANGABAKA -> "Paste your mb-... PAT from mangabaka.org account"
                                     else -> "Paste your token"
                                 }
                                 Text(hint)
@@ -334,9 +343,9 @@ private fun TrackerWebViewLoginScreen(
                         TextButton(
                             onClick = {
                                 val token = when (trackerId) {
-                                    11L -> normalizeNovelListToken(manualTokenInput)
-                                    12L -> normalizeRanobeDbCookie(manualTokenInput)
-                                    13L -> normalizeMangaBakaToken(manualTokenInput)
+                                    TrackerManager.NOVELLIST -> normalizeNovelListToken(manualTokenInput)
+                                    TrackerManager.RANOBEDB -> normalizeRanobeDbCookie(manualTokenInput)
+                                    TrackerManager.MANGABAKA -> normalizeMangaBakaToken(manualTokenInput)
                                     else -> null
                                 }
                                 if (token != null) {
@@ -424,7 +433,7 @@ private suspend fun extractTokenFromCookies(trackerId: Long, currentUrl: String)
 
         when (trackerId) {
             // NovelUpdates - extract session cookies
-            10L -> {
+            TrackerManager.NOVELUPDATES -> {
                 val cookies = cookieManager.getCookie("https://www.novelupdates.com")
                 logcat(LogPriority.DEBUG) { "NovelUpdates cookies: $cookies" }
                 if (cookies != null && cookies.contains("wordpress_logged_in")) {
@@ -436,7 +445,7 @@ private suspend fun extractTokenFromCookies(trackerId: Long, currentUrl: String)
                 }
             }
             // NovelList - extract JWT from cookie
-            11L -> {
+            TrackerManager.NOVELLIST -> {
                 val cookies = cookieManager.getCookie("https://www.novellist.co")
                 logcat(LogPriority.DEBUG) { "NovelList cookies: $cookies" }
                 if (cookies != null) {
@@ -459,7 +468,7 @@ private suspend fun extractTokenFromCookies(trackerId: Long, currentUrl: String)
                 }
             }
             // MangaBaka - prefer Better-Auth session cookies; fall back to PAT pattern.
-            13L -> {
+            TrackerManager.MANGABAKA -> {
                 val cookies = cookieManager.getCookie("https://mangabaka.org")
                 logcat(LogPriority.DEBUG) { "MangaBaka cookies: $cookies" }
                 if (cookies != null) {
@@ -485,7 +494,7 @@ private suspend fun extractTokenFromCookies(trackerId: Long, currentUrl: String)
                 }
             }
             // RanobeDB - extract auth_session cookie
-            12L -> {
+            TrackerManager.RANOBEDB -> {
                 val cookies = cookieManager.getCookie("https://ranobedb.org")
                 logcat(LogPriority.DEBUG) { "RanobeDB cookies: $cookies" }
                 if (cookies != null) {

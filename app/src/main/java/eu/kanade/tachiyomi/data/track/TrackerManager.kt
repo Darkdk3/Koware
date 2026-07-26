@@ -22,7 +22,10 @@ class TrackerManager {
         const val ANILIST = 2L
         const val KITSU = 3L
         const val KAVITA = 8L
-        const val MANGABAKA = 13L
+        const val MANGABAKA = 11L
+        const val NOVELUPDATES = 100L
+        const val NOVELLIST = 101L
+        const val RANOBEDB = 102L
     }
 
     val myAnimeList = MyAnimeList(1L)
@@ -34,11 +37,13 @@ class TrackerManager {
     val mangaUpdates = MangaUpdates(7L)
     val kavita = Kavita(KAVITA)
     val suwayomi = Suwayomi(9L)
-    val novelUpdates = NovelUpdates(10L)
-    val novelList = NovelList(11L)
-    val ranobeDb = RanobeDb(12L)
+    val hikka = Hikka(10L)
     val mangaBaka = MangaBaka(MANGABAKA)
-    val hikka = Hikka(14L)
+
+    // Exclusive to tsundoku: re-keyed into the 100+ range to stay clear of upstream mihon's ids.
+    val novelUpdates = NovelUpdates(NOVELUPDATES)
+    val novelList = NovelList(NOVELLIST)
+    val ranobeDb = RanobeDb(RANOBEDB)
 
     val trackers = listOf(
         myAnimeList,

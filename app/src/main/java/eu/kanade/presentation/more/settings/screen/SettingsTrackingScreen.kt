@@ -202,7 +202,7 @@ object SettingsTrackingScreen : SearchableSettings {
                         login = {
                             val intent = TrackerWebViewLoginActivity.newIntent(
                                 context,
-                                trackerId = 13L,
+                                trackerId = TrackerManager.MANGABAKA,
                                 trackerName = "MangaBaka",
                                 loginUrl = "https://mangabaka.org/login",
                             )
@@ -247,7 +247,7 @@ object SettingsTrackingScreen : SearchableSettings {
                             // Use WebView-based login for NovelUpdates
                             val intent = TrackerWebViewLoginActivity.newIntent(
                                 context,
-                                trackerId = 10L,
+                                trackerId = TrackerManager.NOVELUPDATES,
                                 trackerName = "NovelUpdates",
                                 loginUrl = "https://www.novelupdates.com/login/",
                             )
@@ -281,7 +281,7 @@ object SettingsTrackingScreen : SearchableSettings {
                             // Use WebView-based login for NovelList
                             val intent = TrackerWebViewLoginActivity.newIntent(
                                 context,
-                                trackerId = 11L,
+                                trackerId = TrackerManager.NOVELLIST,
                                 trackerName = "NovelList",
                                 loginUrl = "https://www.novellist.co/sign-in",
                             )
@@ -304,7 +304,7 @@ object SettingsTrackingScreen : SearchableSettings {
                         login = {
                             val intent = TrackerWebViewLoginActivity.newIntent(
                                 context,
-                                trackerId = 12L,
+                                trackerId = TrackerManager.RANOBEDB,
                                 trackerName = "RanobeDB",
                                 loginUrl = "https://ranobedb.org/login",
                             )
