@@ -20,7 +20,7 @@ import tachiyomi.core.common.util.lang.withIOContext
  * keyed by id and would otherwise be orphaned under the old id and silently log the user out.
  */
 class TrackerIdRekeyMigration : Migration {
-    override val version: Float = 26f
+    override val version: Float = 23f
 
     override suspend fun invoke(migrationContext: MigrationContext): Boolean = withIOContext {
         val preferenceStore = migrationContext.get<PreferenceStore>() ?: return@withIOContext false
