@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.source.CatalogueSource
+import eu.kanade.tachiyomi.source.nameWithTypeTag
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -90,7 +91,7 @@ fun QuickMigrateSourcePickerDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
-                            Text(text = source.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(text = source.nameWithTypeTag(), style = MaterialTheme.typography.bodyLarge)
                             Text(
                                 text = source.lang,
                                 style = MaterialTheme.typography.bodySmall,

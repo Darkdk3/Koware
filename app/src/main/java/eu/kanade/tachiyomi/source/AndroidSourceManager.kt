@@ -156,7 +156,13 @@ class AndroidSourceManager(
         scope.launch {
             val dbSource = sourceRepository.getStubSource(source.id)
             if (dbSource == source) return@launch
-            sourceRepository.upsertStubSource(source.id, source.lang, source.name, source.isNovelSource)
+            sourceRepository.upsertStubSource(
+                source.id,
+                source.lang,
+                source.name,
+                source.isNovelSource,
+                source.isJsSource,
+            )
             if (dbSource != null) {
                 downloadManager.renameSource(dbSource, source)
             }
@@ -164,8 +170,15 @@ class AndroidSourceManager(
     }
 
     private suspend fun createStubSource(id: Long): StubSource {
-        sourceRepository.getStubSource(id)?.let {
-            return it
+        sourceRepository.getStubSource(id)?.let { dbSource ->
+            // Rows seeded from is_novel by migration 34 marked Kotlin novel extensions as JS. An id
+            // the extension manager lists is an APK extension, so clear the marker and persist it.
+            if (dbSource.isJsSource && extensionManager.getSourceData(id) != null) {
+                val corrected = dbSource.copy(isJsSource = false)
+                registerStubSource(corrected)
+                return corrected
+            }
+            return dbSource
         }
         extensionManager.getSourceData(id)?.let {
             registerStubSource(it)
