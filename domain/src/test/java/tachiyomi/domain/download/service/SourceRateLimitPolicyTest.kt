@@ -38,9 +38,71 @@ class SourceRateLimitPolicyTest {
     )
 
     @Test
-    fun `unknown host resolves to NONE`() {
+    fun `unknown host falls back to the global default spec`() {
         val result = policy().specFor("unknown.example.com")
-        result shouldBe RateLimitSpec.NONE
+        result shouldBe RateLimitResolver(NovelDownloadPreferences(InMemoryPreferenceStore())).resolveDefault()
+    }
+
+    @Test
+    fun `unknown host resolves to NONE when throttling is disabled`() {
+        val prefs = NovelDownloadPreferences(InMemoryPreferenceStore())
+        prefs.enableRequestThrottling().set(false)
+        val sourceManager = mockk<SourceManager> {
+            every { getRateLimitCandidates() } returns emptyList()
+            every { isInitialized } returns MutableStateFlow(true)
+        }
+        val policy = SourceRateLimitPolicy(sourceManager, RateLimitResolver(prefs))
+
+        policy.specFor("unknown.example.com") shouldBe RateLimitSpec.NONE
+    }
+
+    @Test
+    fun `subdomain of a known source's baseUrl resolves that source's spec`() {
+        val candidate = novelCandidate("example.com")
+        val result = policy(candidate).specFor("api.example.com")
+        (result.delayMillis > 0) shouldBe true
+    }
+
+    @Test
+    fun `sibling subdomain of a known source's baseUrl resolves that source's spec`() {
+        val candidate = novelCandidate("cdn.example.com")
+        val result = policy(candidate).specFor("api.example.com")
+        (result.delayMillis > 0) shouldBe true
+    }
+
+    @Test
+    fun `unrelated domain is not matched by an unrelated source's baseUrl`() {
+        val candidate = novelCandidate("example.com")
+        val result = policy(candidate).specFor("totally-unrelated.org")
+        result shouldBe RateLimitResolver(NovelDownloadPreferences(InMemoryPreferenceStore())).resolveDefault()
+    }
+
+    @Test
+    fun `unrelated tenant of a wildcard hosting suffix is not matched to another tenant's source`() {
+        // Regression test: "alice.github.io" and "bob.github.io" share a naive last-two-labels
+        // split ("github.io") but are unrelated sites - matching them would let an unmetered
+        // tenant's spec (e.g. NONE) silently exempt a completely unrelated host.
+        val candidate = novelCandidate("alice.github.io", isUnmetered = true)
+        val result = policy(candidate).specFor("bob.github.io")
+        result shouldBe RateLimitResolver(NovelDownloadPreferences(InMemoryPreferenceStore())).resolveDefault()
+    }
+
+    @Test
+    fun `subdomain of the same wildcard hosting tenant still resolves that tenant's source`() {
+        val candidate = novelCandidate("alice.github.io")
+        val result = policy(candidate).specFor("api.alice.github.io")
+        (result.delayMillis > 0) shouldBe true
+    }
+
+    @Test
+    fun `unrelated host sharing IP octets with a source's IP baseUrl is not matched to that source`() {
+        // Regression test: a naive last-two-labels split treats a dotted-quad IP's last two
+        // octets as if they were a registrable domain, so "192.168.1.50" and "10.0.1.50" (two
+        // unrelated self-hosted servers that happen to share their last two octets - plausible
+        // on any home LAN) would otherwise be wrongly grouped together.
+        val candidate = novelCandidate("192.168.1.50", isUnmetered = true)
+        val result = policy(candidate).specFor("10.0.1.50")
+        result shouldBe RateLimitResolver(NovelDownloadPreferences(InMemoryPreferenceStore())).resolveDefault()
     }
 
     @Test
