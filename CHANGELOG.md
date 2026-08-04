@@ -65,6 +65,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Dedupe queue additions [@mrissaoussama](https://github.com/mrissaoussama) [#374](https://github.com/tsundoku-otaku/tsundoku/pull/374)
 - Resolve library export urls properly in jssource [@mrissaoussama](https://github.com/mrissaoussama) [#357](https://github.com/tsundoku-otaku/tsundoku/pull/357)
 - Fix rare textview crash [@mrissaoussama](https://github.com/mrissaoussama) [#371](https://github.com/tsundoku-otaku/tsundoku/pull/371)
+- JS plugin delete-then-create race fix [@mrissaoussama](https://github.com/mrissaoussama) [#375](https://github.com/tsundoku-otaku/tsundoku/pull/375)
 - Guard download cache serialization [@mrissaoussama](https://github.com/mrissaoussama) [#346](https://github.com/tsundoku-otaku/tsundoku/pull/346)
 - Paginated library export to prevent potential OOM, added cancel to notif [@mrissaoussama](https://github.com/mrissaoussama) [#270](https://github.com/tsundoku-otaku/tsundoku/pull/270)
 - Correct import stats when app is restarted [@mrissaoussama](https://github.com/mrissaoussama) [#272](https://github.com/tsundoku-otaku/tsundoku/pull/272)
