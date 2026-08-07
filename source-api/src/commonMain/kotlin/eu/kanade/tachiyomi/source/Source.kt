@@ -126,7 +126,7 @@ interface Source {
      */
     @Deprecated(
         "deprecated in 1.6, Only CatalogueSource's getMangaUpdate default calls this.",
-                ReplaceWith("getMangaUpdate"),
+        ReplaceWith("getMangaUpdate"),
     )
     @Suppress("DEPRECATION")
     suspend fun getChapterList(manga: SManga): List<SChapter> {
