@@ -30,6 +30,7 @@ import okhttp3.Headers.Companion.headersOf
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
 import tachiyomi.core.common.util.lang.withIOContext
+import tachiyomi.i18n.MR
 import uy.kohesive.injekt.injectLazy
 import java.math.RoundingMode
 import java.security.SecureRandom
@@ -51,7 +52,7 @@ class MangaBakaApi(
             .header(
                 "User-Agent",
                 buildString {
-                    append("Mihon/v${BuildConfig.VERSION_NAME} ")
+                    append("${MR.strings.app_name}/v${BuildConfig.VERSION_NAME} ")
                     append("(${BuildConfig.APPLICATION_ID} ${BuildConfig.COMMIT_SHA}) ")
                     append("(Android) (https://github.com/tsundoku-otaku/tsundoku)")
                 },
