@@ -64,8 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.ViewCompat
 import androidx.core.view.updatePadding
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.recyclerview.widget.LinearLayoutManager
-import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.components.AppBar
@@ -99,11 +99,11 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
-        val screenModel = rememberScreenModel { DownloadQueueScreenModel() }
-        val mangaList by screenModel.state.collectAsState()
-        val novelList by screenModel.novelState.collectAsState()
-        val pausedGroups by screenModel.pausedNovelMangaIds.collectAsState()
-        val titleMaxLines by screenModel.titleMaxLines.collectAsState()
+        val viewModel = viewModel<DownloadQueueViewModel>()
+        val mangaList by viewModel.state.collectAsState()
+        val novelList by viewModel.novelState.collectAsState()
+        val pausedGroups by viewModel.pausedNovelMangaIds.collectAsState()
+        val titleMaxLines by viewModel.titleMaxLines.collectAsState()
 
         val translationService = remember { Injekt.get<TranslationService>() }
         val translationProgress by translationService.progressState.collectAsState()
@@ -307,7 +307,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             val order = novelList
                                                 .sortedByDescending { it.overallProgress }
                                                 .map { it.mangaId }
-                                            screenModel.reorderNovelQueueByGroupOrder(order)
+                                            viewModel.reorderNovelQueueByGroupOrder(order)
                                             onDismissRequest()
                                         },
                                     )
@@ -319,7 +319,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             val order = novelList
                                                 .sortedByDescending { it.totalChapters }
                                                 .map { it.mangaId }
-                                            screenModel.reorderNovelQueueByGroupOrder(order)
+                                            viewModel.reorderNovelQueueByGroupOrder(order)
                                             onDismissRequest()
                                         },
                                     )
@@ -336,7 +336,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                                     ),
                                                 )
                                                 .map { it.mangaId }
-                                            screenModel.reorderNovelQueueByGroupOrder(order)
+                                            viewModel.reorderNovelQueueByGroupOrder(order)
                                             onDismissRequest()
                                         },
                                     )
@@ -349,7 +349,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_newest)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.chapterDateUpload },
                                                         true,
                                                     )
@@ -359,7 +359,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_oldest)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.chapterDateUpload },
                                                         false,
                                                     )
@@ -376,7 +376,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_asc)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.chapterNumber },
                                                         false,
                                                     )
@@ -386,7 +386,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_desc)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.chapterNumber },
                                                         true,
                                                     )
@@ -404,7 +404,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_desc)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.progress },
                                                         true,
                                                     )
@@ -414,7 +414,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_asc)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.progress },
                                                         false,
                                                     )
@@ -432,7 +432,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_asc)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.source.name.lowercase() },
                                                         false,
                                                     )
@@ -442,7 +442,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             DropdownMenuItem(
                                                 text = { Text(text = stringResource(MR.strings.action_desc)) },
                                                 onClick = {
-                                                    screenModel.reorderQueue(
+                                                    viewModel.reorderQueue(
                                                         { it.download.source.name.lowercase() },
                                                         true,
                                                     )
@@ -468,7 +468,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                     ),
                                     AppBar.OverflowAction(
                                         title = stringResource(MR.strings.action_cancel_all),
-                                        onClick = { screenModel.clearQueue() },
+                                        onClick = { viewModel.clearQueue() },
                                     ),
                                 ),
                             )
@@ -478,7 +478,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                 )
             },
             floatingActionButton = {
-                val isRunning by screenModel.isDownloaderRunning.collectAsState()
+                val isRunning by viewModel.isDownloaderRunning.collectAsState()
                 SmallExtendedFloatingActionButton(
                     text = {
                         val id = if (isRunning) {
@@ -498,9 +498,9 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                     },
                     onClick = {
                         if (isRunning) {
-                            screenModel.pauseDownloads()
+                            viewModel.pauseDownloads()
                         } else {
-                            screenModel.startDownloads()
+                            viewModel.startDownloads()
                         }
                     },
                     expanded = fabExpanded,
@@ -560,32 +560,32 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                             AndroidView(
                                 modifier = Modifier.fillMaxWidth(),
                                 factory = { context ->
-                                    screenModel.controllerBinding =
+                                    viewModel.controllerBinding =
                                         DownloadListBinding.inflate(LayoutInflater.from(context))
-                                    screenModel.adapter = DownloadAdapter(screenModel.listener)
-                                    screenModel.controllerBinding.root.adapter = screenModel.adapter
-                                    screenModel.adapter?.isHandleDragEnabled = canReorder
-                                    screenModel.controllerBinding.root.layoutManager =
+                                    viewModel.adapter = DownloadAdapter(viewModel.listener)
+                                    viewModel.controllerBinding.root.adapter = viewModel.adapter
+                                    viewModel.adapter?.isHandleDragEnabled = canReorder
+                                    viewModel.controllerBinding.root.layoutManager =
                                         LinearLayoutManager(context)
 
                                     ViewCompat.setNestedScrollingEnabled(
-                                        screenModel.controllerBinding.root,
+                                        viewModel.controllerBinding.root,
                                         true,
                                     )
 
                                     scope.launchUI {
-                                        screenModel.getDownloadStatusFlow()
-                                            .collect(screenModel::onStatusChange)
+                                        viewModel.getDownloadStatusFlow()
+                                            .collect(viewModel::onStatusChange)
                                     }
                                     scope.launchUI {
-                                        screenModel.getDownloadProgressFlow()
-                                            .collect(screenModel::onUpdateDownloadedPages)
+                                        viewModel.getDownloadProgressFlow()
+                                            .collect(viewModel::onUpdateDownloadedPages)
                                     }
 
-                                    screenModel.controllerBinding.root
+                                    viewModel.controllerBinding.root
                                 },
                                 update = {
-                                    screenModel.controllerBinding.root
+                                    viewModel.controllerBinding.root
                                         .updatePadding(
                                             left = left,
                                             top = 0,
@@ -593,8 +593,8 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             bottom = bottom,
                                         )
 
-                                    screenModel.adapter?.isHandleDragEnabled = canReorder
-                                    screenModel.adapter?.updateDataSet(filteredMangaList)
+                                    viewModel.adapter?.isHandleDragEnabled = canReorder
+                                    viewModel.adapter?.updateDataSet(filteredMangaList)
                                 },
                             )
                         } else {
@@ -618,14 +618,14 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                         isPaused = item.mangaId in pausedGroups,
                                         onPauseResume = {
                                             if (item.mangaId in pausedGroups) {
-                                                screenModel.resumeNovelGroup(item.mangaId)
+                                                viewModel.resumeNovelGroup(item.mangaId)
                                             } else {
-                                                screenModel.pauseNovelGroup(item.mangaId)
+                                                viewModel.pauseNovelGroup(item.mangaId)
                                             }
                                         },
-                                        onCancel = { screenModel.cancel(item.subItems) },
+                                        onCancel = { viewModel.cancel(item.subItems) },
                                         onMoveToTop = {
-                                            screenModel.reorder(
+                                            viewModel.reorder(
                                                 item.subItems + (
                                                     novelList.flatMap {
                                                         it.subItems
@@ -634,7 +634,7 @@ class DownloadQueueScreen(private val initialTab: Int = 0) : Screen() {
                                             )
                                         },
                                         onMoveToBottom = {
-                                            screenModel.reorder(
+                                            viewModel.reorder(
                                                 (
                                                     novelList.flatMap {
                                                         it.subItems
@@ -664,7 +664,7 @@ private fun NovelDownloadCard(
     onMoveToBottom: () -> Unit,
 ) {
     val context = LocalContext.current
-    val errorLabel = stringResource(MR.strings.update_check_notification_download_error)
+    val errorLabel = stringResource(MR.strings.download_notifier_title_error)
     var showMenu by remember { mutableStateOf(false) }
     var errorsExpanded by remember { mutableStateOf(false) }
 

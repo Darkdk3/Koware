@@ -42,7 +42,7 @@ class NovelExtensionsScreenModel(
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val jsPluginManager: JsPluginManager = Injekt.get(),
     private val getExtensions: GetExtensionsByType = Injekt.get(),
-) : StateScreenModel<ExtensionsScreenModel.State>(ExtensionsScreenModel.State()) {
+) : StateScreenModel<ExtensionsViewModel.State>(ExtensionsViewModel.State()) {
 
     private val currentDownloads = MutableStateFlow<Map<String, InstallStep>>(hashMapOf())
 

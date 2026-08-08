@@ -54,12 +54,12 @@ fun Screen.novelSourcesTab(): TabContent {
         ),
         content = { contentPadding, snackbarHostState ->
             val mappedDialog = when (val d = state.dialog) {
-                is NovelSourcesScreenModel.Dialog.SourceOptions -> SourcesScreenModel.Dialog.SourceOptions(d.source)
-                is NovelSourcesScreenModel.Dialog.PinGroups -> SourcesScreenModel.Dialog.PinGroups(d.source)
+                is NovelSourcesScreenModel.Dialog.SourceOptions -> SourcesViewModel.Dialog.SourceOptions(d.source)
+                is NovelSourcesScreenModel.Dialog.PinGroups -> SourcesViewModel.Dialog.PinGroups(d.source)
                 null -> null
             }
             SourcesScreen(
-                state = SourcesScreenModel.State(
+                state = SourcesViewModel.State(
                     dialog = mappedDialog,
                     isLoading = state.isLoading,
                     items = state.items,

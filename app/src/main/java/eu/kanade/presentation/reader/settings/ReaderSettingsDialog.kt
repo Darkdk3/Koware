@@ -23,7 +23,7 @@ import eu.kanade.presentation.components.TabTitle
 import eu.kanade.presentation.components.TabbedDialog
 import eu.kanade.presentation.components.TabbedDialogPaddings
 import eu.kanade.presentation.components.toTabTitles
-import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsScreenModel
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -33,21 +33,21 @@ fun ReaderSettingsDialog(
     onDismissRequest: () -> Unit,
     onShowMenus: () -> Unit,
     onHideMenus: () -> Unit,
-    screenModel: ReaderSettingsScreenModel,
+    viewModel: ReaderSettingsViewModel,
     isNovelMode: Boolean = false,
 ) {
     if (isNovelMode) {
         NovelReaderSettingsDialog(
             onDismissRequest = onDismissRequest,
             onShowMenus = onShowMenus,
-            screenModel = screenModel,
+            viewModel = viewModel,
         )
     } else {
         MangaReaderSettingsDialog(
             onDismissRequest = onDismissRequest,
             onShowMenus = onShowMenus,
             onHideMenus = onHideMenus,
-            screenModel = screenModel,
+            viewModel = viewModel,
         )
     }
 }
@@ -57,7 +57,7 @@ private fun MangaReaderSettingsDialog(
     onDismissRequest: () -> Unit,
     onShowMenus: () -> Unit,
     onHideMenus: () -> Unit,
-    screenModel: ReaderSettingsScreenModel,
+    viewModel: ReaderSettingsViewModel,
 ) {
     val tabTitles = listOf(
         stringResource(MR.strings.pref_category_reading_mode),
@@ -94,9 +94,9 @@ private fun MangaReaderSettingsDialog(
                     .verticalScroll(rememberScrollState()),
             ) {
                 when (page) {
-                    0 -> ReadingModePage(screenModel)
-                    1 -> GeneralPage(screenModel)
-                    2 -> ColorFilterPage(screenModel)
+                    0 -> ReadingModePage(viewModel)
+                    1 -> GeneralPage(viewModel)
+                    2 -> ColorFilterPage(viewModel)
                 }
             }
         }
@@ -107,9 +107,9 @@ private fun MangaReaderSettingsDialog(
 private fun NovelReaderSettingsDialog(
     onDismissRequest: () -> Unit,
     onShowMenus: () -> Unit,
-    screenModel: ReaderSettingsScreenModel,
+    viewModel: ReaderSettingsViewModel,
 ) {
-    val renderingMode by screenModel.preferences.novelRenderingMode.collectAsState()
+    val renderingMode by viewModel.preferences.novelRenderingMode.collectAsState()
     val tabTitles = listOf(
         TabTitle.Icon(imageVector = Icons.Outlined.TextFields), // Reading
         TabTitle.Icon(imageVector = Icons.Outlined.Palette), // Appearance
@@ -135,11 +135,11 @@ private fun NovelReaderSettingsDialog(
                     .verticalScroll(rememberScrollState()),
             ) {
                 when (page) {
-                    0 -> NovelReadingTab(screenModel, renderingMode)
-                    1 -> NovelAppearanceTab(screenModel, renderingMode)
-                    2 -> NovelControlsTab(screenModel, renderingMode)
-                    3 -> NovelTtsTab(screenModel)
-                    4 -> NovelAdvancedTab(screenModel, renderingMode)
+                    0 -> NovelReadingTab(viewModel, renderingMode)
+                    1 -> NovelAppearanceTab(viewModel, renderingMode)
+                    2 -> NovelControlsTab(viewModel, renderingMode)
+                    3 -> NovelTtsTab(viewModel)
+                    4 -> NovelAdvancedTab(viewModel, renderingMode)
                 }
             }
         }

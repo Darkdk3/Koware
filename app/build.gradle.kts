@@ -225,6 +225,7 @@ dependencies {
     implementation(projects.i18nNovel)
     implementation(projects.core.archive)
     implementation(projects.core.common)
+    implementation(projects.core.viewmodel)
     implementation(projects.coreMetadata)
     implementation(projects.sourceApi)
     implementation(projects.sourceLocal)
@@ -257,6 +258,8 @@ dependencies {
     implementation(libs.bundles.kotlinx.coroutines)
 
     implementation(libs.sqldelight.async)
+
+    implementation(libs.kotlinx.datetime)
 
     // AndroidX libraries
     implementation(libs.androidx.annotation)

@@ -10,7 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -27,7 +27,7 @@ import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
-import eu.kanade.tachiyomi.ui.updates.UpdatesScreenModel.Event
+import eu.kanade.tachiyomi.ui.updates.UpdatesViewModel.Event
 import kotlinx.coroutines.flow.collectLatest
 import mihon.feature.upcoming.UpcomingScreen
 import tachiyomi.core.common.i18n.stringResource
@@ -58,72 +58,68 @@ data object UpdatesTab : Tab {
     override fun Content() {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-        val screenModel = rememberScreenModel { UpdatesScreenModel() }
-        val settingsScreenModel = rememberScreenModel { UpdatesSettingsScreenModel() }
+        val viewModel = viewModel<UpdatesViewModel>()
+        val settingsViewModel = viewModel<UpdatesSettingsViewModel>()
         val basePreferences = remember { Injekt.get<BasePreferences>() }
-        val state by screenModel.state.collectAsState()
+        val state by viewModel.state.collectAsState()
         val hideMangaUi by basePreferences.hideMangaUi.changes().collectAsState(
             initial = basePreferences.hideMangaUi.get(),
         )
 
         LaunchedEffect(hideMangaUi) {
-            screenModel.syncFilterWithHideManga(hideMangaUi)
+            viewModel.syncFilterWithHideManga(hideMangaUi)
         }
 
         UpdateScreen(
             state = state,
-            snackbarHostState = screenModel.snackbarHostState,
+            snackbarHostState = viewModel.snackbarHostState,
             showFilterChips = !hideMangaUi,
-            lastUpdated = screenModel.lastUpdated,
+            lastUpdated = viewModel.lastUpdated,
             onClickCover = { item -> navigator.push(MangaScreen(item.update.mangaId)) },
-            onSelectAll = screenModel::toggleAllSelection,
-            onInvertSelection = screenModel::invertSelection,
-            onUpdateLibrary = screenModel::updateLibrary,
-            onDownloadChapter = screenModel::downloadChapters,
-            onMultiBookmarkClicked = screenModel::bookmarkUpdates,
-            onMultiMarkAsReadClicked = screenModel::markUpdatesRead,
-            onMultiDeleteClicked = screenModel::showConfirmDeleteChapters,
-            onUpdateSelected = screenModel::toggleSelection,
+            onSelectAll = viewModel::toggleAllSelection,
+            onInvertSelection = viewModel::invertSelection,
+            onUpdateLibrary = viewModel::updateLibrary,
+            onDownloadChapter = viewModel::downloadChapters,
+            onMultiBookmarkClicked = viewModel::bookmarkUpdates,
+            onMultiMarkAsReadClicked = viewModel::markUpdatesRead,
+            onMultiDeleteClicked = viewModel::showConfirmDeleteChapters,
+            onUpdateSelected = viewModel::toggleSelection,
             onOpenChapter = {
                 val intent = ReaderActivity.newIntent(context, it.update.mangaId, it.update.chapterId)
                 context.startActivity(intent)
             },
             onCalendarClicked = { navigator.push(UpcomingScreen()) },
-            onFilterSelected = screenModel::setFilter,
-            onFilterClicked = screenModel::showFilterDialog,
+            onFilterSelected = viewModel::setFilter,
+            onFilterClicked = viewModel::showFilterDialog,
             hasActiveFilters = state.hasActiveFilters,
             showAllFilter = !hideMangaUi,
             showMangaFilter = !hideMangaUi,
-            onToggleGroupByNovel = screenModel::toggleGroupByNovel,
+            onToggleGroupByNovel = viewModel::toggleGroupByNovel,
             onClickNovelGroup = { mangaId -> navigator.push(MangaScreen(mangaId)) },
-            onLoadMore = screenModel::loadMore,
+            onLoadMore = viewModel::loadMore,
         )
 
-        LaunchedEffect(hideMangaUi) {
-            screenModel.syncFilterWithHideManga(hideMangaUi)
-        }
-
-        val onDismissDialog = { screenModel.setDialog(null) }
+        val onDismissDialog = { viewModel.setDialog(null) }
         when (val dialog = state.dialog) {
-            is UpdatesScreenModel.Dialog.DeleteConfirmation -> {
+            is UpdatesViewModel.Dialog.DeleteConfirmation -> {
                 UpdatesDeleteConfirmationDialog(
                     onDismissRequest = onDismissDialog,
-                    onConfirm = { screenModel.deleteChapters(dialog.toDelete) },
+                    onConfirm = { viewModel.deleteChapters(dialog.toDelete) },
                 )
             }
-            is UpdatesScreenModel.Dialog.FilterSheet -> {
+            is UpdatesViewModel.Dialog.FilterSheet -> {
                 UpdatesFilterDialog(
                     onDismissRequest = onDismissDialog,
-                    screenModel = settingsScreenModel,
+                    viewModel = settingsViewModel,
                 )
             }
             null -> {}
         }
 
         LaunchedEffect(Unit) {
-            screenModel.events.collectLatest { event ->
+            viewModel.events.collectLatest { event ->
                 when (event) {
-                    Event.InternalError -> screenModel.snackbarHostState.showSnackbar(
+                    Event.InternalError -> viewModel.snackbarHostState.showSnackbar(
                         context.stringResource(MR.strings.internal_error),
                     )
                     is Event.LibraryUpdateTriggered -> {
@@ -132,7 +128,7 @@ data object UpdatesTab : Tab {
                         } else {
                             MR.strings.update_already_running
                         }
-                        screenModel.snackbarHostState.showSnackbar(context.stringResource(msg))
+                        viewModel.snackbarHostState.showSnackbar(context.stringResource(msg))
                     }
                 }
             }
@@ -148,10 +144,10 @@ data object UpdatesTab : Tab {
             }
         }
         DisposableEffect(Unit) {
-            screenModel.resetNewUpdatesCount()
+            viewModel.resetNewUpdatesCount()
 
             onDispose {
-                screenModel.resetNewUpdatesCount()
+                viewModel.resetNewUpdatesCount()
             }
         }
     }

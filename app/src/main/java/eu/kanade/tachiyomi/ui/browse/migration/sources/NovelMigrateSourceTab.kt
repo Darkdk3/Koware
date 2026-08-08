@@ -38,7 +38,7 @@ fun Screen.novelMigrateSourceTab(): TabContent {
         ),
         content = { contentPadding, _ ->
             MigrateSourceScreen(
-                state = MigrateSourceScreenModel.State(
+                state = MigrateSourceViewModel.State(
                     isLoading = state.isLoading,
                     items = state.items,
                     sortingMode = state.sortingMode,

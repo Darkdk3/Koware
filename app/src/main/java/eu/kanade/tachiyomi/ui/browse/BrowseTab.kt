@@ -10,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
@@ -18,7 +19,7 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsScreenModel
+import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.NovelExtensionsScreenModel
 import eu.kanade.tachiyomi.ui.browse.extension.extensionsTab
 import eu.kanade.tachiyomi.ui.browse.extension.novelExtensionsTab
@@ -70,8 +71,8 @@ data object BrowseTab : Tab {
         val hideMangaBrowseTabs = hideMangaUi
 
         // Hoisted for extensions tab's search bar
-        val extensionsScreenModel = rememberScreenModel { ExtensionsScreenModel() }
-        val extensionsState by extensionsScreenModel.state.collectAsState()
+        val extensionsViewModel = viewModel<ExtensionsViewModel>()
+        val extensionsState by extensionsViewModel.state.collectAsState()
 
         val novelExtensionsScreenModel = rememberScreenModel { NovelExtensionsScreenModel() }
         val novelExtensionsState by novelExtensionsScreenModel.state.collectAsState()
@@ -87,7 +88,7 @@ data object BrowseTab : Tab {
                 novelSourcesTab(),
                 sourcesTab(),
                 novelExtensionsTab(novelExtensionsScreenModel),
-                extensionsTab(extensionsScreenModel),
+                extensionsTab(extensionsViewModel),
                 novelMigrateSourceTab(),
                 migrateSourceTab(),
             )
@@ -110,7 +111,7 @@ data object BrowseTab : Tab {
             onChangeSearchQuery = { query ->
                 when (state.currentPage) {
                     novelExtensionsTabIndex -> novelExtensionsScreenModel.search(query)
-                    mangaExtensionsTabIndex -> extensionsScreenModel.search(query)
+                    mangaExtensionsTabIndex -> extensionsViewModel.search(query)
                 }
             },
         )

@@ -129,7 +129,9 @@ fun GlobalSearchToolbar(
                                     .rotate(arrowRotation),
                             )
                         }
-                    } else null,
+                    } else {
+                        null
+                    },
                     label = {
                         Text(text = pinnedLabel)
                     },
