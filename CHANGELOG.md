@@ -14,7 +14,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 
 ### Other
-- Merged v0.20.4 from Mihon [@Rojikku](https://github.com/Rojikku) [#](https://github.com/tsundoku-otaku/tsundoku/pull/)
+- Merged v0.20.4 from Mihon [@Rojikku](https://github.com/Rojikku) [#380](https://github.com/tsundoku-otaku/tsundoku/pull/380)
 
 ## [v0.3.0] - 2026-08-07
 ### Added
