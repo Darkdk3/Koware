@@ -1,8 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.extension
 
 import android.app.Application
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.extension.interactor.GetExtensionsByType
 import eu.kanade.domain.source.service.SourcePreferences
@@ -29,6 +28,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
+import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
@@ -36,13 +36,13 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
-class NovelExtensionsScreenModel(
+class NovelExtensionsViewModel(
     private val preferences: SourcePreferences = Injekt.get(),
     basePreferences: BasePreferences = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val jsPluginManager: JsPluginManager = Injekt.get(),
     private val getExtensions: GetExtensionsByType = Injekt.get(),
-) : StateScreenModel<ExtensionsViewModel.State>(ExtensionsViewModel.State()) {
+) : StateViewModel<ExtensionScreenState>(ExtensionScreenState()) {
 
     private val currentDownloads = MutableStateFlow<Map<String, InstallStep>>(hashMapOf())
 
@@ -90,7 +90,7 @@ class NovelExtensionsScreenModel(
             }
         }
 
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             combine(
                 state.map { it.searchQuery }.distinctUntilChanged().debounce(SEARCH_DEBOUNCE_MILLIS),
                 currentDownloads,
@@ -219,11 +219,11 @@ class NovelExtensionsScreenModel(
                 }
         }
 
-        screenModelScope.launchIO { findAvailableExtensions() }
+        viewModelScope.launchIO { findAvailableExtensions() }
 
         basePreferences.extensionInstaller.changes()
             .onEach { mutableState.update { state -> state.copy(installer = it) } }
-            .launchIn(screenModelScope)
+            .launchIn(viewModelScope)
     }
 
     fun search(query: String?) {
@@ -233,7 +233,7 @@ class NovelExtensionsScreenModel(
     }
 
     fun updateAllExtensions() {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             state.value.items.values.flatten()
                 .map { it.extension }
                 .filterIsInstance<Extension.Installed>()
@@ -243,13 +243,13 @@ class NovelExtensionsScreenModel(
     }
 
     fun installExtension(extension: Extension.Available) {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             extensionManager.installExtension(extension).collectToInstallUpdate(extension)
         }
     }
 
     fun installJsPlugin(extension: Extension.JsPlugin) {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             // Extract the original plugin ID from pkgName (remove prefix)
             val pluginId = extension.pkgName.removePrefix(JsPlugin.PKG_PREFIX)
             val plugin = jsPluginManager.availablePlugins.value.find { it.id == pluginId }
@@ -270,7 +270,7 @@ class NovelExtensionsScreenModel(
     }
 
     fun updateExtension(extension: Extension.Installed) {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             extensionManager.updateExtension(extension).collectToInstallUpdate(extension)
         }
     }
@@ -283,7 +283,7 @@ class NovelExtensionsScreenModel(
     fun uninstallExtension(extension: Extension) {
         when (extension) {
             is Extension.JsPlugin -> {
-                screenModelScope.launchIO {
+                viewModelScope.launchIO {
                     // Extract the original plugin ID from pkgName (remove prefix)
                     val pluginId = extension.pkgName.removePrefix(JsPlugin.PKG_PREFIX)
                     jsPluginManager.uninstallPlugin(pluginId)
@@ -308,7 +308,7 @@ class NovelExtensionsScreenModel(
             .collect()
 
     fun findAvailableExtensions() {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             mutableState.update { it.copy(isRefreshing = true) }
 
             extensionManager.findAvailableExtensions()
@@ -322,7 +322,7 @@ class NovelExtensionsScreenModel(
     }
 
     fun trustExtension(extension: Extension.Untrusted) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             extensionManager.trust(extension)
         }
     }

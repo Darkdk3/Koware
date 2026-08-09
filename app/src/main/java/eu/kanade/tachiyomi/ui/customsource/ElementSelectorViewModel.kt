@@ -3,8 +3,10 @@ package eu.kanade.tachiyomi.ui.customsource
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import eu.kanade.tachiyomi.source.custom.ChapterSelectors
 import eu.kanade.tachiyomi.source.custom.ContentSelectors
 import eu.kanade.tachiyomi.source.custom.CustomSourceConfig
@@ -16,21 +18,36 @@ import eu.kanade.tachiyomi.source.custom.SourceTestResult
 import eu.kanade.tachiyomi.source.custom.SourceTestSection
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import mihon.core.viewmodel.StateViewModel
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
- * Screen model for managing Element Selector state and converting
+ * ViewModel for managing Element Selector state and converting
  * user selections into a custom source configuration.
  */
-class ElementSelectorScreenModel(
+class ElementSelectorViewModel(
     private val initialUrl: String,
     private val initialSourceName: String = "",
     private val customSourceManager: CustomSourceManager = Injekt.get(),
-) : StateScreenModel<ElementSelectorScreenModel.State>(State()) {
+) : StateViewModel<ElementSelectorViewModel.State>(State()) {
+
+    companion object {
+        val INITIAL_URL_KEY = CreationExtras.Key<String>()
+        val INITIAL_SOURCE_NAME_KEY = CreationExtras.Key<String>()
+
+        val Factory = viewModelFactory {
+            initializer {
+                ElementSelectorViewModel(
+                    initialUrl = get(INITIAL_URL_KEY)!!,
+                    initialSourceName = get(INITIAL_SOURCE_NAME_KEY) ?: "",
+                )
+            }
+        }
+    }
 
     // ---- Wizard UI state, held here (not in the composable) so it survives Activity recreation
-    // on rotation — the same reason the rest of the app keeps screen state in ScreenModels. The
+    // on rotation — the same reason the rest of the app keeps screen state in ViewModels. The
     // composable delegates to these directly. ----
     val wizardConfigState = mutableStateOf(
         SelectorConfig(sourceName = initialSourceName, baseUrl = initialUrl),
@@ -48,7 +65,7 @@ class ElementSelectorScreenModel(
     )
 
     fun saveConfig(config: SelectorConfig, features: SourceFeatures) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             try {
                 val sourceConfig = convertToCustomSourceConfig(config, features)
                 customSourceManager.createSource(sourceConfig).fold(
@@ -261,7 +278,7 @@ class ElementSelectorScreenModel(
         section: SourceTestSection = SourceTestSection.ALL,
         onResult: (SourceTestResult) -> Unit,
     ) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             val result = customSourceManager.testSource(convertToCustomSourceConfig(selectorConfig, features), section)
             onResult(result)
         }

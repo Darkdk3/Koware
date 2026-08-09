@@ -1,8 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.migration.sources
 
 import androidx.compose.runtime.Immutable
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.interactor.GetNovelSourcesWithFavoriteCount
 import eu.kanade.domain.source.interactor.SetMigrateSorting
 import eu.kanade.domain.source.service.SourcePreferences
@@ -14,23 +13,24 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import logcat.LogPriority
+import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.Source
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-class NovelMigrateSourceScreenModel(
+class NovelMigrateSourceViewModel(
     preferences: SourcePreferences = Injekt.get(),
     private val getNovelSourcesWithFavoriteCount: GetNovelSourcesWithFavoriteCount = Injekt.get(),
     private val setMigrateSorting: SetMigrateSorting = Injekt.get(),
-) : StateScreenModel<NovelMigrateSourceScreenModel.State>(State()) {
+) : StateViewModel<NovelMigrateSourceViewModel.State>(State()) {
 
     private val _channel = Channel<Event>(Int.MAX_VALUE)
     val channel = _channel.receiveAsFlow()
 
     init {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             getNovelSourcesWithFavoriteCount.subscribe()
                 .catch {
                     logcat(LogPriority.ERROR, it)
@@ -48,11 +48,11 @@ class NovelMigrateSourceScreenModel(
 
         preferences.migrationSortingDirection.changes()
             .onEach { mutableState.update { state -> state.copy(sortingDirection = it) } }
-            .launchIn(screenModelScope)
+            .launchIn(viewModelScope)
 
         preferences.migrationSortingMode.changes()
             .onEach { mutableState.update { state -> state.copy(sortingMode = it) } }
-            .launchIn(screenModelScope)
+            .launchIn(viewModelScope)
     }
 
     fun toggleSortingMode() {

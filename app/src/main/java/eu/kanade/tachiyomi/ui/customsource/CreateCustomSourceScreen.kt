@@ -31,7 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.CreationExtras
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -217,7 +218,13 @@ class ElementSelectorVoyagerScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        val screenModel = rememberScreenModel { ElementSelectorScreenModel(initialUrl, initialSourceName) }
+        val screenModel = viewModel<ElementSelectorViewModel>(
+            factory = ElementSelectorViewModel.Factory,
+            extras = CreationExtras {
+                set(ElementSelectorViewModel.INITIAL_URL_KEY, initialUrl)
+                set(ElementSelectorViewModel.INITIAL_SOURCE_NAME_KEY, initialSourceName)
+            },
+        )
         val state by screenModel.state.collectAsState()
 
         LaunchedEffect(state.savedSuccessfully) {

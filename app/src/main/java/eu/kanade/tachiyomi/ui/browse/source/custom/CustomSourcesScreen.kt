@@ -66,7 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -101,7 +101,7 @@ class CustomSourcesScreen : Screen {
     override fun Content() {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-        val screenModel = rememberScreenModel { CustomSourcesScreenModel() }
+        val screenModel = viewModel<CustomSourcesViewModel>()
         val sources by screenModel.customSources.collectAsState(initial = emptyList())
         val scope = rememberCoroutineScope()
         val snackbarHostState = remember { SnackbarHostState() }
@@ -873,7 +873,7 @@ class CustomSourceTestScreen(
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val screenModel = rememberScreenModel { CustomSourcesScreenModel() }
+        val screenModel = viewModel<CustomSourcesViewModel>()
         val scope = rememberCoroutineScope()
 
         var testResult by remember { mutableStateOf<SourceTestResult?>(null) }
@@ -1019,7 +1019,7 @@ class CustomSourceEditorScreen(
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val screenModel = rememberScreenModel { CustomSourcesScreenModel() }
+        val screenModel = viewModel<CustomSourcesViewModel>()
         val scope = rememberCoroutineScope()
 
         // Load existing config or create blank

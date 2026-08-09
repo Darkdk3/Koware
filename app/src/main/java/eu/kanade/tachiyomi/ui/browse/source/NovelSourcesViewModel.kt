@@ -1,8 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.source
 
 import androidx.compose.runtime.Immutable
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.interactor.DeleteSourcePinGroup
 import eu.kanade.domain.source.interactor.GetEnabledNovelSources
 import eu.kanade.domain.source.interactor.GetSourcePinGroups
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import logcat.LogPriority
+import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.source.model.Pin
@@ -25,7 +25,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.TreeMap
 
-class NovelSourcesScreenModel(
+class NovelSourcesViewModel(
     private val getEnabledNovelSources: GetEnabledNovelSources = Injekt.get(),
     private val toggleSource: ToggleSource = Injekt.get(),
     private val toggleSourcePin: ToggleSourcePin = Injekt.get(),
@@ -33,13 +33,13 @@ class NovelSourcesScreenModel(
     private val setSourcePinGroups: SetSourcePinGroups = Injekt.get(),
     private val getSourcePinGroups: GetSourcePinGroups = Injekt.get(),
     private val deleteSourcePinGroup: DeleteSourcePinGroup = Injekt.get(),
-) : StateScreenModel<NovelSourcesScreenModel.State>(State()) {
+) : StateViewModel<NovelSourcesViewModel.State>(State()) {
 
     private val _events = Channel<Event>(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
 
     init {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             getEnabledNovelSources.subscribe()
                 .catch {
                     logcat(LogPriority.ERROR, it)
@@ -51,7 +51,7 @@ class NovelSourcesScreenModel(
 
     private fun collectLatestSources(sources: List<Source>) {
         logcat(LogPriority.INFO) {
-            "NovelSourcesScreenModel: collectLatestSources() - received ${sources.size} sources"
+            "NovelSourcesViewModel: collectLatestSources() - received ${sources.size} sources"
         }
         sources.take(5).forEach { s ->
             logcat(LogPriority.DEBUG) { "  Source: id=${s.id}, name=${s.name}, lang=${s.lang}" }

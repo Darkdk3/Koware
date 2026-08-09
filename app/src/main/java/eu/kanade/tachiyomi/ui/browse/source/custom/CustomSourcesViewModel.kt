@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.ui.browse.source.custom
 
 import android.app.Application
-import cafe.adriel.voyager.core.model.ScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.source.custom.CustomNovelSource
 import eu.kanade.tachiyomi.source.custom.CustomSourceConfig
 import eu.kanade.tachiyomi.source.custom.CustomSourceManager
@@ -19,11 +19,11 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
- * ScreenModel for managing custom sources
+ * ViewModel for managing custom sources
  */
-class CustomSourcesScreenModel(
+class CustomSourcesViewModel(
     private val customSourceManager: CustomSourceManager = Injekt.get(),
-) : ScreenModel {
+) : ViewModel() {
 
     private val _customSources = MutableStateFlow<List<CustomNovelSource>>(emptyList())
     val customSources: StateFlow<List<CustomNovelSource>> = _customSources.asStateFlow()
@@ -39,7 +39,7 @@ class CustomSourcesScreenModel(
     }
 
     private fun loadSources() {
-        screenModelScope.launch {
+        viewModelScope.launch {
             _isLoading.value = true
             try {
                 customSourceManager.customSources.collect { sources ->
@@ -119,7 +119,7 @@ class CustomSourcesScreenModel(
      * Delete a custom source
      */
     fun deleteSource(sourceId: Long) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             try {
                 customSourceManager.deleteSource(sourceId)
             } catch (e: Exception) {

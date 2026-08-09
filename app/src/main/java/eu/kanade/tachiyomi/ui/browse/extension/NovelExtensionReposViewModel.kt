@@ -1,8 +1,7 @@
 package eu.kanade.tachiyomi.ui.browse.extension
 
 import androidx.compose.runtime.Immutable
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
@@ -12,6 +11,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import mihon.core.viewmodel.StateViewModel
 import mihon.domain.extension.interactor.AddExtensionStore
 import mihon.domain.extension.interactor.GetExtensionStores
 import mihon.domain.extension.interactor.RemoveExtensionStore
@@ -22,7 +22,7 @@ import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-class NovelExtensionReposScreenModel(
+class NovelExtensionReposViewModel(
     private val jsPluginManager: JsPluginManager = Injekt.get(),
     private val getExtensionStores: GetExtensionStores = Injekt.get(),
     private val addExtensionStore: AddExtensionStore = Injekt.get(),
@@ -30,13 +30,13 @@ class NovelExtensionReposScreenModel(
     private val updateExtensionStores: UpdateExtensionStores = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val sourcePreferences: SourcePreferences = Injekt.get(),
-) : StateScreenModel<NovelRepoScreenState>(NovelRepoScreenState.Loading) {
+) : StateViewModel<NovelRepoScreenState>(NovelRepoScreenState.Loading) {
 
     private val _events: Channel<NovelRepoEvent> = Channel(Int.MAX_VALUE)
     val events = _events.receiveAsFlow()
 
     init {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             combine(
                 jsPluginManager.repositories,
                 getExtensionStores.subscribe(isNovel = true),
@@ -59,7 +59,7 @@ class NovelExtensionReposScreenModel(
      * Create a JS plugin repository
      */
     fun createJsRepo(name: String, url: String) {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             jsPluginManager.addRepository(name, url)
             dismissDialog()
         }
@@ -69,7 +69,7 @@ class NovelExtensionReposScreenModel(
      * Add a Kotlin extension store (mihon extension index).
      */
     fun createKotlinRepo(indexUrl: String) {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             addExtensionStore(indexUrl, isNovel = true).fold(
                 onSuccess = {
                     extensionManager.findAvailableExtensions()
@@ -81,14 +81,14 @@ class NovelExtensionReposScreenModel(
     }
 
     fun deleteJsRepo(url: String) {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             jsPluginManager.removeRepository(url)
             dismissDialog()
         }
     }
 
     fun deleteKotlinRepo(indexUrl: String) {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             removeExtensionStore(indexUrl)
             sourcePreferences.disabledExtensionRepos.set(
                 sourcePreferences.disabledExtensionRepos.get() - indexUrl,
@@ -111,7 +111,7 @@ class NovelExtensionReposScreenModel(
     }
 
     fun refreshRepos() {
-        screenModelScope.launchIO {
+        viewModelScope.launchIO {
             jsPluginManager.refreshAvailablePlugins(forceRefresh = true)
             updateExtensionStores()
         }

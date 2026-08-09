@@ -11,7 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
-import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
@@ -20,7 +19,7 @@ import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsViewModel
-import eu.kanade.tachiyomi.ui.browse.extension.NovelExtensionsScreenModel
+import eu.kanade.tachiyomi.ui.browse.extension.NovelExtensionsViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.extensionsTab
 import eu.kanade.tachiyomi.ui.browse.extension.novelExtensionsTab
 import eu.kanade.tachiyomi.ui.browse.migration.sources.migrateSourceTab
@@ -74,20 +73,20 @@ data object BrowseTab : Tab {
         val extensionsViewModel = viewModel<ExtensionsViewModel>()
         val extensionsState by extensionsViewModel.state.collectAsState()
 
-        val novelExtensionsScreenModel = rememberScreenModel { NovelExtensionsScreenModel() }
-        val novelExtensionsState by novelExtensionsScreenModel.state.collectAsState()
+        val novelExtensionsViewModel = viewModel<NovelExtensionsViewModel>()
+        val novelExtensionsState by novelExtensionsViewModel.state.collectAsState()
 
         val tabs = if (hideMangaBrowseTabs) {
             listOf(
                 novelSourcesTab(),
-                novelExtensionsTab(novelExtensionsScreenModel),
+                novelExtensionsTab(novelExtensionsViewModel),
                 novelMigrateSourceTab(),
             )
         } else {
             listOf(
                 novelSourcesTab(),
                 sourcesTab(),
-                novelExtensionsTab(novelExtensionsScreenModel),
+                novelExtensionsTab(novelExtensionsViewModel),
                 extensionsTab(extensionsViewModel),
                 novelMigrateSourceTab(),
                 migrateSourceTab(),
@@ -110,7 +109,7 @@ data object BrowseTab : Tab {
             },
             onChangeSearchQuery = { query ->
                 when (state.currentPage) {
-                    novelExtensionsTabIndex -> novelExtensionsScreenModel.search(query)
+                    novelExtensionsTabIndex -> novelExtensionsViewModel.search(query)
                     mangaExtensionsTabIndex -> extensionsViewModel.search(query)
                 }
             },

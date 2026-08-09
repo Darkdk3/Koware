@@ -53,7 +53,7 @@ import coil3.request.crossfade
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.tachiyomi.jsplugin.model.JsPlugin
-import eu.kanade.tachiyomi.ui.browse.jsplugin.JsPluginsScreenModel.JsPluginItem
+import eu.kanade.tachiyomi.ui.browse.jsplugin.JsPluginsViewModel.JsPluginItem
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -61,7 +61,7 @@ import tachiyomi.presentation.core.screens.EmptyScreen
 
 @Composable
 fun jsPluginsTab(
-    screenModel: JsPluginsScreenModel,
+    screenModel: JsPluginsViewModel,
 ): TabContent {
     val navigator = LocalNavigator.currentOrThrow
     val state by screenModel.state.collectAsState()
@@ -112,7 +112,7 @@ fun jsPluginsTab(
 
 @Composable
 private fun JsPluginsScreen(
-    state: JsPluginsScreenModel.State,
+    state: JsPluginsViewModel.State,
     plugins: List<JsPluginItem>,
     contentPadding: PaddingValues,
     onRefresh: () -> Unit,

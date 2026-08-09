@@ -8,7 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -30,7 +30,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 @Composable
 fun Screen.novelSourcesTab(): TabContent {
     val navigator = LocalNavigator.currentOrThrow
-    val screenModel = rememberScreenModel { NovelSourcesScreenModel() }
+    val screenModel = viewModel<NovelSourcesViewModel>()
     val state by screenModel.state.collectAsState()
 
     return TabContent(
@@ -54,8 +54,8 @@ fun Screen.novelSourcesTab(): TabContent {
         ),
         content = { contentPadding, snackbarHostState ->
             val mappedDialog = when (val d = state.dialog) {
-                is NovelSourcesScreenModel.Dialog.SourceOptions -> SourcesViewModel.Dialog.SourceOptions(d.source)
-                is NovelSourcesScreenModel.Dialog.PinGroups -> SourcesViewModel.Dialog.PinGroups(d.source)
+                is NovelSourcesViewModel.Dialog.SourceOptions -> SourcesViewModel.Dialog.SourceOptions(d.source)
+                is NovelSourcesViewModel.Dialog.PinGroups -> SourcesViewModel.Dialog.PinGroups(d.source)
                 null -> null
             }
             SourcesScreen(
@@ -80,7 +80,7 @@ fun Screen.novelSourcesTab(): TabContent {
 
             if (currentDialog != null) {
                 when (currentDialog) {
-                    is NovelSourcesScreenModel.Dialog.SourceOptions -> {
+                    is NovelSourcesViewModel.Dialog.SourceOptions -> {
                         val source = currentDialog.source
                         SourceOptionsDialog(
                             source = source,
@@ -98,7 +98,7 @@ fun Screen.novelSourcesTab(): TabContent {
                             onDismiss = screenModel::closeDialog,
                         )
                     }
-                    is NovelSourcesScreenModel.Dialog.PinGroups -> {
+                    is NovelSourcesViewModel.Dialog.PinGroups -> {
                         val source = currentDialog.source
                         SourcePinGroupsDialog(
                             source = source,
@@ -120,7 +120,7 @@ fun Screen.novelSourcesTab(): TabContent {
             LaunchedEffect(Unit) {
                 screenModel.events.collectLatest { event ->
                     when (event) {
-                        NovelSourcesScreenModel.Event.FailedFetchingSources -> {
+                        NovelSourcesViewModel.Event.FailedFetchingSources -> {
                             launch { snackbarHostState.showSnackbar(internalErrString) }
                         }
                     }

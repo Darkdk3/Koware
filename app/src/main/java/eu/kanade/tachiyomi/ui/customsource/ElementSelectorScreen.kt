@@ -308,7 +308,7 @@ class ElementSelectorJSInterface(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ElementSelectorScreen(
-    screenModel: ElementSelectorScreenModel,
+    screenModel: ElementSelectorViewModel,
     initialUrl: String,
     initialSourceName: String = "",
     features: SourceFeatures = SourceFeatures(),
@@ -1862,7 +1862,7 @@ private fun relativize(full: String, listSel: String): String {
 
 /**
  * Diffs page-1/page-2 URLs into the page-2 URL with the differing digits replaced by {page}. Mirrors
- * ElementSelectorScreenModel.derivePagedFromPair (preview = saved template). Null if no numeric diff.
+ * ElementSelectorViewModel.derivePagedFromPair (preview = saved template). Null if no numeric diff.
  */
 internal fun derivePageTemplate(p1: String, p2: String): String? {
     if (p1.isBlank() || p2.isBlank() || p1 == p2) return null

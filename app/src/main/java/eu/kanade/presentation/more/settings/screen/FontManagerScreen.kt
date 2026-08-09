@@ -63,8 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.rememberScreenModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -75,6 +74,7 @@ import eu.kanade.tachiyomi.data.font.GoogleFontInfo
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import mihon.core.viewmodel.StateViewModel
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -86,7 +86,7 @@ class FontManagerScreen : Screen {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
-        val screenModel = rememberScreenModel { FontManagerScreenModel() }
+        val screenModel = viewModel<FontManagerViewModel>()
         val state by screenModel.state.collectAsState()
 
         val snackbarHostState = remember { SnackbarHostState() }
@@ -514,10 +514,10 @@ private fun GoogleFontsDialog(
     )
 }
 
-class FontManagerScreenModel(
+class FontManagerViewModel(
     private val fontManager: FontManager = Injekt.get(),
     private val readerPreferences: ReaderPreferences = Injekt.get(),
-) : StateScreenModel<FontManagerScreenModel.State>(State()) {
+) : StateViewModel<FontManagerViewModel.State>(State()) {
 
     data class State(
         val isLoading: Boolean = true,

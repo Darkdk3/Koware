@@ -144,7 +144,7 @@ class ExtensionManager(
      */
     suspend fun findAvailableExtensions() {
         // Skip if another fetch is already in progress — both ExtensionsScreenModel
-        // and NovelExtensionsScreenModel call this from init, but the result flows
+        // and NovelExtensionsViewModel call this from init, but the result flows
         // through availableExtensionMapFlow so both observe the same data.
         if (!findExtensionsMutex.tryLock()) return
         try {

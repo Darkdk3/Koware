@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.ui.library.duplicate
 
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
 import eu.kanade.domain.manga.model.toSManga
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.data.cache.CoverCache
@@ -13,11 +12,11 @@ import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.removeCovers
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
+import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.category.model.Category
@@ -32,7 +31,7 @@ import tachiyomi.source.local.isLocal
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-class DuplicateDetectionScreenModel(
+class DuplicateDetectionViewModel(
     private val findDuplicateNovels: FindDuplicateNovels = Injekt.get(),
     private val mangaRepository: MangaRepository = Injekt.get(),
     private val getCategories: GetCategories = Injekt.get(),
@@ -43,16 +42,10 @@ class DuplicateDetectionScreenModel(
     private val coverCache: CoverCache = Injekt.get(),
     private val getChaptersByMangaId: GetChaptersByMangaId = Injekt.get(),
     private val translatedChapterRepository: TranslatedChapterRepository = Injekt.get(),
-) : StateScreenModel<DuplicateDetectionScreenModel.State>(State()) {
+) : StateViewModel<DuplicateDetectionViewModel.State>(State()) {
 
     private val pinnedSourceIds: Set<Long> by lazy {
         sourcePreferences.pinnedSources.get().mapNotNull { it.toLongOrNull() }.toSet()
-    }
-
-    override fun onDispose() {
-        super.onDispose()
-        // Cancel all ongoing coroutines to prevent DB contention
-        screenModelScope.coroutineContext.cancelChildren()
     }
 
     enum class ContentType {
@@ -306,7 +299,7 @@ class DuplicateDetectionScreenModel(
     }
 
     private fun loadCategories() {
-        screenModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             val categories = getCategories.await()
             mutableState.update { it.copy(categories = categories) }
         }
@@ -328,7 +321,7 @@ class DuplicateDetectionScreenModel(
     }
 
     fun loadDuplicates() {
-        screenModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) {
             // Release the previous result before loading a new one so a near-full heap can be reclaimed
             // first, instead of holding both the old and new data sets at once.
             mutableState.update {

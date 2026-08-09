@@ -25,12 +25,12 @@ import tachiyomi.presentation.core.i18n.stringResource
 
 @Composable
 fun novelExtensionsTab(
-    extensionsScreenModel: NovelExtensionsScreenModel,
+    extensionsViewModel: NovelExtensionsViewModel,
 ): TabContent {
     val navigator = LocalNavigator.currentOrThrow
     val context = LocalContext.current
 
-    val state by extensionsScreenModel.state.collectAsState()
+    val state by extensionsViewModel.state.collectAsState()
     var privateExtensionToUninstall by remember { mutableStateOf<Extension?>(null) }
 
     return TabContent(
@@ -54,24 +54,24 @@ fun novelExtensionsTab(
                 searchQuery = state.searchQuery,
                 onLongClickItem = { extension ->
                     when (extension) {
-                        is Extension.Available -> extensionsScreenModel.installExtension(extension)
+                        is Extension.Available -> extensionsViewModel.installExtension(extension)
                         is Extension.JsPlugin -> {
                             // Only show uninstall for JS plugins that are actually installed
                             if (extension.isInstalled) {
-                                extensionsScreenModel.uninstallExtension(extension)
+                                extensionsViewModel.uninstallExtension(extension)
                             }
                         }
                         else -> {
                             if (context.isPackageInstalled(extension.pkgName)) {
-                                extensionsScreenModel.uninstallExtension(extension)
+                                extensionsViewModel.uninstallExtension(extension)
                             } else {
                                 privateExtensionToUninstall = extension
                             }
                         }
                     }
                 },
-                onClickItemCancel = extensionsScreenModel::cancelInstallUpdateExtension,
-                onClickUpdateAll = extensionsScreenModel::updateAllExtensions,
+                onClickItemCancel = extensionsViewModel::cancelInstallUpdateExtension,
+                onClickUpdateAll = extensionsViewModel::updateAllExtensions,
                 onOpenWebView = { extension ->
                     extension.sources.getOrNull(0)?.let {
                         navigator.push(
@@ -85,8 +85,8 @@ fun novelExtensionsTab(
                 },
                 onInstallExtension = {
                     when (it) {
-                        is Extension.Available -> extensionsScreenModel.installExtension(it)
-                        is Extension.JsPlugin -> extensionsScreenModel.installJsPlugin(it)
+                        is Extension.Available -> extensionsViewModel.installExtension(it)
+                        is Extension.JsPlugin -> extensionsViewModel.installJsPlugin(it)
                         else -> {}
                     }
                 },
@@ -104,16 +104,16 @@ fun novelExtensionsTab(
                         else -> {}
                     }
                 },
-                onTrustExtension = { extensionsScreenModel.trustExtension(it) },
-                onUninstallExtension = { extensionsScreenModel.uninstallExtension(it) },
+                onTrustExtension = { extensionsViewModel.trustExtension(it) },
+                onUninstallExtension = { extensionsViewModel.uninstallExtension(it) },
                 onUpdateExtension = {
                     when (it) {
-                        is Extension.Installed -> extensionsScreenModel.updateExtension(it)
-                        is Extension.JsPlugin -> extensionsScreenModel.installJsPlugin(it)
+                        is Extension.Installed -> extensionsViewModel.updateExtension(it)
+                        is Extension.JsPlugin -> extensionsViewModel.installJsPlugin(it)
                         else -> {}
                     }
                 },
-                onRefresh = extensionsScreenModel::findAvailableExtensions,
+                onRefresh = extensionsViewModel::findAvailableExtensions,
                 onEmptyReposAction = { navigator.push(NovelExtensionReposScreen()) },
             )
 
@@ -121,7 +121,7 @@ fun novelExtensionsTab(
                 ExtensionUninstallConfirmation(
                     extensionName = extension.name,
                     onClickConfirm = {
-                        extensionsScreenModel.uninstallExtension(extension)
+                        extensionsViewModel.uninstallExtension(extension)
                     },
                     onDismissRequest = {
                         privateExtensionToUninstall = null

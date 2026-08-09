@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.ui.browse.jsplugin
 
-import cafe.adriel.voyager.core.model.StateScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.jsplugin.model.InstalledJsPlugin
 import eu.kanade.tachiyomi.jsplugin.model.JsPlugin
@@ -10,15 +9,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import mihon.core.viewmodel.StateViewModel
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-class JsPluginsScreenModel(
+class JsPluginsViewModel(
     private val jsPluginManager: JsPluginManager = Injekt.get(),
-) : StateScreenModel<JsPluginsScreenModel.State>(State()) {
+) : StateViewModel<JsPluginsViewModel.State>(State()) {
 
     init {
-        screenModelScope.launch {
+        viewModelScope.launch {
             combine(
                 jsPluginManager.repositories,
                 jsPluginManager.availablePlugins,
@@ -38,7 +38,7 @@ class JsPluginsScreenModel(
         }
 
         // Initial refresh
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.refreshAvailablePlugins()
         }
     }
@@ -51,33 +51,33 @@ class JsPluginsScreenModel(
     }
 
     fun refreshPlugins() {
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.refreshAvailablePlugins()
         }
     }
 
     fun installPlugin(plugin: JsPlugin) {
         val repo = state.value.repositories.find { it.enabled }?.url ?: return
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.installPlugin(plugin, repo)
         }
     }
 
     fun uninstallPlugin(plugin: InstalledJsPlugin) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.uninstallPlugin(plugin.plugin.id)
         }
     }
 
     fun updatePlugin(plugin: JsPlugin) {
         val installed = state.value.installedPlugins.find { it.plugin.id == plugin.id } ?: return
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.updatePlugin(installed)
         }
     }
 
     fun updateAllPlugins() {
-        screenModelScope.launch {
+        viewModelScope.launch {
             val updates = state.value.installedPlugins.filter { installed ->
                 val available = state.value.availablePlugins.find { it.id == installed.plugin.id }
                 available != null && available.version != installed.plugin.version
@@ -89,20 +89,20 @@ class JsPluginsScreenModel(
     }
 
     fun addRepository(name: String, url: String) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.addRepository(name, url)
             jsPluginManager.refreshAvailablePlugins()
         }
     }
 
     fun removeRepository(repo: JsPluginRepository) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.removeRepository(repo.url)
         }
     }
 
     fun toggleRepository(repo: JsPluginRepository) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             jsPluginManager.setRepositoryEnabled(repo.url, !repo.enabled)
             jsPluginManager.refreshAvailablePlugins()
         }

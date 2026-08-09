@@ -39,7 +39,7 @@ class ExtensionsViewModel(
     basePreferences: BasePreferences = Injekt.get(),
     private val extensionManager: ExtensionManager = Injekt.get(),
     private val getExtensions: GetExtensionsByType = Injekt.get(),
-) : StateViewModel<ExtensionsViewModel.State>(State()) {
+) : StateViewModel<ExtensionScreenState>(ExtensionScreenState()) {
 
     private val currentDownloads = MutableStateFlow<Map<String, InstallStep>>(hashMapOf())
 
@@ -214,21 +214,22 @@ class ExtensionsViewModel(
             extensionManager.trust(extension)
         }
     }
-
-    @Immutable
-    data class State(
-        val isLoading: Boolean = true,
-        val isRefreshing: Boolean = false,
-        val items: ItemGroups = mutableMapOf(),
-        val updates: Int = 0,
-        val installer: BasePreferences.ExtensionInstaller? = null,
-        val searchQuery: String? = null,
-    ) {
-        val isEmpty = items.isEmpty()
-    }
 }
 
 typealias ItemGroups = Map<ExtensionUiModel.Header, List<ExtensionUiModel.Item>>
+
+/** Shared UI state shape for both [ExtensionsViewModel] and NovelExtensionsViewModel. */
+@Immutable
+data class ExtensionScreenState(
+    val isLoading: Boolean = true,
+    val isRefreshing: Boolean = false,
+    val items: ItemGroups = mutableMapOf(),
+    val updates: Int = 0,
+    val installer: BasePreferences.ExtensionInstaller? = null,
+    val searchQuery: String? = null,
+) {
+    val isEmpty = items.isEmpty()
+}
 
 object ExtensionUiModel {
     sealed interface Header {
