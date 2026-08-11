@@ -95,6 +95,10 @@ class MangaRestorer(
         backupCategories: List<BackupCategory>,
     ) {
         database.transaction {
+            // an existing row may be a non-favorite leftover (e.g. from browse/search)
+            if (!existingManga.favorite && backupManga.favorite) {
+                updateManga(existingManga.copy(favorite = true))
+            }
             restoreChapters(existingManga, backupManga.chapters)
             restoreHistory(existingManga, backupManga.history)
             if (backupManga.categories.isNotEmpty()) {
