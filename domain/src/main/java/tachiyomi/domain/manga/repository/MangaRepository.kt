@@ -259,20 +259,23 @@ interface MangaRepository {
         val normalizedUrl: String,
     )
 
-    /**
-     * Normalize URLs with advanced options.
-     * @param removeDoubleSlashes whether to also remove double slashes from URLs
-     * @return Pair of (count of normalized URLs, list of skipped duplicates)
-     */
-    suspend fun normalizeAllUrlsAdvanced(removeDoubleSlashes: Boolean): Pair<Int, List<DuplicateUrlInfo>>
+    /** Normalizes URLs for favorites whose source id is in [allowedSourceIds]; others are untouched. */
+    suspend fun normalizeAllUrlsAdvanced(
+        removeDoubleSlashes: Boolean,
+        allowedSourceIds: Set<Long>,
+    ): Pair<Int, List<DuplicateUrlInfo>>
 
     /**
      * Remove (unfavorite) manga that would become duplicates after URL normalization.
      * This allows the user to clean up duplicates before running normalization.
      * @param removeDoubleSlashes whether to also consider double slashes when detecting duplicates
+     * @param allowedSourceIds only favorites whose source id is in this set are considered; others are untouched
      * @return Pair of (count of removed duplicates, list of removed items with Triple(title, url, normalizedUrl))
      */
-    suspend fun removePotentialDuplicates(removeDoubleSlashes: Boolean): Pair<Int, List<Triple<String, String, String>>>
+    suspend fun removePotentialDuplicates(
+        removeDoubleSlashes: Boolean,
+        allowedSourceIds: Set<Long>,
+    ): Pair<Int, List<Triple<String, String, String>>>
 
     /**
      * Refresh the library cache table.

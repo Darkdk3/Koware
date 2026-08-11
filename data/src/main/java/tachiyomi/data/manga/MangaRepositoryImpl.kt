@@ -1973,7 +1973,10 @@ class MangaRepositoryImpl(
         }
     }
 
-    override suspend fun normalizeAllUrlsAdvanced(removeDoubleSlashes: Boolean): Pair<Int, List<MangaRepository.DuplicateUrlInfo>> {
+    override suspend fun normalizeAllUrlsAdvanced(
+        removeDoubleSlashes: Boolean,
+        allowedSourceIds: Set<Long>,
+    ): Pair<Int, List<MangaRepository.DuplicateUrlInfo>> {
         return try {
             var count = 0
             val duplicates = mutableListOf<MangaRepository.DuplicateUrlInfo>()
@@ -1993,7 +1996,7 @@ class MangaRepositoryImpl(
                         title = title,
                         favorite = favorite,
                     )
-                }.awaitAsList()
+                }.awaitAsList().filter { it.source in allowedSourceIds }
 
                 allManga.forEach { manga ->
                     val normalizedUrl = normalizeUrlForMaintenance(manga.url, removeDoubleSlashes)
@@ -2052,7 +2055,10 @@ class MangaRepositoryImpl(
         }
     }
 
-    override suspend fun removePotentialDuplicates(removeDoubleSlashes: Boolean): Pair<Int, List<Triple<String, String, String>>> {
+    override suspend fun removePotentialDuplicates(
+        removeDoubleSlashes: Boolean,
+        allowedSourceIds: Set<Long>,
+    ): Pair<Int, List<Triple<String, String, String>>> {
         return try {
             var removedCount = 0
             val removedItems = mutableListOf<Triple<String, String, String>>()
@@ -2074,7 +2080,7 @@ class MangaRepositoryImpl(
                         title = title,
                         favorite = favorite,
                     )
-                }.awaitAsList()
+                }.awaitAsList().filter { it.source in allowedSourceIds }
 
                 // First pass: identify which manga would be kept (first occurrence of each normalized URL)
                 allManga.forEach { manga ->
