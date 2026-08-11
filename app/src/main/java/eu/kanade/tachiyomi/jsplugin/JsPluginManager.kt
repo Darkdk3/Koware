@@ -96,7 +96,6 @@ class JsPluginManager(
         cacheDir.mkdirs()
         loadRepositoriesFromPrefs()
         scope.launch {
-            loadRepositories()
             loadInstalledPlugins()
             loadCachedPluginList()
         }
@@ -166,19 +165,36 @@ class JsPluginManager(
                     }
                 }
 
-                _availablePlugins.value = allPlugins
+                val dedupedPlugins = allPlugins
+                    .groupBy { it.id }
+                    .map { (_, dupes) -> dupes.reduce { newest, cur -> if (compareVersions(cur.version, newest.version) > 0) cur else newest } }
+                _availablePlugins.value = dedupedPlugins
 
                 // Save to cache file
-                saveCachedPluginList(allPlugins)
+                saveCachedPluginList(dedupedPlugins)
 
                 // Cache icons to avoid re-fetching each time
-                cacheIcons(allPlugins)
+                cacheIcons(dedupedPlugins)
             } finally {
                 _isLoading.value = false
             }
         } finally {
             refreshMutex.unlock()
         }
+    }
+
+    /**
+     * Compares two dot-separated version strings numerically segment-by-segment, e.g. "1.9" < "1.10".
+     * Non-numeric or missing segments are treated as 0.
+     */
+    private fun compareVersions(a: String, b: String): Int {
+        val segmentsA = a.split(".")
+        val segmentsB = b.split(".")
+        for (i in 0 until maxOf(segmentsA.size, segmentsB.size)) {
+            val diff = (segmentsA.getOrNull(i)?.toIntOrNull() ?: 0) - (segmentsB.getOrNull(i)?.toIntOrNull() ?: 0)
+            if (diff != 0) return diff
+        }
+        return 0
     }
 
     /**
@@ -587,65 +603,6 @@ class JsPluginManager(
     }
 
     /**
-     * Load repositories from the plugin directory file (requires storage to be available).
-     * If the directory is unavailable, keeps current repos (possibly already loaded from prefs).
-     */
-    private fun loadRepositories() {
-        try {
-            val dir = pluginsDir
-            if (dir == null) {
-                logcat(LogPriority.WARN) {
-                    "Plugins directory not available for loading repositories — keeping existing (${_repositories.value.size} repos)"
-                }
-                return
-            }
-            val reposFile = dir.findFile("repositories.json")
-            if (reposFile != null && reposFile.exists()) {
-                val content = reposFile.readText().trim()
-                if (content.isNotBlank() && content.startsWith("[")) {
-                    val allRepos = mutableListOf<JsPluginRepository>()
-                    try {
-                        allRepos.addAll(json.decodeFromString<List<JsPluginRepository>>(content))
-                    } catch (e: Exception) {
-                        logcat(LogPriority.WARN) {
-                            "repositories.json has concatenated JSON, attempting to split and merge"
-                        }
-                        val segments = content.split(Regex("""\]\s*\["""))
-                        for ((i, segment) in segments.withIndex()) {
-                            val fixed = when {
-                                i == 0 && !segment.endsWith("]") -> "$segment]"
-                                i == segments.lastIndex && !segment.startsWith("[") -> "[$segment"
-                                !segment.startsWith("[") && !segment.endsWith("]") -> "[$segment]"
-                                else -> segment
-                            }
-                            try {
-                                allRepos.addAll(json.decodeFromString<List<JsPluginRepository>>(fixed))
-                            } catch (e2: Exception) {
-                                logcat(LogPriority.WARN) {
-                                    "Skipping malformed JSON segment in repositories.json: ${e2.message}"
-                                }
-                            }
-                        }
-                    }
-                    val distinct = allRepos.distinctBy { it.url }
-                    val merged = (_repositories.value + distinct).distinctBy { it.url }
-                    _repositories.value = merged
-                    logcat(LogPriority.INFO) {
-                        "Loaded ${distinct.size} repositories from disk (merged total: ${merged.size})"
-                    }
-                    saveRepositories()
-                    return
-                }
-            }
-            if (_repositories.value.isNotEmpty()) {
-                saveRepositoriesToFile()
-            }
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to load repositories from disk" }
-        }
-    }
-
-    /**
      * Load repositories from SharedPreferences.
      */
     private fun loadRepositoriesFromPrefs() {
@@ -670,28 +627,6 @@ class JsPluginManager(
             logcat(LogPriority.DEBUG) { "Saved ${_repositories.value.size} repositories to SharedPreferences" }
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Failed to save repositories to SharedPreferences" }
-        }
-        saveRepositoriesToFile()
-    }
-
-    private fun saveRepositoriesToFile() {
-        try {
-            val dir = pluginsDir
-            if (dir == null) {
-                logcat(LogPriority.WARN) { "Plugins directory not available for saving repositories.json" }
-                return
-            }
-            val reposFile = dir.replaceFile("repositories.json")
-            if (reposFile == null) {
-                logcat(LogPriority.ERROR) { "Failed to create repositories.json file" }
-                return
-            }
-            val jsonContent = json.encodeToString(_repositories.value)
-            reposFile.writeText(jsonContent)
-            logcat(LogPriority.INFO) { "Wrote ${jsonContent.length} chars to repositories.json" }
-            logcat(LogPriority.INFO) { "Saved ${_repositories.value.size} repositories to disk" }
-        } catch (e: Exception) {
-            logcat(LogPriority.ERROR, e) { "Failed to save repositories to disk" }
         }
     }
 
@@ -786,18 +721,35 @@ class JsPluginManager(
         var delayMs = 20L
         while (true) {
             if (findFile(name) == null) {
-                createFile(name)?.let { return it }
+                createFileSafe(name)?.let { return it }
             }
             attempts++
             if (attempts >= 5) {
                 logcat(LogPriority.WARN) {
                     "replaceFile: $name still contested after $attempts retries, creating anyway"
                 }
-                return createFile(name)
+                return createFileSafe(name)
             }
             Thread.sleep(delayMs)
             delayMs *= 2
         }
+    }
+
+    /**
+     * Some SAF providers (Android 13+/Samsung) reverse-map the MIME type UniFile derives from
+     * a ".js" extension back to ".es", silently renaming the file. Creating under an unmapped
+     * ".tmp" extension keeps the provider on the generic octet-stream path, then renaming to
+     * the real name avoids the mismatch.
+     */
+    private fun UniFile.createFileSafe(name: String): UniFile? {
+        val tmpName = "$name.tmp"
+        findFile(tmpName)?.delete()
+        val tmpFile = createFile(tmpName) ?: return null
+        if (!tmpFile.renameTo(name)) {
+            tmpFile.delete()
+            return null
+        }
+        return findFile(name) ?: tmpFile
     }
 
     private fun UniFile.readText(): String {
