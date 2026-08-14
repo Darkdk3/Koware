@@ -27,6 +27,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Fix importing new LNreader backups, all novels in DB come favorited [@mrissaoussama](https://github.com/mrissaoussama) [#388](https://github.com/tsundoku-otaku/tsundoku/pull/388)
 - Scope leading-slash normalization [@mrissaoussama](https://github.com/mrissaoussama) [#384](https://github.com/tsundoku-otaku/tsundoku/pull/384)
 - Recover .js plugin files renamed by SAF mimetype guessing [@mrissaoussama](https://github.com/mrissaoussama) [#387](https://github.com/tsundoku-otaku/tsundoku/pull/387)
+- Fix download-ahead gate bypassed for novels [@mrissaoussama](https://github.com/mrissaoussama) [#394](https://github.com/tsundoku-otaku/tsundoku/pull/394)
 
 ### Other
 - Merged v0.20.4 from Mihon [@Rojikku](https://github.com/Rojikku) [#380](https://github.com/tsundoku-otaku/tsundoku/pull/380)
