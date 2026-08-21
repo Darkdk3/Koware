@@ -12,8 +12,10 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 
 ## [Unreleased]
 
+### Fixed
+- Library sort by last read now updates after reading [@mrissaoussama](https://github.com/mrissaoussama) [#400](https://github.com/tsundoku-otaku/tsundoku/pull/400)
 
-## [v0.3.2] - 2026-08-14
+## [v0.3.2] - 2026-08-21
 ### Improved
 - Support tsundoku:// extension stores [@Rojikku](https://github.com/Rojikku) [#397](https://github.com/tsundoku-otaku/tsundoku/pull/397)
 

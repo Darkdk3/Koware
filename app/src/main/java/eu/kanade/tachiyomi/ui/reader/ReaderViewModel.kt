@@ -754,7 +754,9 @@ class ReaderViewModel @JvmOverloads constructor(
         if (!incognitoMode && chapterId != null && chapterId != lastStampedHistoryChapterId) {
             lastStampedHistoryChapterId = chapterId
             viewModelScope.launchNonCancellable {
-                upsertHistory.await(HistoryUpdate(chapterId, Date(), 0))
+                val now = Date()
+                upsertHistory.await(HistoryUpdate(chapterId, now, 0))
+                manga?.let { m -> getLibraryManga.applyChapterUpdates(mangaId = m.id, lastRead = now.time) }
             }
         }
     }
@@ -1046,6 +1048,7 @@ class ReaderViewModel @JvmOverloads constructor(
             upsertHistory.awaitTimeReadOnly(HistoryUpdate(chapterId, endTime, sessionReadDuration))
         } else {
             upsertHistory.await(HistoryUpdate(chapterId, endTime, sessionReadDuration))
+            manga?.let { m -> getLibraryManga.applyChapterUpdates(mangaId = m.id, lastRead = endTime.time) }
         }
         chapterReadStartTime = null
     }
