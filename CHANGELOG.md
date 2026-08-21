@@ -11,11 +11,15 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+
+
+## [v0.3.2] - 2026-08-14
 ### Improved
 - Support tsundoku:// extension stores [@Rojikku](https://github.com/Rojikku) [#397](https://github.com/tsundoku-otaku/tsundoku/pull/397)
 
 ### Fixed
 - Crash fixes: Theme fallback, incompatible extensions [@Rojikku](https://github.com/Rojikku) [#398](https://github.com/tsundoku-otaku/tsundoku/pull/398)
+- Duplicate scan total groups cap OOM [@mrissaoussama](https://github.com/mrissaoussama) [#396](https://github.com/tsundoku-otaku/tsundoku/pull/396)
 
 ## [v0.3.1] - 2026-08-14
 ### Improved
@@ -361,7 +365,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - **Browse Screen Enhancements**: Jump-to-page, page range loading, back confirmation
 
 
-[Unreleased]: https://github.com/tsundoku-otaku/tsundoku/compare/v0.3.0...main
+[Unreleased]: https://github.com/tsundoku-otaku/tsundoku/compare/v0.3.1...main
+[v0.3.2]: https://github.com/tsundoku-otaku/tsundoku/compare/v0.3.1...v0.3.2
+[v0.3.1]: https://github.com/tsundoku-otaku/tsundoku/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/tsundoku-otaku/tsundoku/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/tsundoku-otaku/tsundoku/compare/v0.1.4...v0.2.0
 [v0.1.4]: https://github.com/tsundoku-otaku/tsundoku/compare/v0.1.3...v0.1.4
