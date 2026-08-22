@@ -409,7 +409,8 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                     state.styleEl.textContent =
                         '.td-tts-highlight-bg{background:var(--td-tts-highlight-bg)!important;color:var(--td-tts-highlight-text)!important;border-radius:6px;padding:0 .2em;}' +
                         '.td-tts-highlight-underline{text-decoration:underline 2px var(--td-tts-highlight-bg)!important;text-underline-offset:0.2em;}' +
-                        '.td-tts-highlight-outline{outline:2px solid var(--td-tts-highlight-bg)!important;outline-offset:2px;border-radius:8px;padding:0 .2em;}' ;
+                        '.td-tts-highlight-outline{outline:2px solid var(--td-tts-highlight-bg)!important;outline-offset:2px;border-radius:8px;padding:0 .2em;}' +
+                        '$CHAPTER_TAG_NAME:has(.td-tts-highlight-outline){contain:layout style;}' ;
                     document.head.appendChild(state.styleEl);
                 }
 

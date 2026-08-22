@@ -16,7 +16,8 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Library sort by last read now updates after reading [@mrissaoussama](https://github.com/mrissaoussama) [#400](https://github.com/tsundoku-otaku/tsundoku/pull/400)
 - Double-tapping browse now does novel search if manga UI hidden [@mrissaoussama](https://github.com/mrissaoussama) [#401](https://github.com/tsundoku-otaku/tsundoku/pull/401)
 - Clarified UI text on text-selectable option [@mrissaoussama](https://github.com/mrissaoussama) [#403](https://github.com/tsundoku-otaku/tsundoku/pull/403)
--Fix novel theme preference showing null [@mrissaoussama](https://github.com/mrissaoussama) [#404](https://github.com/tsundoku-otaku/tsundoku/pull/404)
+- Fix novel theme preference showing null [@mrissaoussama](https://github.com/mrissaoussama) [#404](https://github.com/tsundoku-otaku/tsundoku/pull/404)
+- Fix TTS highlight outline getting clipped in WebView reader [@mrissaoussama](https://github.com/mrissaoussama) [#406](https://github.com/tsundoku-otaku/tsundoku/pull/406)
 
 ## [v0.3.2] - 2026-08-21
 ### Improved
