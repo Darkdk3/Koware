@@ -139,11 +139,13 @@ object SettingsNovelReaderScreen : SearchableSettings {
                 Preference.PreferenceItem.ListPreference(
                     preference = readerPreferences.novelTheme,
                     entries = mapOf(
+                        "app" to "App",
                         "light" to "Light",
                         "dark" to "Dark",
                         "sepia" to "Sepia",
                         "black" to "Black",
                         "grey" to "Grey",
+                        "custom" to "Custom",
                     ).toMap(),
                     title = stringResource(TDMR.strings.pref_novel_theme),
                 ),
