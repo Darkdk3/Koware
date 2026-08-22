@@ -18,6 +18,8 @@ import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.browse.discover.DiscoverViewModel
+import eu.kanade.tachiyomi.ui.browse.discover.discoverTab
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.NovelExtensionsViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.extensionsTab
@@ -78,14 +80,18 @@ data object BrowseTab : Tab {
         val novelExtensionsViewModel = viewModel<NovelExtensionsViewModel>()
         val novelExtensionsState by novelExtensionsViewModel.state.collectAsState()
 
+        val discoverViewModel = viewModel<DiscoverViewModel>()
+
         val tabs = if (hideMangaBrowseTabs) {
             listOf(
+                discoverTab(discoverViewModel),
                 novelSourcesTab(),
                 novelExtensionsTab(novelExtensionsViewModel),
                 novelMigrateSourceTab(),
             )
         } else {
             listOf(
+                discoverTab(discoverViewModel),
                 novelSourcesTab(),
                 sourcesTab(),
                 novelExtensionsTab(novelExtensionsViewModel),
@@ -95,8 +101,8 @@ data object BrowseTab : Tab {
             )
         }
 
-        val novelExtensionsTabIndex = if (hideMangaBrowseTabs) 1 else 2
-        val mangaExtensionsTabIndex = if (hideMangaBrowseTabs) null else 3
+        val novelExtensionsTabIndex = if (hideMangaBrowseTabs) 2 else 3
+        val mangaExtensionsTabIndex = if (hideMangaBrowseTabs) null else 4
 
         val state = rememberPagerState { tabs.size }
 
@@ -119,7 +125,7 @@ data object BrowseTab : Tab {
         LaunchedEffect(Unit) {
             switchToExtensionTabChannel.receiveAsFlow()
                 .collectLatest {
-                    state.scrollToPage(if (hideMangaBrowseTabs) novelExtensionsTabIndex else 3)
+                    state.scrollToPage(if (hideMangaBrowseTabs) novelExtensionsTabIndex else mangaExtensionsTabIndex!!)
                 }
         }
 
