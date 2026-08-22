@@ -18,6 +18,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write # needed so this fork's own release step (below) can publish releases
 
 jobs:
   build:
@@ -58,9 +60,21 @@ jobs:
         with:
           java-version-file: .github/.java-version
           distribution: temurin
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Cache debug keystore
+        # Without this, GitHub's ephemeral runners generate a brand-new random
+        # debug keystore on every single run, so every nightly build ends up
+        # signed with a different key. Android refuses to install an "update"
+        # whose signature doesn't match what's already installed, so without
+        # this cache, every build would still force an uninstall/reinstall -
+        # this is what actually makes in-place updates possible.
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: debug-keystore-v1
+
 
       - name: Build release APK(s) (unsigned)
         run: ./gradlew assembleNightly -Penable-updater
@@ -108,7 +122,6 @@ jobs:
           mv app/build/outputs/apk/nightly/app-x86-nightly-signed.apk tsundoku-x86-r${{ env.COMMIT_COUNT }}.apk
           mv app/build/outputs/apk/nightly/app-x86_64-nightly-signed.apk tsundoku-x86_64-r${{ env.COMMIT_COUNT }}.apk
 
-
       - name: Upload signed APKs
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'tsundoku-otaku/tsundoku'
         uses: actions/upload-artifact@v5
@@ -149,6 +162,30 @@ jobs:
         with:
           repo: tsundoku-otaku/tsundoku-nightly
           keep_latest: 28
+          delete_tags: true
+      - name: Create release (this fork)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository != 'tsundoku-otaku/tsundoku'
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          tag_name: nightly-${{ github.run_number }}
+          name: Nightly build ${{ github.run_number }}
+          body: |
+            Automated nightly build from commit ${{ github.sha }}.
+            Signed with Android's default debug keystore (this fork doesn't have
+            the upstream signing secrets) — installable, but Android will treat
+            it as a different signing identity than any store-signed version.
+          files: app/build/outputs/apk/nightly/*.apk
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prune old releases (this fork)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository != 'tsundoku-otaku/tsundoku'
+        uses: dev-drprasad/delete-older-releases@dfbe6be2a006e9475dfcbe5b8d201f1824c2a9fe # v0.3.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          keep_latest: 10
           delete_tags: true
 
       - name: Cleanup keystore
