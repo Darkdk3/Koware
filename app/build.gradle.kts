@@ -30,7 +30,7 @@ android {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
-        applicationId = "app.tsundoku"
+        applicationId = "app.Koware"
 
         versionCode = 24
         versionName = "0.3.2"
