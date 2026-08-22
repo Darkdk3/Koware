@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.browse
 
+
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
