@@ -10,8 +10,9 @@ import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.coroutines.flow.update
 import mihon.core.viewmodel.StateViewModel
+import mihon.domain.manga.model.toDomainManga // confirmed real
 import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.manga.interactor.NetworkToLocalManga // confirmed real
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -33,6 +34,7 @@ class DiscoverViewModel(
     private val sourceManager: SourceManager = Injekt.get(),
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val jsPluginManager: JsPluginManager = Injekt.get(),
+    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
 ) : StateViewModel<DiscoverScreenState>(DiscoverScreenState()) {
 
     init {
@@ -71,16 +73,21 @@ class DiscoverViewModel(
     }
 
     /**
-     * TEMPORARILY DISABLED. My last attempt at this (using a guessed
-     * NetworkToLocalManga/toDomainManga API) failed to compile - wrong names, three
-     * guesses in a row. Rather than guess a fourth time, tapping a card is a no-op
-     * for now until I see the real code your app uses when tapping a search result
-     * in the Sources tab (that's the same "resolve remote SManga -> local DB manga
-     * with a real id" step Discover needs). Once you send that file, this gets
-     * filled in properly and card taps will navigate correctly.
+     * Tapped a card. The entry's SManga only exists as a remote listing right now - it has
+     * no local database row, so MangaScreen can't be opened with it directly. This converts
+     * it to a domain Manga (isNovel = true, since Discover is novels-only), inserts-or-fetches
+     * it via NetworkToLocalManga to get a real local id, then exposes that id via state for
+     * the UI to navigate with.
      */
     fun openEntry(entry: DiscoverEntry) {
-        logcat { "Discover: tapped '${entry.manga.title}' from ${entry.source.name} - navigation not yet wired up" }
+        viewModelScope.launchIO {
+            val domainManga = entry.manga.toDomainManga(
+                sourceId = entry.source.id,
+                isNovel = true,
+            )
+            val localManga = networkToLocalManga(domainManga)
+            mutableState.update { it.copy(pendingMangaId = localManga.id) }
+        }
     }
 
     fun consumePendingNavigation() {
