@@ -2106,10 +2106,11 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
             persistScope.launch { deleteBatchFiles(appContext, batchId) }
         }
 
-        fun clearCompleted(context: Context) {
+        fun clearCompleted(context: Context, onlyWithoutErrors: Boolean = false) {
             val appContext = context.applicationContext
             val doneIds = _sharedQueue.value
                 .filter { it.status == BatchStatus.Completed || it.status == BatchStatus.Cancelled }
+                .filter { !onlyWithoutErrors || it.errored == 0 }
                 .map { it.id }
             if (doneIds.isEmpty()) return
             // Keep the flow update pure (it may re-run under CAS contention) and never touch

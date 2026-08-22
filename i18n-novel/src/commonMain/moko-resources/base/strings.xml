@@ -112,8 +112,9 @@
     <string name="mass_import_add_to_queue">Add to Queue</string>
     <string name="mass_import_close">Close</string>
     <string name="mass_import_confirm_clear_completed_title">Clear completed batches?</string>
-    <string name="mass_import_confirm_clear_completed_message">This will remove all completed and cancelled batches from the queue.</string>
+    <string name="mass_import_confirm_clear_completed_message">Choose whether to remove only completed batches without errors, or all completed and cancelled batches from the queue.</string>
     <string name="mass_import_button_clear">Clear</string>
+    <string name="mass_import_button_clear_no_errors">Clear without errors</string>
     <string name="mass_import_button_cancel">Cancel</string>
     <string name="mass_import_confirm_clear_pending_title">Clear pending URLs?</string>
     <string name="mass_import_confirm_clear_pending_message">This will remove all pending URLs from the input field.</string>

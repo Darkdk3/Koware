@@ -11,6 +11,9 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - `Other` - for technical stuff.
 
 ## [Unreleased]
+### Improved
+- Add option to clear only error-free completed massimport batches [@mrissaoussama](https://github.com/mrissaoussama) [#402](https://github.com/tsundoku-otaku/tsundoku/pull/402)
+
 
 ### Fixed
 - Library sort by last read now updates after reading [@mrissaoussama](https://github.com/mrissaoussama) [#400](https://github.com/tsundoku-otaku/tsundoku/pull/400)
