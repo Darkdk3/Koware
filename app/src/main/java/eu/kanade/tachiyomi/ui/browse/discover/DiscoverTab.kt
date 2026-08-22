@@ -9,23 +9,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.TabContent
-import tachiyomi.i18n.novel.TDMR // TODO: add a "label_discover" string res here (or wherever
-                                  // label_novel_extensions lives) — using it directly below
+import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 /**
- * Matches the novelExtensionsTab / extensionsTab factory pattern used in BrowseTab.kt.
+ * "Discover" tab, next to Sources/Extensions.
  * Register by adding `discoverTab(discoverViewModel)` to BrowseTab's `tabs` list.
  */
 @Composable
@@ -33,11 +39,27 @@ fun discoverTab(
     viewModel: DiscoverViewModel,
 ): TabContent {
     val state by viewModel.state.collectAsState()
+    var showSourcePicker by remember { mutableStateOf(false) }
+
+    if (showSourcePicker) {
+        DiscoverSourcePickerDialog(
+            availableSources = state.availableNovelSources,
+            enabledSourceKeys = state.enabledSourceKeys,
+            onToggleSource = viewModel::toggleSource,
+            onDismiss = { showSourcePicker = false },
+        )
+    }
 
     return TabContent(
-        titleRes = TDMR.strings.label_novel_extensions, // TODO: swap for a real
-                                                          // "label_discover" string res
+        titleRes = TDMR.strings.label_discover, // add this key — see instructions below
         searchEnabled = false,
+        actions = listOf(
+            AppBar.Action(
+                title = "Manage sources",
+                icon = Icons.Outlined.FilterList,
+                onClick = { showSourcePicker = true },
+            ),
+        ),
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
@@ -58,6 +80,12 @@ private fun DiscoverScreenContent(
 ) {
     if (isLoading) {
         // TODO: reuse your existing LoadingScreen composable
+        return
+    }
+
+    if (items.isEmpty()) {
+        // TODO: reuse your existing EmptyScreen composable — e.g. "No sources selected,
+        // tap the filter icon to choose which sources feed Discover"
         return
     }
 
@@ -85,7 +113,7 @@ private fun DiscoverMangaCard(
         modifier = Modifier.padding(2.dp),
     ) {
         AsyncImage(
-            model = manga.thumbnail_url, // real cover art, same field Library/Extensions use
+            model = manga.thumbnail_url,
             contentDescription = manga.title,
             modifier = Modifier.aspectRatio(2f / 3f),
             contentScale = ContentScale.Crop,
