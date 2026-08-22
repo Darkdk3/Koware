@@ -1,3 +1,4 @@
+
 // FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverTab.kt
 
 package eu.kanade.tachiyomi.ui.browse.discover
@@ -11,13 +12,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -25,12 +30,22 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
+import eu.kanade.presentation.components.AppBar
+import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.TabContent
-import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen // TODO: confirm — see note below
 import eu.kanade.tachiyomi.ui.manga.MangaScreen // TODO: confirm this is your real
-                                                  // novel/manga details+reader entry screen
+                                                  // novel/manga details+reader entry screen,
+                                                  // and confirm its constructor parameter
+                                                  // name really is `mangaId` (a Long)
+import tachiyomi.domain.library.service.LibraryPreferences // TODO: confirm this exact
+                                                              // package/name — standard
+                                                              // Tachiyomi/Mihon location for
+                                                              // the "columns per row" library
+                                                              // display setting
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * "Discover" tab, next to Sources/Extensions. Feed is driven by whichever novel
@@ -44,32 +59,32 @@ fun discoverTab(
     val state by viewModel.state.collectAsState()
     val navigator = LocalNavigator.currentOrThrow
 
+    // Once openEntry() resolves a tapped card to a real local manga id, navigate
+    // to it, then clear the pending id so re-composition doesn't navigate again.
+    LaunchedEffect(state.pendingMangaId) {
+        val id = state.pendingMangaId
+        if (id != null) {
+            navigator.push(MangaScreen(mangaId = id))
+            viewModel.consumePendingNavigation()
+        }
+    }
+
     return TabContent(
         titleRes = TDMR.strings.label_discover,
         searchEnabled = false,
+        actions = listOf(
+            AppBar.Action(
+                title = "Refresh",
+                icon = Icons.Outlined.Refresh,
+                onClick = { viewModel.loadDiscoverFeed() },
+            ),
+        ),
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
                 isLoading = state.isLoading,
                 contentPadding = contentPadding,
-                onMangaClick = { entry ->
-                    // Push the same details/reader screen the rest of the app uses when
-                    // tapping a cover in Library/Extensions results. This assumes
-                    // MangaScreen(mangaId, ...) or similar is how it's normally opened —
-                    // confirm against how your Extensions search results navigate on tap,
-                    // since that's the exact same action we want here.
-                    navigator.push(
-                        MangaScreen(
-                            mangaId = 0L, // TODO: this entry isn't in the local DB yet since
-                                          // it came straight from the source, not the library.
-                                          // You likely need a "insert-or-get" step first —
-                                          // e.g. call into your existing GetManga/NetworkToLocalManga
-                                          // use-case with entry.source.id + entry.manga, the same
-                                          // way BrowseSourceScreen's search results do when tapped,
-                                          // then navigate with the resulting local ID.
-                        ),
-                    )
-                },
+                onMangaClick = viewModel::openEntry,
             )
         },
     )
@@ -82,6 +97,12 @@ private fun DiscoverScreenContent(
     contentPadding: PaddingValues,
     onMangaClick: (DiscoverEntry) -> Unit,
 ) {
+    // Mirrors your Library's "items per row" setting. 0 = auto/adaptive in the
+    // standard Tachiyomi library-columns preference, matching that convention here.
+    val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+    val portraitColumns by libraryPreferences.portraitColumns().changes()
+        .collectAsState(initial = libraryPreferences.portraitColumns().get())
+
     if (isLoading) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -98,7 +119,7 @@ private fun DiscoverScreenContent(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "No novel sources pinned yet — long-press a source in the Sources tab to pin it, and it'll start feeding Discover.",
+                text = "No novel sources pinned yet — long-press a source in the Sources tab to pin it, and it'll start feeding Discover. Tap refresh above once you have.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -106,14 +127,11 @@ private fun DiscoverScreenContent(
     }
 
     LazyVerticalGrid(
-        // Adaptive: same idea as your Library grid — columns are computed from
-        // available width instead of a fixed count, so the row count naturally
-        // matches whatever grid density Library uses. 130dp is a reasonable
-        // per-cover minimum width to start from; if your Library grid exposes
-        // its own min-width/columns preference (many Mihon forks have a
-        // "grid size" library setting), swap GridCells.Adaptive(130.dp) for
-        // that same stored preference value here so the two screens agree exactly.
-        columns = GridCells.Adaptive(minSize = 130.dp),
+        columns = if (portraitColumns > 0) {
+            GridCells.Fixed(portraitColumns)
+        } else {
+            GridCells.Adaptive(minSize = 130.dp)
+        },
         contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
