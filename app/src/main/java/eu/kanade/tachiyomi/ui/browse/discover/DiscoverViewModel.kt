@@ -3,12 +3,8 @@
 package eu.kanade.tachiyomi.ui.browse.discover
 
 import androidx.lifecycle.viewModelScope
-import eu.kanade.domain.source.service.SourcePreferences // TODO: confirm this exact package.
-                                                            // Standard Mihon location for the
-                                                            // pinnedSources() preference — if it
-                                                            // fails to resolve, search your repo
-                                                            // for "pinnedSources" to find the
-                                                            // real class/package.
+import eu.kanade.domain.source.service.SourcePreferences
+import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.source.model.SManga
@@ -34,6 +30,11 @@ data class DiscoverScreenState(
 class DiscoverViewModel(
     private val sourceManager: SourceManager = Injekt.get(),
     private val sourcePreferences: SourcePreferences = Injekt.get(),
+    private val jsPluginManager: JsPluginManager = Injekt.get(), // already registered as a
+                                                                   // singleton elsewhere in the
+                                                                   // app (its JS Plugins tab uses
+                                                                   // it), so Injekt.get() should
+                                                                   // resolve without extra wiring
 ) : StateViewModel<DiscoverScreenState>(DiscoverScreenState()) {
 
     init {
@@ -46,13 +47,16 @@ class DiscoverViewModel(
 
             val pinnedKeys = sourcePreferences.pinnedSources().get()
 
-            // Novel sources you've pinned in the Sources tab drive the feed — same
-            // pin mechanism the rest of the app already uses, no separate picker needed.
-            val pinnedNovelSources = sourceManager.getOnlineSources()
+            // Regular (Kotlin/APK) extensions plus LNReader-compatible JS plugin sources,
+            // merged into one pool before filtering — JsSource already implements
+            // CatalogueSource, so it slots in alongside everything else with no special-casing.
+            val allNovelSources = (sourceManager.getOnlineSources() + jsPluginManager.jsSources.value)
                 .filterIsInstance<CatalogueSource>()
+                .distinctBy { it.id }
                 .filter { it.isNovelSource() }
                 .filter { it.supportsLatest }
-                .filter { it.id.toString() in pinnedKeys }
+
+            val pinnedNovelSources = allNovelSources.filter { it.id.toString() in pinnedKeys }
 
             // Each source's "latest" page is already sorted by recency internally, but
             // SManga carries no timestamp field, so a true cross-source chronological
