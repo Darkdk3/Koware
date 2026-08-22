@@ -45,7 +45,7 @@ class DiscoverViewModel(
         viewModelScope.launchIO {
             mutableState.update { it.copy(isLoading = true) }
 
-            val pinnedKeys = sourcePreferences.pinnedSources().get()
+            val pinnedKeys = sourcePreferences.pinnedSources.get()
 
             // Regular (Kotlin/APK) extensions plus LNReader-compatible JS plugin sources,
             // merged into one pool before filtering — JsSource already implements
