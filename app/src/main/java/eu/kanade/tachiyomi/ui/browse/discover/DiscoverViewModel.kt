@@ -8,9 +8,30 @@ import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.source.model.toSManga // TODO: only needed if a reverse conversion
+                                                   // ends up necessary — remove if unused once
+                                                   // this compiles
 import kotlinx.coroutines.flow.update
 import mihon.core.viewmodel.StateViewModel
 import tachiyomi.core.common.util.lang.launchIO
+import tachiyomi.domain.manga.interactor.NetworkToLocalManga // TODO: confirm this exact
+                                                                // package/name — this is the
+                                                                // standard Tachiyomi/Mihon
+                                                                // use-case for "I have an SManga
+                                                                // from a source, give me back a
+                                                                // local DB manga with a real ID,
+                                                                // inserting if it doesn't exist
+                                                                // yet." If it fails to resolve,
+                                                                // search your repo for how
+                                                                // BrowseSourceScreen/search
+                                                                // results handle a tap - they
+                                                                // must do this exact conversion
+                                                                // somewhere, and I need that
+                                                                // exact class/method name.
+import tachiyomi.domain.manga.model.toDomainManga // TODO: same caveat - standard extension
+                                                    // that turns SManga + sourceId into a
+                                                    // domain Manga object suitable for
+                                                    // NetworkToLocalManga
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -24,17 +45,17 @@ data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    val hasPinnedNovelSources: Boolean = true, // drives the "nothing pinned yet" empty state
+    val hasPinnedNovelSources: Boolean = true,
+    val pendingMangaId: Long? = null, // set once a tapped entry has been resolved to a
+                                       // real local DB id; DiscoverTab observes this and
+                                       // navigates, then clears it back to null
 )
 
 class DiscoverViewModel(
     private val sourceManager: SourceManager = Injekt.get(),
     private val sourcePreferences: SourcePreferences = Injekt.get(),
-    private val jsPluginManager: JsPluginManager = Injekt.get(), // already registered as a
-                                                                   // singleton elsewhere in the
-                                                                   // app (its JS Plugins tab uses
-                                                                   // it), so Injekt.get() should
-                                                                   // resolve without extra wiring
+    private val jsPluginManager: JsPluginManager = Injekt.get(),
+    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
 ) : StateViewModel<DiscoverScreenState>(DiscoverScreenState()) {
 
     init {
@@ -47,9 +68,6 @@ class DiscoverViewModel(
 
             val pinnedKeys = sourcePreferences.pinnedSources.get()
 
-            // Regular (Kotlin/APK) extensions plus LNReader-compatible JS plugin sources,
-            // merged into one pool before filtering — JsSource already implements
-            // CatalogueSource, so it slots in alongside everything else with no special-casing.
             val allNovelSources = (sourceManager.getOnlineSources() + jsPluginManager.jsSources.value)
                 .filterIsInstance<CatalogueSource>()
                 .distinctBy { it.id }
@@ -58,10 +76,6 @@ class DiscoverViewModel(
 
             val pinnedNovelSources = allNovelSources.filter { it.id.toString() in pinnedKeys }
 
-            // Each source's "latest" page is already sorted by recency internally, but
-            // SManga carries no timestamp field, so a true cross-source chronological
-            // merge isn't possible. Round-robin interleaving keeps one source from
-            // dominating the top of the feed.
             val perSourceLists = pinnedNovelSources.map { source ->
                 runCatching { source.getLatestUpdates(page = 1).mangas }
                     .getOrDefault(emptyList())
@@ -77,6 +91,26 @@ class DiscoverViewModel(
                 )
             }
         }
+    }
+
+    /**
+     * Tapped a card. The entry's SManga only exists as a remote listing right now — it has
+     * no local database row, so MangaScreen can't be opened with it directly (that was the
+     * cause of the earlier NullPointerException / crash: navigating with a fake/zero id).
+     * This inserts-or-fetches the real local manga first, then exposes its id via state
+     * for the UI to navigate with.
+     */
+    fun openEntry(entry: DiscoverEntry) {
+        viewModelScope.launchIO {
+            val localManga = networkToLocalManga.await(
+                entry.manga.toDomainManga(entry.source.id),
+            )
+            mutableState.update { it.copy(pendingMangaId = localManga.id) }
+        }
+    }
+
+    fun consumePendingNavigation() {
+        mutableState.update { it.copy(pendingMangaId = null) }
     }
 
     fun refresh() {
