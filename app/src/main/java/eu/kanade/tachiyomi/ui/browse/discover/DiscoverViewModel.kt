@@ -3,6 +3,7 @@
 
 package eu.kanade.tachiyomi.ui.browse.discover
 
+import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.source.model.SManga
