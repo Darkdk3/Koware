@@ -63,6 +63,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta
 import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.TSUNDOKU_CHAPTER_ATTR
 import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.TSUNDOKU_OBJECT_NAME
 import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.quoteForJson
+import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.unescapeJsResult
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -115,18 +116,6 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 }).join('\n');
             })();
         """
-
-        fun unescapeJsResult(result: String): String =
-            if (result.startsWith("\"") && result.endsWith("\"")) {
-                // \\ must come first so \\n stays as backslash+n rather than becoming a newline.
-                result.substring(1, result.length - 1)
-                    .replace("\\\\", "\\")
-                    .replace("\\n", "\n")
-                    .replace("\\t", "\t")
-                    .replace("\\\"", "\"")
-            } else {
-                result
-            }
     }
 
     private val container = FrameLayout(activity)

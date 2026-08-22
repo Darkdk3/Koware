@@ -22,6 +22,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Fix novel theme preference showing null [@mrissaoussama](https://github.com/mrissaoussama) [#404](https://github.com/tsundoku-otaku/tsundoku/pull/404)
 - Fix TTS highlight outline getting clipped in WebView reader [@mrissaoussama](https://github.com/mrissaoussama) [#406](https://github.com/tsundoku-otaku/tsundoku/pull/406)
 - Globally throttle notification updates for massimport across batches [@mrissaoussama](https://github.com/mrissaoussama) [#407](https://github.com/tsundoku-otaku/tsundoku/pull/407)
+- Fix JS result unescaping misreading obfuscated backslashes as escapes [@mrissaoussama](https://github.com/mrissaoussama) [#405](https://github.com/tsundoku-otaku/tsundoku/pull/405)
 
 ## [v0.3.2] - 2026-08-21
 ### Improved
