@@ -67,6 +67,7 @@ import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 // Back off fetches once heap usage crosses this fraction of the actual VM heap limit.
 private const val MEMORY_PRESSURE_THRESHOLD = 0.75
@@ -95,6 +96,9 @@ private const val MAX_DEDUP_KEYS = 2_000_000
 private const val FETCH_TIMEOUT_MS = 60_000L
 private const val NOTIFICATION_THROTTLE_MS = 1000L
 private const val NOTIFICATION_MIN_DELTA = 5
+
+// Caps notify() rate across ALL concurrent batches combined, not per batch.
+private const val GLOBAL_NOTIFICATION_THROTTLE_MS = 1000L
 
 // Cap the per-URL error detail dumped into the completion result file; the full set stays in the
 // in-app error log. Stops a mostly-failing huge import from writing a gigantic results file.
@@ -1081,6 +1085,13 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
                 (now - lastNotificationTime) >= NOTIFICATION_THROTTLE_MS
 
         if (shouldNotify) {
+            val prevGlobal = globalLastNotifyTime.get()
+            if (now - prevGlobal < GLOBAL_NOTIFICATION_THROTTLE_MS ||
+                !globalLastNotifyTime.compareAndSet(prevGlobal, now)
+            ) {
+                return
+            }
+
             // Create a new notification builder each time to avoid ConcurrentModificationException
             // when addAction() is called repeatedly on the same builder
             val notification = context.notificationBuilder(Notifications.CHANNEL_MASS_IMPORT) {
@@ -1321,6 +1332,8 @@ class MassImportJob(private val context: Context, workerParams: WorkerParameters
         // batch instead of looping. Stops a job that can never start a foreground service (denied
         // at cold start) from re-running every launch and jamming splash.
         private const val MAX_FOREGROUND_START_RETRIES = 3
+
+        private val globalLastNotifyTime = AtomicLong(0L)
 
         private val _sharedQueue = MutableStateFlow<List<Batch>>(emptyList())
         val sharedQueue = _sharedQueue.asStateFlow()

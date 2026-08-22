@@ -18,6 +18,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 - Clarified UI text on text-selectable option [@mrissaoussama](https://github.com/mrissaoussama) [#403](https://github.com/tsundoku-otaku/tsundoku/pull/403)
 - Fix novel theme preference showing null [@mrissaoussama](https://github.com/mrissaoussama) [#404](https://github.com/tsundoku-otaku/tsundoku/pull/404)
 - Fix TTS highlight outline getting clipped in WebView reader [@mrissaoussama](https://github.com/mrissaoussama) [#406](https://github.com/tsundoku-otaku/tsundoku/pull/406)
+- Globally throttle notification updates for massimport across batches [@mrissaoussama](https://github.com/mrissaoussama) [#407](https://github.com/tsundoku-otaku/tsundoku/pull/407)
 
 ## [v0.3.2] - 2026-08-21
 ### Improved
