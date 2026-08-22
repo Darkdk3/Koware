@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -20,9 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -30,8 +25,6 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import coil3.compose.AsyncImage
-import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.tachiyomi.ui.browse.source.browse.BrowseSourceScreen // TODO: confirm — see note below
 import eu.kanade.tachiyomi.ui.manga.MangaScreen // TODO: confirm this is your real
@@ -40,7 +33,8 @@ import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 
 /**
- * "Discover" tab, next to Sources/Extensions.
+ * "Discover" tab, next to Sources/Extensions. Feed is driven by whichever novel
+ * sources you've pinned in the Sources tab — long-press a source there to pin it.
  * Register by adding `discoverTab(discoverViewModel)` to BrowseTab's `tabs` list.
  */
 @Composable
@@ -48,28 +42,11 @@ fun discoverTab(
     viewModel: DiscoverViewModel,
 ): TabContent {
     val state by viewModel.state.collectAsState()
-    var showSourcePicker by remember { mutableStateOf(false) }
     val navigator = LocalNavigator.currentOrThrow
-
-    if (showSourcePicker) {
-        DiscoverSourcePickerDialog(
-            availableSources = state.availableNovelSources,
-            enabledSourceKeys = state.enabledSourceKeys,
-            onToggleSource = viewModel::toggleSource,
-            onDismiss = { showSourcePicker = false },
-        )
-    }
 
     return TabContent(
         titleRes = TDMR.strings.label_discover,
         searchEnabled = false,
-        actions = listOf(
-            AppBar.Action(
-                title = "Manage sources",
-                icon = Icons.Outlined.FilterList,
-                onClick = { showSourcePicker = true },
-            ),
-        ),
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
@@ -121,7 +98,7 @@ private fun DiscoverScreenContent(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "No sources selected — tap the filter icon above to choose which sources feed Discover.",
+                text = "No novel sources pinned yet — long-press a source in the Sources tab to pin it, and it'll start feeding Discover.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
