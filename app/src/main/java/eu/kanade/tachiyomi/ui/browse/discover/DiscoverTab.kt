@@ -1,4 +1,3 @@
-
 // FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverTab.kt
 
 package eu.kanade.tachiyomi.ui.browse.discover
@@ -44,6 +43,8 @@ import tachiyomi.domain.library.service.LibraryPreferences // TODO: confirm this
                                                               // display setting
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.util.collectAsState // confirmed real — this exact import
+                                                          // appears in your actual BrowseTab.kt
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -100,8 +101,7 @@ private fun DiscoverScreenContent(
     // Mirrors your Library's "items per row" setting. 0 = auto/adaptive in the
     // standard Tachiyomi library-columns preference, matching that convention here.
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
-    val portraitColumns by libraryPreferences.portraitColumns().changes()
-        .collectAsState(initial = libraryPreferences.portraitColumns().get())
+    val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
 
     if (isLoading) {
         Box(
