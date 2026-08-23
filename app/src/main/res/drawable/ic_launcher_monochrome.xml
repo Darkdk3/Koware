@@ -4,6 +4,31 @@
     android:viewportWidth="432"
     android:viewportHeight="432">
 
+    <!-- Main circular border - matches the base icon's ring, single color for Material You -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeAlpha="0.90"
+        android:pathData="
+            M216,27
+            A189,189 0,1 0,216,405
+            A189,189 0,1 0,216,27
+            Z" />
+
+    <!-- Subtle inner ring -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.18"
+        android:pathData="
+            M216,42
+            A174,174 0,1 0,216,390
+            A174,174 0,1 0,216,42
+            Z" />
+
+    <!-- Central symbol -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="
