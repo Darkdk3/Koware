@@ -536,8 +536,8 @@ private fun MangaScreenSmallImpl(
                         contentType = MangaScreenItem.SOURCE_SUGGESTIONS,
                     ) {
                         eu.kanade.presentation.manga.components.SourceSuggestionsRow(
-                            suggestions = state.sourceSuggestions,
-                            onMangaClick = onSourceSuggestionClicked,
+                            suggestions = state.sourceSuggestions.orEmpty(),
+                            onSuggestionClick = onSourceSuggestionClicked,
                         )
                     }
 
@@ -826,8 +826,8 @@ fun MangaScreenLargeImpl(
                             onEditNotes = onEditNotesClicked,
                         )
                         eu.kanade.presentation.manga.components.SourceSuggestionsRow(
-                            suggestions = state.sourceSuggestions,
-                            onMangaClick = onSourceSuggestionClicked,
+                            suggestions = state.sourceSuggestions.orEmpty(),
+                            onSuggestionClick = onSourceSuggestionClicked,
                         )
                     }
                 },
