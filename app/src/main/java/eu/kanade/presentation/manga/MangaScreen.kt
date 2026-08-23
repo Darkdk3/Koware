@@ -128,7 +128,7 @@ fun MangaScreen(
     onExportEpubClicked: (() -> Unit)? = null,
     showSourceName: Boolean = true,
     onToggleSourceNameVisibility: (() -> Unit)? = null,
-    onSourceSuggestionClicked: (eu.kanade.tachiyomi.source.model.SManga) -> Unit,
+    onSourceSuggestionClicked: (tachiyomi.domain.manga.model.Manga) -> Unit,
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -304,7 +304,7 @@ private fun MangaScreenSmallImpl(
     onExportEpubClicked: (() -> Unit)?,
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
-    onSourceSuggestionClicked: (eu.kanade.tachiyomi.source.model.SManga) -> Unit,
+    onSourceSuggestionClicked: (tachiyomi.domain.manga.model.Manga) -> Unit,
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -618,7 +618,7 @@ fun MangaScreenLargeImpl(
     onExportEpubClicked: (() -> Unit)?,
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
-    onSourceSuggestionClicked: (eu.kanade.tachiyomi.source.model.SManga) -> Unit,
+    onSourceSuggestionClicked: (tachiyomi.domain.manga.model.Manga) -> Unit,
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
