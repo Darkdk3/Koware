@@ -7,21 +7,27 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
-import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.coroutines.flow.update
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
+import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 enum class DiscoverBrowseMode { LATEST, POPULAR }
 
+/**
+ * The manga here is already a real local database entry (converted via NetworkToLocalManga
+ * as soon as it's fetched, not only when tapped) - same as how BrowseSourceScreen already
+ * handles source listings. This gives Discover a real id for cover caching/consistent card
+ * rendering, and makes tap-to-navigate trivial since the id is already known.
+ */
 data class DiscoverEntry(
     val source: CatalogueSource,
-    val manga: SManga,
+    val manga: Manga,
 )
 
 data class DiscoverScreenState(
@@ -41,7 +47,6 @@ class DiscoverViewModel(
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
 ) : StateViewModel<DiscoverScreenState>(DiscoverScreenState()) {
 
-    /** Per-source page cursor, so "load more" only re-queries sources that still have pages left. */
     private data class SourcePageCursor(val nextPage: Int, val hasNextPage: Boolean)
     private val pageCursors = mutableMapOf<Long, SourcePageCursor>()
 
@@ -65,7 +70,6 @@ class DiscoverViewModel(
             .filter { it.id.toString() in pinnedKeys }
     }
 
-    /** Full reset - used on first load, refresh, and browse-mode switch. */
     fun loadDiscoverFeed() {
         viewModelScope.launchIO {
             mutableState.update { it.copy(isLoading = true) }
@@ -80,7 +84,10 @@ class DiscoverViewModel(
                     nextPage = 2,
                     hasNextPage = page?.hasNextPage == true,
                 )
-                (page?.mangas ?: emptyList()).map { manga -> DiscoverEntry(source, manga) }
+                (page?.mangas ?: emptyList()).map { sManga ->
+                    val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = true))
+                    DiscoverEntry(source, localManga)
+                }
             }
             val merged = interleave(perSourceLists)
 
@@ -90,7 +97,6 @@ class DiscoverViewModel(
         }
     }
 
-    /** Appends the next page from every source that still has one. Call when the grid nears the bottom. */
     fun loadMore() {
         if (state.value.isLoading || state.value.isLoadingMore) return
         val sources = pinnedNovelSources().filter { pageCursors[it.id]?.hasNextPage == true }
@@ -107,7 +113,10 @@ class DiscoverViewModel(
                     nextPage = cursor.nextPage + 1,
                     hasNextPage = page?.hasNextPage == true,
                 )
-                (page?.mangas ?: emptyList()).map { manga -> DiscoverEntry(source, manga) }
+                (page?.mangas ?: emptyList()).map { sManga ->
+                    val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = true))
+                    DiscoverEntry(source, localManga)
+                }
             }
             val appended = interleave(newLists)
 
@@ -124,15 +133,9 @@ class DiscoverViewModel(
         DiscoverBrowseMode.POPULAR -> source.getPopularManga(page)
     }
 
+    /** Trivial now - the manga is already a real local entry with a known id by fetch time. */
     fun openEntry(entry: DiscoverEntry) {
-        viewModelScope.launchIO {
-            val domainManga = entry.manga.toDomainManga(
-                sourceId = entry.source.id,
-                isNovel = true,
-            )
-            val localManga = networkToLocalManga(domainManga)
-            mutableState.update { it.copy(pendingMangaId = localManga.id) }
-        }
+        mutableState.update { it.copy(pendingMangaId = entry.manga.id) }
     }
 
     fun consumePendingNavigation() {
