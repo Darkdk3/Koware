@@ -39,7 +39,9 @@ import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.translation.TranslationJob
 import eu.kanade.tachiyomi.data.translation.TranslationService
 import eu.kanade.tachiyomi.network.interceptor.InteractiveRateLimitBypass
+import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.rateLimitHost
 import eu.kanade.tachiyomi.ui.reader.quote.QuoteManager
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
@@ -59,6 +61,7 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
+import mihon.domain.manga.model.toDomainManga
 import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.CheckboxState
@@ -85,6 +88,7 @@ import tachiyomi.domain.manga.interactor.FindDuplicateNovels
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
+import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.manga.interactor.SetMangaChapterFlags
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.MangaWithChapterCount
@@ -140,6 +144,7 @@ class MangaViewModel(
     private val translationService: TranslationService = Injekt.get(),
     private val getLibraryManga: GetLibraryManga = Injekt.get(),
     private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
+    private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateViewModel<MangaViewModel.State>(State.Loading) {
 
@@ -303,6 +308,10 @@ class MangaViewModel(
 
             // Start observe tracking since it only needs mangaId
             observeTrackers()
+
+            // "More from this source" row - non-blocking, fire-and-forget. The row itself
+            // (SourceSuggestionsRow) just stays hidden until this resolves.
+            loadSourceSuggestions(source, manga)
 
             // Fetch info-chapters when needed
             if ((needRefreshInfo || needRefreshChapter) && viewModelScope.isActive) {
@@ -729,6 +738,35 @@ class MangaViewModel(
 
             if (tagsChanged) getLibraryManga.applyMangaDetailUpdate(mangaId) { it.copy(genre = tags) }
         }
+    }
+
+    /**
+     * Fetches other novels from the same source, for the "more from this source" row.
+     * Excludes the current novel itself by URL. Silently empty on any failure - this
+     * row is secondary content, not worth surfacing an error snackbar for.
+     */
+    private fun loadSourceSuggestions(source: Source, manga: Manga) {
+        viewModelScope.launchIO {
+            val suggestions = runCatching {
+                (source as? CatalogueSource)?.getPopularManga(1)?.mangas
+            }.getOrNull()
+                ?.filter { it.url != manga.url }
+                ?.take(10)
+                .orEmpty()
+
+            updateSuccessState { it.copy(sourceSuggestions = suggestions) }
+        }
+    }
+
+    /**
+     * Tapped a source-suggestion card. The SManga only exists as a remote listing - convert
+     * to a domain Manga and insert-or-fetch its real local id, same pattern as the Discover
+     * tab uses. Caller (the Composable) navigates once this returns.
+     */
+    suspend fun openSourceSuggestion(sManga: SManga): Long {
+        val state = successState ?: error("Manga not loaded")
+        val domainManga = sManga.toDomainManga(sourceId = state.source.id, isNovel = true)
+        return networkToLocalManga(domainManga).id
     }
 
     // Manga info - end
@@ -1770,6 +1808,7 @@ class MangaViewModel(
             val similarNovels: List<MangaWithChapterCount> = emptyList(),
             val categories: List<Category> = emptyList(),
             val showSourceName: Boolean = true,
+            val sourceSuggestions: List<SManga>? = null,
         ) : State {
             val processedChapters by lazy {
                 chapters.applyFilters(manga).toList()
