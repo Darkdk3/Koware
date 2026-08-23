@@ -2,19 +2,30 @@
 
 package eu.kanade.tachiyomi.ui.browse.discover
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,6 +39,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -102,12 +115,6 @@ private fun DiscoverScreenContent(
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
-    // TODO: displayMode is read but not yet acted on below - every card currently renders
-    // as MangaComfortableGridItem regardless of this setting. CompactGrid/List/CoverOnlyGrid
-    // need their own confirmed card composables (MangaCompactGridItem, a list-row equivalent,
-    // a cover-only variant) before full mode parity with Library can be finished - send those
-    // files and I'll wire in the remaining branches.
-    val displayMode by libraryPreferences.displayMode.collectAsState()
     val gridState = rememberLazyGridState()
 
     val shouldLoadMore by remember {
@@ -122,70 +129,65 @@ private fun DiscoverScreenContent(
         }
     }
 
-    if (isLoading) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            CircularProgressIndicator()
-        }
-        return
+    val columns = if (portraitColumns > 0) {
+        GridCells.Fixed(portraitColumns)
+    } else {
+        GridCells.Adaptive(minSize = 130.dp)
     }
 
-    if (items.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "No novel sources pinned yet — long-press a source in the Sources tab to pin it, and it'll start feeding Discover. Tap refresh above once you have.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        return
-    }
-
+    // Toggle stays visible in every state - loading, empty, or populated - so switching
+    // modes is always available rather than disappearing while content loads.
     Column(modifier = Modifier.fillMaxSize()) {
         BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
 
-        LazyVerticalGrid(
-            state = gridState,
-            columns = if (portraitColumns > 0) {
-                GridCells.Fixed(portraitColumns)
-            } else {
-                GridCells.Adaptive(minSize = 130.dp)
-            },
-            contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(items, key = { it.manga.id }) { entry ->
-                MangaComfortableGridItem(
-                    isSelected = false,
-                    title = entry.manga.title,
-                    coverData = MangaCover(
-                        mangaId = entry.manga.id,
-                        sourceId = entry.manga.source,
-                        isMangaFavorite = entry.manga.favorite,
-                        url = entry.manga.thumbnailUrl,
-                        lastModified = entry.manga.coverLastModified,
-                    ),
-                    coverBadgeStart = {},
-                    coverBadgeEnd = {},
-                    onLongClick = {},
-                    onClick = { onMangaClick(entry) },
-                    onClickContinueReading = null,
-                    titleMaxLines = 3,
+        when {
+            isLoading -> DiscoverLoadingGrid(columns = columns, contentPadding = contentPadding)
+
+            items.isEmpty() -> Box(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "No novel sources pinned yet — long-press a source in the Sources tab to pin it, and it'll start feeding Discover. Tap refresh above once you have.",
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
 
-            if (isLoadingMore) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
+            else -> LazyVerticalGrid(
+                state = gridState,
+                columns = columns,
+                contentPadding = contentPadding,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(items, key = { it.manga.id }) { entry ->
+                    MangaComfortableGridItem(
+                        isSelected = false,
+                        title = entry.manga.title,
+                        coverData = MangaCover(
+                            mangaId = entry.manga.id,
+                            sourceId = entry.manga.source,
+                            isMangaFavorite = entry.manga.favorite,
+                            url = entry.manga.thumbnailUrl,
+                            lastModified = entry.manga.coverLastModified,
+                        ),
+                        coverBadgeStart = {},
+                        coverBadgeEnd = {},
+                        onLongClick = {},
+                        onClick = { onMangaClick(entry) },
+                        onClickContinueReading = null,
+                        titleMaxLines = 3,
+                    )
+                }
+
+                if (isLoadingMore) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
@@ -214,5 +216,74 @@ private fun BrowseModeToggle(
             onClick = { onSelect(DiscoverBrowseMode.POPULAR) },
             label = { Text("Popular") },
         )
+    }
+}
+
+/**
+ * Animated shimmer brush - a soft highlight band that sweeps diagonally across
+ * placeholder shapes on a loop, the standard "skeleton loading" effect.
+ */
+@Composable
+private fun shimmerBrush(): Brush {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translate by transition.animateFloat(
+        initialValue = -1000f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "shimmerTranslate",
+    )
+    val base = MaterialTheme.colorScheme.surfaceVariant
+    val highlight = MaterialTheme.colorScheme.surface
+    return Brush.linearGradient(
+        colors = listOf(base, highlight, base),
+        start = Offset(translate - 300f, translate - 300f),
+        end = Offset(translate, translate),
+    )
+}
+
+@Composable
+private fun DiscoverLoadingGrid(
+    columns: GridCells,
+    contentPadding: PaddingValues,
+) {
+    val brush = shimmerBrush()
+
+    LazyVerticalGrid(
+        columns = columns,
+        contentPadding = contentPadding,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        userScrollEnabled = false,
+    ) {
+        items(18) {
+            Column {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(brush),
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(top = 6.dp)
+                        .fillMaxWidth(0.8f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(brush),
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .fillMaxWidth(0.5f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(brush),
+                )
+            }
+        }
     }
 }
