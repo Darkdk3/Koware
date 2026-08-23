@@ -7,19 +7,24 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -32,19 +37,11 @@ import coil3.compose.AsyncImage
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.TabContent
-import eu.kanade.tachiyomi.ui.manga.MangaScreen // TODO: confirm this is your real
-                                                  // novel/manga details+reader entry screen,
-                                                  // and confirm its constructor parameter
-                                                  // name really is `mangaId` (a Long)
-import tachiyomi.domain.library.service.LibraryPreferences // TODO: confirm this exact
-                                                              // package/name — standard
-                                                              // Tachiyomi/Mihon location for
-                                                              // the "columns per row" library
-                                                              // display setting
+import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.util.collectAsState // confirmed real — this exact import
-                                                          // appears in your actual BrowseTab.kt
+import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -60,8 +57,6 @@ fun discoverTab(
     val state by viewModel.state.collectAsState()
     val navigator = LocalNavigator.currentOrThrow
 
-    // Once openEntry() resolves a tapped card to a real local manga id, navigate
-    // to it, then clear the pending id so re-composition doesn't navigate again.
     LaunchedEffect(state.pendingMangaId) {
         val id = state.pendingMangaId
         if (id != null) {
@@ -84,8 +79,12 @@ fun discoverTab(
             DiscoverScreenContent(
                 items = state.items,
                 isLoading = state.isLoading,
+                isLoadingMore = state.isLoadingMore,
+                browseMode = state.browseMode,
                 contentPadding = contentPadding,
                 onMangaClick = viewModel::openEntry,
+                onBrowseModeChange = viewModel::setBrowseMode,
+                onLoadMore = viewModel::loadMore,
             )
         },
     )
@@ -95,13 +94,29 @@ fun discoverTab(
 private fun DiscoverScreenContent(
     items: List<DiscoverEntry>,
     isLoading: Boolean,
+    isLoadingMore: Boolean,
+    browseMode: DiscoverBrowseMode,
     contentPadding: PaddingValues,
     onMangaClick: (DiscoverEntry) -> Unit,
+    onBrowseModeChange: (DiscoverBrowseMode) -> Unit,
+    onLoadMore: () -> Unit,
 ) {
-    // Mirrors your Library's "items per row" setting. 0 = auto/adaptive in the
-    // standard Tachiyomi library-columns preference, matching that convention here.
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
+    val gridState = rememberLazyGridState()
+
+    // Fire loadMore once the user scrolls near the bottom of what's currently loaded.
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            items.isNotEmpty() && lastVisible >= items.size - 6
+        }
+    }
+    LaunchedEffect(shouldLoadMore, isLoading, isLoadingMore) {
+        if (shouldLoadMore && !isLoading && !isLoadingMore) {
+            onLoadMore()
+        }
+    }
 
     if (isLoading) {
         Box(
@@ -126,19 +141,62 @@ private fun DiscoverScreenContent(
         return
     }
 
-    LazyVerticalGrid(
-        columns = if (portraitColumns > 0) {
-            GridCells.Fixed(portraitColumns)
-        } else {
-            GridCells.Adaptive(minSize = 130.dp)
-        },
-        contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        items(items, key = { it.manga.url }) { entry ->
-            DiscoverMangaCard(entry = entry, onClick = { onMangaClick(entry) })
+    androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize()) {
+        BrowseModeToggle(
+            selected = browseMode,
+            onSelect = onBrowseModeChange,
+        )
+
+        LazyVerticalGrid(
+            state = gridState,
+            columns = if (portraitColumns > 0) {
+                GridCells.Fixed(portraitColumns)
+            } else {
+                GridCells.Adaptive(minSize = 130.dp)
+            },
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(items, key = { "${it.source.id}-${it.manga.url}" }) { entry ->
+                DiscoverMangaCard(entry = entry, onClick = { onMangaClick(entry) })
+            }
+
+            if (isLoadingMore) {
+                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun BrowseModeToggle(
+    selected: DiscoverBrowseMode,
+    onSelect: (DiscoverBrowseMode) -> Unit,
+) {
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            selected = selected == DiscoverBrowseMode.LATEST,
+            onClick = { onSelect(DiscoverBrowseMode.LATEST) },
+            label = { Text("Latest") },
+        )
+        FilterChip(
+            selected = selected == DiscoverBrowseMode.POPULAR,
+            onClick = { onSelect(DiscoverBrowseMode.POPULAR) },
+            label = { Text("Popular") },
+        )
     }
 }
 
@@ -162,7 +220,7 @@ private fun DiscoverMangaCard(
         Text(
             text = manga.title,
             style = MaterialTheme.typography.bodyMedium,
-            maxLines = 2,
+            maxLines = 3, // was 2 - long titles were getting cut off awkwardly
             modifier = Modifier.padding(8.dp),
         )
         Text(
