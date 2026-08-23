@@ -1,3 +1,5 @@
+// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverTab.kt
+
 package eu.kanade.tachiyomi.ui.browse.discover
 
 import androidx.compose.animation.core.LinearEasing
@@ -32,7 +34,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -160,23 +161,32 @@ private fun DiscoverScreenContent(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(items, key = { it.manga.id }) { entry ->
-                    MangaComfortableGridItem(
-                        isSelected = false,
-                        title = entry.manga.title,
-                        coverData = MangaCover(
-                            mangaId = entry.manga.id,
-                            sourceId = entry.manga.source,
-                            isMangaFavorite = entry.manga.favorite,
-                            url = entry.manga.thumbnailUrl,
-                            lastModified = entry.manga.coverLastModified,
-                        ),
-                        coverBadgeStart = {},
-                        coverBadgeEnd = {},
-                        onLongClick = {},
-                        onClick = { onMangaClick(entry) },
-                        onClickContinueReading = null,
-                        titleMaxLines = 3,
-                    )
+                    Column {
+                        MangaComfortableGridItem(
+                            isSelected = false,
+                            title = entry.manga.title,
+                            coverData = MangaCover(
+                                mangaId = entry.manga.id,
+                                sourceId = entry.manga.source,
+                                isMangaFavorite = entry.manga.favorite,
+                                url = entry.manga.thumbnailUrl,
+                                lastModified = entry.manga.coverLastModified,
+                            ),
+                            coverBadgeStart = {},
+                            coverBadgeEnd = {},
+                            onLongClick = {},
+                            onClick = { onMangaClick(entry) },
+                            onClickContinueReading = null,
+                            titleMaxLines = 3,
+                        )
+                        Text(
+                            text = entry.source.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                        )
+                    }
                 }
 
                 if (isLoadingMore) {
