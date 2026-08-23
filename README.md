@@ -1,27 +1,22 @@
 <div align="center">
 
-<a href="https://tsundoku-otaku.github.io">
-    <img src="./.github/assets/svg-code-1024×1024.png" alt="Koware logo" title="Koware logo" width="80"/>
+<a href="https://github.com/Darkdk3/tsundoku">
+    <img src="./.github/assets/koware-logo.png" alt="Koware logo" title="Koware logo" width="80"/>
 </a>
-# Tsundoku [App](#)
+
+# Koware
 
 ### Full-featured reader
 Discover and read novels and more – easier than ever on your Android device.
 
-[![Discord server](https://img.shields.io/discord/1475219284551536653.svg?label=&labelColor=6A7EC2&color=7389D8&logo=discord&logoColor=FFFFFF)](https://discord.gg/RycBkEgrPE)
-[![GitHub downloads](https://img.shields.io/github/downloads/tsundoku-otaku/tsundoku/total?label=downloads&labelColor=27303D&color=0D1117&logo=github&logoColor=FFFFFF&style=flat)](https://tsundoku-otaku.github.io/download)
+A personal fork of [Tsundoku](https://github.com/tsundoku-otaku/tsundoku) (itself built on [Mihon](https://mihon.app/)), with some extra features layered on top — including a source-pinning "Discover" feed and "more from this source" suggestions.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tsundoku-otaku/tsundoku/build.yml?labelColor=27303D)](https://github.com/tsundoku-otaku/tsundoku/actions/workflows/build_push.yml)
-[![License: Apache-2.0](https://img.shields.io/github/license/tsundoku-otaku/tsundoku?labelColor=27303D&color=0877d2)](/LICENSE)
-[![Translation status](https://img.shields.io/weblate/progress/tsundoku?labelColor=27303D&color=946300)](https://hosted.weblate.org/engage/tsundoku/)
-
-Upstream Weblate:  
-[![Translation status](https://img.shields.io/weblate/progress/mihon?labelColor=27303D&color=946300)](https://hosted.weblate.org/engage/mihon/)
+[![CI](https://img.shields.io/github/actions/workflow/status/Darkdk3/tsundoku/build.yml?labelColor=27303D)](https://github.com/Darkdk3/tsundoku/actions)
+[![License: Apache-2.0](https://img.shields.io/github/license/Darkdk3/tsundoku?labelColor=27303D&color=0877d2)](/LICENSE)
 
 ## Download
 
-[![Tsundoku Stable](https://img.shields.io/github/release/tsundoku-otaku/tsundoku.svg?maxAge=3600&label=Stable&labelColor=06599d&color=043b69)](https://tsundoku-otaku.github.io/download)
-[![Tsundoku Beta](https://img.shields.io/github/v/release/tsundoku-otaku/tsundoku-preview.svg?maxAge=3600&label=Beta&labelColor=2c2c47&color=1c1c39)](https://tsundoku-otaku.github.io/download)
+Builds are published automatically to this repo's [Releases](https://github.com/Darkdk3/tsundoku/releases) page.
 
 *Requires Android 8.0 or higher.*
 
@@ -42,34 +37,23 @@ Upstream Weblate:
 * Read-ahead chapter downloads
 * TTS
 * In-app translation of text
+* **Discover tab** — a source-pinning feed of latest/popular novels across your pinned sources, with infinite scroll
+* **Source suggestions** — "more from this source" recommendations on each novel's details page
 * Plus much more...
 
 </div>
 
-## Contributing
+## About this fork
 
-[Code of conduct](./CODE_OF_CONDUCT.md) · [Contributing guide](./CONTRIBUTING.md)
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-Before reporting a new issue, take a look at the [FAQ](https://tsundoku-otaku.github.io/docs/faq/general), the [changelog](https://tsundoku-otaku.github.io/changelogs/) and the already opened [issues](https://github.com/tsundoku-otaku/tsundoku/issues); if you got any questions, join our [Discord server](https://discord.gg/RycBkEgrPE).
-
-
-### Repositories
-
-[![tsundoku-otaku/website - GitHub](https://github-readme-stats.vercel.app/api/pin/?username=tsundoku-otaku&repo=website&bg_color=161B22&text_color=c9d1d9&title_color=0877d2&icon_color=0877d2&border_radius=8&hide_border=true&description_lines_count=2)](https://github.com/tsundoku-otaku/website/)
-
-### Credits
-
-Thank you to all the people who have contributed!
-
-<a href="https://github.com/tsundoku-otaku/tsundoku/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=tsundoku-otaku/tsundoku" alt="Tsundoku app contributors" title="Tsundoku app contributors" width="800"/>
-</a>
+This is a personal project, not an actively-maintained community fork — so there's no dedicated Discord, translation project, or support channel of its own. For general Tsundoku/Mihon questions, the [upstream Tsundoku Discord](https://discord.gg/RycBkEgrPE) is a reasonable place to look; I may be around there myself occasionally, but issues specific to this fork's own changes are best filed directly on this repo.
 
 ### Disclaimer
 
 The developer(s) of this application does not have any affiliation with the content providers available, and this application hosts zero content.
+
+### Credits
+
+Built on top of [Tsundoku](https://github.com/tsundoku-otaku/tsundoku) and the [Mihon Open Source Project](https://mihon.app/) — thank you to everyone who has contributed to those projects.
 
 ### License
 
