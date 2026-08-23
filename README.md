@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://github.com/Darkdk3/tsundoku">
-    <img src="./.github/assets/koware-logo.png" alt="Koware logo" title="Koware logo" width="80"/>
+    <img src="./.github/assets/svg-code-1024x1024.png" alt="Koware logo" title="Koware logo" width="80"/>
 </a>
 
 # Koware
