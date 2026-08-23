@@ -741,32 +741,32 @@ class MangaViewModel(
     }
 
     /**
-     * Fetches other novels from the same source, for the "more from this source" row.
-     * Excludes the current novel itself by URL. Silently empty on any failure - this
-     * row is secondary content, not worth surfacing an error snackbar for.
+     * Fetches novels similar to this one from the same source, by searching using the
+     * current novel's title as the query - a real similarity search, not just "popular
+     * from this source". Each result is converted to a real local database entry as soon
+     * as it's fetched (same pattern BrowseSourceScreen already uses for listings), so the
+     * row can use the same MangaComfortableGridItem card as everywhere else in the app,
+     * and tapping a card doesn't need any async conversion step.
      */
     private fun loadSourceSuggestions(source: Source, manga: Manga) {
         viewModelScope.launchIO {
-            val suggestions = runCatching {
-                (source as? CatalogueSource)?.getPopularManga(1)?.mangas
+            val results = runCatching {
+                (source as? CatalogueSource)?.getSearchManga(
+                    page = 1,
+                    query = manga.title,
+                    filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                )?.mangas
             }.getOrNull()
                 ?.filter { it.url != manga.url }
                 ?.take(10)
                 .orEmpty()
 
+            val suggestions = results.map { sManga ->
+                networkToLocalManga(sManga.toDomainManga(sourceId = source.id, isNovel = true))
+            }
+
             updateSuccessState { it.copy(sourceSuggestions = suggestions) }
         }
-    }
-
-    /**
-     * Tapped a source-suggestion card. The SManga only exists as a remote listing - convert
-     * to a domain Manga and insert-or-fetch its real local id, same pattern as the Discover
-     * tab uses. Caller (the Composable) navigates once this returns.
-     */
-    suspend fun openSourceSuggestion(sManga: SManga): Long {
-        val state = successState ?: error("Manga not loaded")
-        val domainManga = sManga.toDomainManga(sourceId = state.source.id, isNovel = true)
-        return networkToLocalManga(domainManga).id
     }
 
     // Manga info - end
@@ -1808,7 +1808,7 @@ class MangaViewModel(
             val similarNovels: List<MangaWithChapterCount> = emptyList(),
             val categories: List<Category> = emptyList(),
             val showSourceName: Boolean = true,
-            val sourceSuggestions: List<SManga>? = null,
+            val sourceSuggestions: List<Manga>? = null,
         ) : State {
             val processedChapters by lazy {
                 chapters.applyFilters(manga).toList()
