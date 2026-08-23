@@ -5,40 +5,39 @@ package eu.kanade.tachiyomi.ui.browse.discover
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import coil3.compose.AsyncImage
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.TabContent
+import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -103,9 +102,14 @@ private fun DiscoverScreenContent(
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
+    // TODO: displayMode is read but not yet acted on below - every card currently renders
+    // as MangaComfortableGridItem regardless of this setting. CompactGrid/List/CoverOnlyGrid
+    // need their own confirmed card composables (MangaCompactGridItem, a list-row equivalent,
+    // a cover-only variant) before full mode parity with Library can be finished - send those
+    // files and I'll wire in the remaining branches.
+    val displayMode by libraryPreferences.displayMode.collectAsState()
     val gridState = rememberLazyGridState()
 
-    // Fire loadMore once the user scrolls near the bottom of what's currently loaded.
     val shouldLoadMore by remember {
         derivedStateOf {
             val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -141,11 +145,8 @@ private fun DiscoverScreenContent(
         return
     }
 
-    androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize()) {
-        BrowseModeToggle(
-            selected = browseMode,
-            onSelect = onBrowseModeChange,
-        )
+    Column(modifier = Modifier.fillMaxSize()) {
+        BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
 
         LazyVerticalGrid(
             state = gridState,
@@ -158,12 +159,28 @@ private fun DiscoverScreenContent(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(items, key = { "${it.source.id}-${it.manga.url}" }) { entry ->
-                DiscoverMangaCard(entry = entry, onClick = { onMangaClick(entry) })
+            items(items, key = { it.manga.id }) { entry ->
+                MangaComfortableGridItem(
+                    isSelected = false,
+                    title = entry.manga.title,
+                    coverData = MangaCover(
+                        mangaId = entry.manga.id,
+                        sourceId = entry.manga.source,
+                        isMangaFavorite = entry.manga.favorite,
+                        url = entry.manga.thumbnailUrl,
+                        lastModified = entry.manga.coverLastModified,
+                    ),
+                    coverBadgeStart = {},
+                    coverBadgeEnd = {},
+                    onLongClick = {},
+                    onClick = { onMangaClick(entry) },
+                    onClickContinueReading = null,
+                    titleMaxLines = 3,
+                )
             }
 
             if (isLoadingMore) {
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         contentAlignment = Alignment.Center,
@@ -181,7 +198,7 @@ private fun BrowseModeToggle(
     selected: DiscoverBrowseMode,
     onSelect: (DiscoverBrowseMode) -> Unit,
 ) {
-    androidx.compose.foundation.layout.Row(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
@@ -196,37 +213,6 @@ private fun BrowseModeToggle(
             selected = selected == DiscoverBrowseMode.POPULAR,
             onClick = { onSelect(DiscoverBrowseMode.POPULAR) },
             label = { Text("Popular") },
-        )
-    }
-}
-
-@Composable
-private fun DiscoverMangaCard(
-    entry: DiscoverEntry,
-    onClick: () -> Unit,
-) {
-    val manga = entry.manga
-
-    Card(
-        onClick = onClick,
-        modifier = Modifier.padding(2.dp),
-    ) {
-        AsyncImage(
-            model = manga.thumbnail_url,
-            contentDescription = manga.title,
-            modifier = Modifier.aspectRatio(2f / 3f),
-            contentScale = ContentScale.Crop,
-        )
-        Text(
-            text = manga.title,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 3, // was 2 - long titles were getting cut off awkwardly
-            modifier = Modifier.padding(8.dp),
-        )
-        Text(
-            text = entry.source.name,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         )
     }
 }
