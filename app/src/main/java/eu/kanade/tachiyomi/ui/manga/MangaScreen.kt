@@ -210,6 +210,12 @@ class MangaScreen(
             onExportEpubClicked = viewModel::showExportEpubDialog.takeIf { successState.isNovel },
             showSourceName = successState.showSourceName,
             onToggleSourceNameVisibility = viewModel::toggleSourceNameVisibility,
+            onSourceSuggestionClicked = { sManga ->
+                scope.launch {
+                    val id = viewModel.openSourceSuggestion(sManga)
+                    navigator.push(MangaScreen(id))
+                }
+            },
             onMultiBookmarkClicked = viewModel::bookmarkChapters,
             onMultiMarkAsReadClicked = viewModel::markChaptersRead,
             onMarkPreviousAsReadClicked = viewModel::markPreviousChapterRead,
