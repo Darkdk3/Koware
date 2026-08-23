@@ -1,5 +1,3 @@
-// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverTab.kt
-
 package eu.kanade.tachiyomi.ui.browse.discover
 
 import androidx.compose.animation.core.LinearEasing
