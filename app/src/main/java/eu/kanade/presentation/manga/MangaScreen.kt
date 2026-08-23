@@ -128,6 +128,7 @@ fun MangaScreen(
     onExportEpubClicked: (() -> Unit)? = null,
     showSourceName: Boolean = true,
     onToggleSourceNameVisibility: (() -> Unit)? = null,
+    onSourceSuggestionClicked: (eu.kanade.tachiyomi.source.model.SManga) -> Unit,
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -191,6 +192,7 @@ fun MangaScreen(
             onExportEpubClicked = onExportEpubClicked,
             showSourceName = showSourceName,
             onToggleSourceNameVisibility = onToggleSourceNameVisibility,
+            onSourceSuggestionClicked = onSourceSuggestionClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
             onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
@@ -241,6 +243,7 @@ fun MangaScreen(
             onExportEpubClicked = onExportEpubClicked,
             showSourceName = showSourceName,
             onToggleSourceNameVisibility = onToggleSourceNameVisibility,
+            onSourceSuggestionClicked = onSourceSuggestionClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
             onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
@@ -301,6 +304,7 @@ private fun MangaScreenSmallImpl(
     onExportEpubClicked: (() -> Unit)?,
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
+    onSourceSuggestionClicked: (eu.kanade.tachiyomi.source.model.SManga) -> Unit,
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -528,6 +532,16 @@ private fun MangaScreenSmallImpl(
                     }
 
                     item(
+                        key = MangaScreenItem.SOURCE_SUGGESTIONS,
+                        contentType = MangaScreenItem.SOURCE_SUGGESTIONS,
+                    ) {
+                        eu.kanade.presentation.manga.components.SourceSuggestionsRow(
+                            suggestions = state.sourceSuggestions,
+                            onMangaClick = onSourceSuggestionClicked,
+                        )
+                    }
+
+                    item(
                         key = MangaScreenItem.CHAPTER_HEADER,
                         contentType = MangaScreenItem.CHAPTER_HEADER,
                     ) {
@@ -604,6 +618,7 @@ fun MangaScreenLargeImpl(
     onExportEpubClicked: (() -> Unit)?,
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
+    onSourceSuggestionClicked: (eu.kanade.tachiyomi.source.model.SManga) -> Unit,
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -809,6 +824,10 @@ fun MangaScreenLargeImpl(
                             onTagSearch = onTagSearch,
                             onCopyTagToClipboard = onCopyTagToClipboard,
                             onEditNotes = onEditNotesClicked,
+                        )
+                        eu.kanade.presentation.manga.components.SourceSuggestionsRow(
+                            suggestions = state.sourceSuggestions,
+                            onMangaClick = onSourceSuggestionClicked,
                         )
                     }
                 },
