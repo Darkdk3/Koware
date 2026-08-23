@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://tsundoku-otaku.github.io">
-    <img src="./.github/assets/svg-code-1024×1024.png" alt="Tsundoku logo" title="Koware logo" width="80"/>
+    <img src="./.github/assets/svg-code-1024×1024.png" alt="Koware logo" title="Koware logo" width="80"/>
 </a>
 
 # Tsundoku [App](#)
