@@ -10,12 +10,14 @@ import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.source.model.SManga
 import kotlinx.coroutines.flow.update
 import mihon.core.viewmodel.StateViewModel
-import mihon.domain.manga.model.toDomainManga // confirmed real
+import mihon.domain.manga.model.toDomainManga
 import tachiyomi.core.common.util.lang.launchIO
-import tachiyomi.domain.manga.interactor.NetworkToLocalManga // confirmed real
+import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+
+enum class DiscoverBrowseMode { LATEST, POPULAR }
 
 data class DiscoverEntry(
     val source: CatalogueSource,
@@ -25,8 +27,10 @@ data class DiscoverEntry(
 data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),
     val isLoading: Boolean = true,
+    val isLoadingMore: Boolean = false,
     val isRefreshing: Boolean = false,
     val hasPinnedNovelSources: Boolean = true,
+    val browseMode: DiscoverBrowseMode = DiscoverBrowseMode.LATEST,
     val pendingMangaId: Long? = null,
 )
 
@@ -37,48 +41,89 @@ class DiscoverViewModel(
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
 ) : StateViewModel<DiscoverScreenState>(DiscoverScreenState()) {
 
+    /** Per-source page cursor, so "load more" only re-queries sources that still have pages left. */
+    private data class SourcePageCursor(val nextPage: Int, val hasNextPage: Boolean)
+    private val pageCursors = mutableMapOf<Long, SourcePageCursor>()
+
     init {
         loadDiscoverFeed()
     }
 
+    fun setBrowseMode(mode: DiscoverBrowseMode) {
+        if (mode == state.value.browseMode) return
+        mutableState.update { it.copy(browseMode = mode) }
+        loadDiscoverFeed()
+    }
+
+    private fun pinnedNovelSources(): List<CatalogueSource> {
+        val pinnedKeys = sourcePreferences.pinnedSources.get()
+        return (sourceManager.getOnlineSources() + jsPluginManager.jsSources.value)
+            .filterIsInstance<CatalogueSource>()
+            .distinctBy { it.id }
+            .filter { it.isNovelSource() }
+            .filter { it.supportsLatest }
+            .filter { it.id.toString() in pinnedKeys }
+    }
+
+    /** Full reset - used on first load, refresh, and browse-mode switch. */
     fun loadDiscoverFeed() {
         viewModelScope.launchIO {
             mutableState.update { it.copy(isLoading = true) }
+            pageCursors.clear()
 
-            val pinnedKeys = sourcePreferences.pinnedSources.get()
+            val sources = pinnedNovelSources()
+            val mode = state.value.browseMode
 
-            val allNovelSources = (sourceManager.getOnlineSources() + jsPluginManager.jsSources.value)
-                .filterIsInstance<CatalogueSource>()
-                .distinctBy { it.id }
-                .filter { it.isNovelSource() }
-                .filter { it.supportsLatest }
-
-            val pinnedNovelSources = allNovelSources.filter { it.id.toString() in pinnedKeys }
-
-            val perSourceLists = pinnedNovelSources.map { source ->
-                runCatching { source.getLatestUpdates(page = 1).mangas }
-                    .getOrDefault(emptyList())
-                    .map { manga -> DiscoverEntry(source = source, manga = manga) }
+            val perSourceLists = sources.map { source ->
+                val page = runCatching { fetchPage(source, mode, page = 1) }.getOrNull()
+                pageCursors[source.id] = SourcePageCursor(
+                    nextPage = 2,
+                    hasNextPage = page?.hasNextPage == true,
+                )
+                (page?.mangas ?: emptyList()).map { manga -> DiscoverEntry(source, manga) }
             }
             val merged = interleave(perSourceLists)
 
             mutableState.update {
-                it.copy(
-                    items = merged,
-                    isLoading = false,
-                    hasPinnedNovelSources = pinnedNovelSources.isNotEmpty(),
-                )
+                it.copy(items = merged, isLoading = false, hasPinnedNovelSources = sources.isNotEmpty())
             }
         }
     }
 
-    /**
-     * Tapped a card. The entry's SManga only exists as a remote listing right now - it has
-     * no local database row, so MangaScreen can't be opened with it directly. This converts
-     * it to a domain Manga (isNovel = true, since Discover is novels-only), inserts-or-fetches
-     * it via NetworkToLocalManga to get a real local id, then exposes that id via state for
-     * the UI to navigate with.
-     */
+    /** Appends the next page from every source that still has one. Call when the grid nears the bottom. */
+    fun loadMore() {
+        if (state.value.isLoading || state.value.isLoadingMore) return
+        val sources = pinnedNovelSources().filter { pageCursors[it.id]?.hasNextPage == true }
+        if (sources.isEmpty()) return
+
+        viewModelScope.launchIO {
+            mutableState.update { it.copy(isLoadingMore = true) }
+            val mode = state.value.browseMode
+
+            val newLists = sources.map { source ->
+                val cursor = pageCursors[source.id]!!
+                val page = runCatching { fetchPage(source, mode, cursor.nextPage) }.getOrNull()
+                pageCursors[source.id] = SourcePageCursor(
+                    nextPage = cursor.nextPage + 1,
+                    hasNextPage = page?.hasNextPage == true,
+                )
+                (page?.mangas ?: emptyList()).map { manga -> DiscoverEntry(source, manga) }
+            }
+            val appended = interleave(newLists)
+
+            mutableState.update { it.copy(items = it.items + appended, isLoadingMore = false) }
+        }
+    }
+
+    private suspend fun fetchPage(
+        source: CatalogueSource,
+        mode: DiscoverBrowseMode,
+        page: Int,
+    ) = when (mode) {
+        DiscoverBrowseMode.LATEST -> source.getLatestUpdates(page)
+        DiscoverBrowseMode.POPULAR -> source.getPopularManga(page)
+    }
+
     fun openEntry(entry: DiscoverEntry) {
         viewModelScope.launchIO {
             val domainManga = entry.manga.toDomainManga(
@@ -92,12 +137,6 @@ class DiscoverViewModel(
 
     fun consumePendingNavigation() {
         mutableState.update { it.copy(pendingMangaId = null) }
-    }
-
-    fun refresh() {
-        mutableState.update { it.copy(isRefreshing = true) }
-        loadDiscoverFeed()
-        mutableState.update { it.copy(isRefreshing = false) }
     }
 
     private fun <T> interleave(lists: List<List<T>>): List<T> {
