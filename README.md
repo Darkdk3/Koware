@@ -37,9 +37,15 @@ Builds are published automatically to this repo's [Releases](https://github.com/
 * Read-ahead chapter downloads
 * TTS
 * In-app translation of text
-* **Discover tab** — a source-pinning feed of latest/popular novels across your pinned sources, with infinite scroll
-* **Source suggestions** — "more from this source" recommendations on each novel's details page
+
+##Koware Features (so far atleast)
+
+note : The Manga sude will be a bit neglected but i will get to it 
+
+* **Discover tab** — a source-pinning feed of latest/popular novels across your pinned sources 
+* **Source suggestions** — "more from this source" recommendations on each novel's details page (super boot strapped)
 * Plus much more...
+
 
 </div>
 
