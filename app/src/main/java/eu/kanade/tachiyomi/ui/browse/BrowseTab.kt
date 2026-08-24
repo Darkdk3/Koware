@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.ui.browse
 
-
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
@@ -21,6 +20,8 @@ import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.browse.discover.DiscoverViewModel
 import eu.kanade.tachiyomi.ui.browse.discover.discoverTab
+import eu.kanade.tachiyomi.ui.browse.discovermanga.DiscoverMangaViewModel
+import eu.kanade.tachiyomi.ui.browse.discovermanga.discoverMangaTab
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.NovelExtensionsViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.extensionsTab
@@ -82,6 +83,7 @@ data object BrowseTab : Tab {
         val novelExtensionsState by novelExtensionsViewModel.state.collectAsState()
 
         val discoverViewModel = viewModel<DiscoverViewModel>()
+        val discoverMangaViewModel = viewModel<DiscoverMangaViewModel>()
 
         val tabs = if (hideMangaBrowseTabs) {
             listOf(
@@ -93,6 +95,7 @@ data object BrowseTab : Tab {
         } else {
             listOf(
                 discoverTab(discoverViewModel),
+                discoverMangaTab(discoverMangaViewModel),
                 novelSourcesTab(),
                 sourcesTab(),
                 novelExtensionsTab(novelExtensionsViewModel),
@@ -102,8 +105,10 @@ data object BrowseTab : Tab {
             )
         }
 
-        val novelExtensionsTabIndex = if (hideMangaBrowseTabs) 2 else 3
-        val mangaExtensionsTabIndex = if (hideMangaBrowseTabs) null else 4
+        // discoverMangaTab only exists in the else branch above, so the hideMangaBrowseTabs
+        // branch's index is unchanged; the else branch shifts by +1 for the new insertion.
+        val novelExtensionsTabIndex = if (hideMangaBrowseTabs) 2 else 4
+        val mangaExtensionsTabIndex = if (hideMangaBrowseTabs) null else 5
 
         val state = rememberPagerState { tabs.size }
 
