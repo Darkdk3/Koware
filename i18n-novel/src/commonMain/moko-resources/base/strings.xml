@@ -17,6 +17,7 @@
     <string name="label_manga_sources">Manga Sources</string>
     <string name="label_novel_sources">Novel Sources</string>
     <string name="label_discover">Discover</string>
+<string name="label_discover_manga">Discover Manga</string>
     <string name="label_manga">Manga</string>
     <string name="label_novels">Novels</string>
     <string name="label_translations">Translations</string>
