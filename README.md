@@ -38,7 +38,7 @@ Builds are published automatically to this repo's [Releases](https://github.com/
 * TTS
 * In-app translation of text
 
-##Koware Features (so far atleast)
+## Koware Features (so far atleast)
 
 note : The Manga sude will be a bit neglected but i will get to it 
 
