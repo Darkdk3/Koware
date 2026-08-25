@@ -1,105 +1,96 @@
-<svg xmlns="http://www.w3.org/2000/svg"
-     width="512"
-     height="512"
-     viewBox="0 0 512 512"
-     fill="none">
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
 
-  <defs>
-    <linearGradient id="borderGradient"
-                    x1="70" y1="70"
-                    x2="442" y2="442"
-                    gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#67E8F9"/>
-      <stop offset="0.35" stop-color="#7DD3FC"/>
-      <stop offset="0.7" stop-color="#A855F7"/>
-      <stop offset="1" stop-color="#8B5CF6"/>
-    </linearGradient>
+    <!-- Main cyan circular border -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#67E8F9"
+        android:strokeWidth="5"
+        android:strokeAlpha="0.90"
+        android:pathData="
+            M216,27
+            A189,189 0,1 0,216,405
+            A189,189 0,1 0,216,27
+            Z" />
 
-    <linearGradient id="symbolGradient"
-                    x1="180" y1="120"
-                    x2="350" y2="390"
-                    gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#C084FC"/>
-      <stop offset="1" stop-color="#8B5CF6"/>
-    </linearGradient>
-  </defs>
+    <!-- Subtle inner ring -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#67E8F9"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.18"
+        android:pathData="
+            M216,42
+            A174,174 0,1 0,216,390
+            A174,174 0,1 0,216,42
+            Z" />
 
-  <!-- Dark background -->
-  <rect width="512" height="512" rx="128" fill="#343338"/>
+    <!-- Central symbol -->
+    <path
+        android:fillColor="#A970FF"
+        android:pathData="
+            M262,94
+            L255,92
+            L230,88
+            L232,112
+            L231,157
+            L181,157
+            L181,114
+            L189,107
+            L189,104
+            L184,101
+            L155,97
+            L157,124
+            L157,189
+            L156,213
+            L153,236
+            L148,256
+            L142,274
+            L132,292
+            L116,314
+            L117,318
+            L124,313
+            L138,301
+            L150,288
+            L159,275
+            L166,263
+            L170,251
+            L175,232
+            L178,212
+            L180,211
+            L254,211
+            L254,308
+            L256,312
+            L261,314
+            L272,313
+            L276,311
+            L278,308
+            L279,303
+            L278,217
+            L287,210
+            L287,206
+            L277,198
+            L266,192
+            L263,193
+            L252,204
+            L180,204
+            L182,164
+            L326,164
+            L329,162
+            L329,158
+            L325,153
+            L313,143
+            L307,140
+            L303,141
+            L291,157
+            L256,157
+            L256,106
+            L263,101
+            L264,98
+            L264,95
+            Z" />
 
-  <!-- Circular border -->
-  <circle cx="256" cy="256" r="226"
-          stroke="url(#borderGradient)"
-          stroke-width="5"
-          opacity="0.95"/>
-
-  <!-- Subtle inner circular line -->
-  <circle cx="256" cy="256" r="211"
-          stroke="#67E8F9"
-          stroke-width="1.5"
-          opacity="0.18"/>
-
-  <!-- Symbol -->
-  <path
-    d="M309.7 113.3
-       L301.7 111
-       L272.7 106.7
-       L274.7 133
-       L274 194.3
-       L214 194.3
-       L213.7 137
-       L223 129
-       L223.3 125.7
-       L218.3 123
-       L184 117.7
-       L186.3 150.3
-       L186.3 231
-       L184.7 262.7
-       L181 290.3
-       L175.3 313.7
-       L167.3 335
-       L156 356.3
-       L136.7 382.7
-       L138.3 385.7
-       L146.3 380.7
-       L163.7 365.7
-       L177.3 350.3
-       L188.3 334.3
-       L195.7 320.3
-       L201 307.3
-       L206.3 289.7
-       L210.3 265.3
-       L212 263.7
-       L299.7 264
-       L299.3 381
-       L301.7 385.3
-       L307 387.7
-       L320 387
-       L324 385
-       L326.3 382.3
-       L327.7 377.3
-       L326.7 271
-       L336.7 263
-       L336.3 258.7
-       L325 249
-       L312.3 241.3
-       L308.3 242
-       L295.7 255.7
-       L211.7 255.3
-       L214 202.3
-       L385.7 202.3
-       L387.7 201.3
-       L388 197.3
-       L383 191.3
-       L368.3 179.3
-       L361.3 175.3
-       L357.3 176.3
-       L342.7 194.3
-       L300.7 194
-       L301 125.3
-       L309.7 118.7
-       L310.7 117
-       L310.7 114.3
-       Z"
-    fill="url(#symbolGradient)"/>
-</svg>
+</vector>
