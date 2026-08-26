@@ -309,6 +309,15 @@ object SettingsTrackingScreen : SearchableSettings {
                         title = "Sync reading list",
                         subtitle = "Keep reading list status in sync with RanobeDB",
                     ),
+                    Preference.PreferenceItem.TrackerPreference(
+                        tracker = trackerManager.notion,
+                        login = { dialog = LoginDialog(trackerManager.notion, MR.strings.username) },
+                        logout = { dialog = LogoutDialog(trackerManager.notion) },
+                    ),
+                    Preference.PreferenceItem.InfoPreference(
+                        "Notion: enter your database ID in the Username field, and your integration " +
+                            "secret token (from notion.so/my-integrations) in the Password field.",
+                    ),
                     Preference.PreferenceItem.InfoPreference(
                         "Login via WebView. Cookies will be automatically extracted after successful login.",
                     ),
