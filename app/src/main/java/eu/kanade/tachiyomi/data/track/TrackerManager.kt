@@ -9,6 +9,7 @@ import eu.kanade.tachiyomi.data.track.komga.Komga
 import eu.kanade.tachiyomi.data.track.mangabaka.MangaBaka
 import eu.kanade.tachiyomi.data.track.mangaupdates.MangaUpdates
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeList
+import eu.kanade.tachiyomi.data.track.notion.NotionTracker
 import eu.kanade.tachiyomi.data.track.novellist.NovelList
 import eu.kanade.tachiyomi.data.track.novelupdates.NovelUpdates
 import eu.kanade.tachiyomi.data.track.ranobedb.RanobeDb
@@ -26,6 +27,7 @@ class TrackerManager {
         const val NOVELUPDATES = 100L
         const val NOVELLIST = 101L
         const val RANOBEDB = 102L
+        const val NOTION = 103L
     }
 
     val myAnimeList = MyAnimeList(1L)
@@ -44,6 +46,7 @@ class TrackerManager {
     val novelUpdates = NovelUpdates(NOVELUPDATES)
     val novelList = NovelList(NOVELLIST)
     val ranobeDb = RanobeDb(RANOBEDB)
+    val notion = NotionTracker(NOTION)
 
     val trackers = listOf(
         myAnimeList,
@@ -60,12 +63,14 @@ class TrackerManager {
         ranobeDb,
         mangaBaka,
         hikka,
+        notion,
     )
 
     /**
      * Trackers that support novel tracking.
      * - NovelUpdates & NovelList & RanobeDB: Novel-specific trackers
      * - MyAnimeList, Anilist, MangaUpdates, MangaBaka: Support both manga and novels
+     * - Notion: works for both, same as MyAnimeList/Anilist above
      */
     val novelTrackers = trackers
 
