@@ -6,8 +6,8 @@
 
 # Koware
 
-### Full-featured reader
-Discover and read novels and more – easier than ever on your Android device.
+### Full-featured reader 
+Read novels and more – easier than ever on your Android device.
 
 A personal fork of [Tsundoku](https://github.com/tsundoku-otaku/tsundoku) (itself built on [Mihon](https://mihon.app/)), with some extra features layered on top — including a source-pinning "Discover" feed and "more from this source" suggestions.
 
