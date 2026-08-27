@@ -64,8 +64,6 @@ class LibraryPreferences(
 
     val autoUpdateMetadata: Preference<Boolean> = preferenceStore.getBoolean("auto_update_metadata", false)
 
-    // Experimental: cap how many library entries are loaded into memory at once so very large
-    // libraries (100k+) don't exhaust the heap. A limit <= 0 means "load everything" (default).
     val experimentalLibraryPagination: Preference<Boolean> =
         preferenceStore.getBoolean("pref_experimental_library_pagination", false)
 
@@ -85,8 +83,6 @@ class LibraryPreferences(
         "mark_duplicate_read_chapter_read",
         emptySet(),
     )
-
-    // region Filter
 
     val filterDownloaded: Preference<TriState> = preferenceStore.getEnum(
         "pref_filter_library_downloaded_v2",
@@ -130,19 +126,16 @@ class LibraryPreferences(
         emptySet(),
     )
 
-    // Stores extension IDs that are excluded (unchecked) from the library filter
     val excludedExtensions: Preference<Set<String>> = preferenceStore.getStringSet(
         "pref_excluded_library_extensions",
         emptySet(),
     )
 
-    // Stores source IDs that should have their chapter list reversed
     val reversedChapterSources: Preference<Set<String>> = preferenceStore.getStringSet(
         "pref_reversed_chapter_sources",
         emptySet(),
     )
 
-    // Tag filtering - included tags (TriState: DISABLED = show all, ENABLED_IS = include, ENABLED_NOT = exclude)
     val includedTags: Preference<Set<String>> = preferenceStore.getStringSet(
         "pref_filter_library_included_tags",
         emptySet(),
@@ -153,36 +146,28 @@ class LibraryPreferences(
     )
     fun filterNoTags() = preferenceStore.getEnum("pref_filter_library_no_tags", TriState.DISABLED)
 
-    // Tag filter logic modes (true = AND, false = OR)
     val tagIncludeMode: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_include_mode_and",
         false,
-    ) // Default OR
+    )
     val tagExcludeMode: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_exclude_mode_and",
         false,
-    ) // Default OR
+    )
 
-    // Tag sort preferences
-    // Default sort by count
     val tagSortByName: Preference<Boolean> = preferenceStore.getBoolean("pref_tag_sort_by_name", false)
     val tagSortAscending: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_sort_ascending",
         false,
-    ) // Default descending
+    )
 
-    // Tag case sensitivity (default insensitive)
     val tagCaseSensitive: Preference<Boolean> = preferenceStore.getBoolean("pref_tag_case_sensitive", false)
 
-    // Normalize tags (trim, title-case, split on , / ;, dedupe case-insensitively) whenever an
-    // entry's details are inserted/updated or its tags are edited. Default off.
     val normalizeTagsOnUpdate: Preference<Boolean> =
         preferenceStore.getBoolean("pref_normalize_tags_on_update", false)
 
-    // Manga detail page tag sorting (true = alphabetical, false = source order)
     val sortMangaTags: Preference<Boolean> = preferenceStore.getBoolean("pref_sort_manga_tags", false)
 
-    // Search options - what to include in library search
     val searchChapterNames: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_names", false)
     val searchChapterContent: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_content", false)
     val searchByUrl: Preference<Boolean> = preferenceStore.getBoolean("pref_search_by_url", false)
@@ -198,10 +183,6 @@ class LibraryPreferences(
         "pref_filter_library_chapter_count_threshold",
         10,
     )
-
-    // endregion
-
-    // region Badges
 
     val downloadBadge: Preference<Boolean> = preferenceStore.getBoolean("display_download_badge", false)
 
@@ -219,21 +200,9 @@ class LibraryPreferences(
         0,
     )
 
-    // endregion
-
-    // region History
-
     val historyGroupByNovel: Preference<Boolean> = preferenceStore.getBoolean("history_group_by_novel", true)
 
-    // endregion
-
-    // region Updates
-
     val updatesGroupByNovel: Preference<Boolean> = preferenceStore.getBoolean("updates_group_by_novel", true)
-
-    // endregion
-
-    // region Category
 
     val defaultCategory: Preference<Int> = preferenceStore.getInt(DEFAULT_CATEGORY_PREF_KEY, -1)
 
@@ -255,10 +224,6 @@ class LibraryPreferences(
         emptySet(),
     )
 
-    // endregion
-
-    // region Chapter
-
     val filterChapterByRead: Preference<Long> = preferenceStore.getLong(
         "default_chapter_filter_by_read",
         Manga.SHOW_ALL,
@@ -274,7 +239,6 @@ class LibraryPreferences(
         Manga.SHOW_ALL,
     )
 
-    // and upload date
     val sortChapterBySourceOrNumber: Preference<Long> = preferenceStore.getLong(
         "default_chapter_sort_by_source_or_number",
         Manga.CHAPTER_SORTING_SOURCE,
@@ -311,13 +275,15 @@ class LibraryPreferences(
     val showMangaSourceName: Preference<Boolean> = preferenceStore.getBoolean("pref_show_manga_source_name", true)
 
     /**
-     * Whether the library should auto-refresh when database changes occur.
+     * When false, bottom navigation bar labels only show under the currently selected tab,
+     * instead of under every tab all the time. Default true preserves existing behavior.
      */
+    val alwaysShowNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_always_show_nav_labels",
+        true,
+    )
+
     val autoRefreshLibrary: Preference<Boolean> = preferenceStore.getBoolean("pref_auto_refresh_library", true)
-
-    // endregion
-
-    // region Swipe Actions
 
     val swipeToStartAction: Preference<ChapterSwipeAction> = preferenceStore.getEnum(
         "pref_chapter_swipe_end_action",
@@ -351,19 +317,9 @@ class LibraryPreferences(
 
     val checkDuplicateEntryOnAdd: Preference<Boolean> = preferenceStore.getBoolean("pref_check_duplicate_on_add", true)
 
-    /**
-     * Source type priorities for duplicate detection.
-     * Stored as semicolon-delimited "TYPE:PRIORITY" pairs, e.g. "JS:3;KT:1;CUSTOM:0;LOCAL:-2;STUB:-5"
-     */
     val sourceTypePriorities: Preference<String> = preferenceStore.getString("source_type_priorities", "")
 
-    /**
-     * Specific source priorities for duplicate detection.
-     * Stored as semicolon-delimited "SOURCE_ID:PRIORITY" pairs, e.g. "123456:3;789012:-2"
-     */
     val specificSourcePriorities: Preference<String> = preferenceStore.getString("specific_source_priorities", "")
-
-    // endregion
 
     enum class DuplicateSortMode {
         Alphabetical,
