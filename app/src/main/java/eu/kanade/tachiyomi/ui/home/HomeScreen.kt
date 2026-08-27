@@ -99,6 +99,7 @@ object HomeScreen : Screen() {
         val basePreferences = remember { Injekt.get<BasePreferences>() }
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
         val hideMangaUi by basePreferences.hideMangaUi.collectAsState()
+        val alwaysShowNavLabels by libraryPreferences.alwaysShowNavigationLabels.collectAsState()
         val tabs = if (isJoined || hideMangaUi) JOINED_TABS else TABS
         TabNavigator(
             tab = NovelsTab,
@@ -128,7 +129,7 @@ object HomeScreen : Screen() {
                             ) {
                                 NavigationBar {
                                     tabs.fastForEach {
-                                        NavigationBarItem(it)
+                                        NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
                                     }
                                 }
                             }
@@ -196,7 +197,7 @@ object HomeScreen : Screen() {
     }
 
     @Composable
-    private fun RowScope.NavigationBarItem(tab: eu.kanade.presentation.util.Tab) {
+    private fun RowScope.NavigationBarItem(tab: eu.kanade.presentation.util.Tab, alwaysShowLabel: Boolean) {
         val tabNavigator = LocalTabNavigator.current
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
@@ -219,7 +220,7 @@ object HomeScreen : Screen() {
                     overflow = TextOverflow.Ellipsis,
                 )
             },
-            alwaysShowLabel = true,
+            alwaysShowLabel = alwaysShowLabel,
         )
     }
 
