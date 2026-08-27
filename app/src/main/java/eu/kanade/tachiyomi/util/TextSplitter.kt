@@ -14,14 +14,12 @@ object TextSplitter {
      *
      * @param text The input text (can be HTML or plain text)
      * @param wordCount Target number of words before looking for punctuation
+     * @param isHtml Whether [text] is HTML markup, per the caller's own classification
      * @return Text with additional paragraph breaks inserted
      */
-    fun splitText(text: String, wordCount: Int): String {
+    fun splitText(text: String, wordCount: Int, isHtml: Boolean): String {
         if (wordCount <= 0) return text
         val effectiveWordCount = wordCount.coerceAtLeast(20)
-
-        // Check if this is HTML content
-        val isHtml = Regex("<\\s*(p|div|br|body)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
 
         return if (isHtml) {
             splitHtmlText(text, effectiveWordCount)
@@ -47,8 +45,7 @@ object TextSplitter {
             if (endsWithPunctuation) {
                 // Check if we've passed the threshold since last punctuation
                 if (wordsSincePunctuation >= targetWordCount) {
-                    // Insert paragraph break after this punctuation
-                    result.append("<br><br>")
+                    result.append("\n\n")
                     wordsSincePunctuation = 0
                 } else {
                     // Just add a space, continue counting
