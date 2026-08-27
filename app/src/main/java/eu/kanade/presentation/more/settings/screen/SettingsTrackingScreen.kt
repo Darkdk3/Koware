@@ -123,6 +123,12 @@ object SettingsTrackingScreen : SearchableSettings {
                         onDismissRequest = { dialog = null },
                     )
                 }
+                is NotionLoginDialog -> {
+                    NotionLoginDialogContent(
+                        tracker = tracker,
+                        onDismissRequest = { dialog = null },
+                    )
+                }
                 is NovelUpdatesListMappingDialog -> {
                     NovelUpdatesListMappingDialogContent(
                         trackerManager = trackerManager,
@@ -311,12 +317,8 @@ object SettingsTrackingScreen : SearchableSettings {
                     ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.notion,
-                        login = { dialog = LoginDialog(trackerManager.notion, MR.strings.username) },
+                        login = { dialog = NotionLoginDialog(trackerManager.notion) },
                         logout = { dialog = LogoutDialog(trackerManager.notion) },
-                    ),
-                    Preference.PreferenceItem.InfoPreference(
-                        "Notion: enter your database ID in the Username field, and your integration " +
-                            "secret token (from notion.so/my-integrations) in the Password field.",
                     ),
                     Preference.PreferenceItem.InfoPreference(
                         "Login via WebView. Cookies will be automatically extracted after successful login.",
@@ -472,6 +474,110 @@ object SettingsTrackingScreen : SearchableSettings {
             withUIContext { context.toast(e.message.toString()) }
             false
         }
+    }
+
+    @Composable
+    private fun NotionLoginDialogContent(
+        tracker: Tracker,
+        onDismissRequest: () -> Unit,
+    ) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+
+        var databaseId by remember { mutableStateOf(TextFieldValue(tracker.getUsername())) }
+        var secret by remember { mutableStateOf(TextFieldValue(tracker.getPassword())) }
+        var processing by remember { mutableStateOf(false) }
+        var inputError by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = onDismissRequest,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Connect Notion", modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismissRequest) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = stringResource(MR.strings.action_close),
+                        )
+                    }
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Create an integration at notion.so/my-integrations, copy its secret, " +
+                            "then share your tracking database with it and copy the database's ID " +
+                            "from its URL.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = databaseId,
+                        onValueChange = { databaseId = it },
+                        label = { Text("Database ID") },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        singleLine = true,
+                        isError = inputError && !processing,
+                    )
+
+                    var hideSecret by remember { mutableStateOf(true) }
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = secret,
+                        onValueChange = { secret = it },
+                        label = { Text("Integration Secret") },
+                        trailingIcon = {
+                            IconButton(onClick = { hideSecret = !hideSecret }) {
+                                Icon(
+                                    imageVector = if (hideSecret) {
+                                        Icons.Filled.Visibility
+                                    } else {
+                                        Icons.Filled.VisibilityOff
+                                    },
+                                    contentDescription = null,
+                                )
+                            }
+                        },
+                        visualTransformation = if (hideSecret) {
+                            PasswordVisualTransformation()
+                        } else {
+                            VisualTransformation.None
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done,
+                        ),
+                        singleLine = true,
+                        isError = inputError && !processing,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !processing && databaseId.text.isNotBlank() && secret.text.isNotBlank(),
+                    onClick = {
+                        scope.launchIO {
+                            processing = true
+                            val result = checkLogin(
+                                context = context,
+                                tracker = tracker,
+                                username = databaseId.text.trim(),
+                                password = secret.text.trim(),
+                            )
+                            inputError = !result
+                            if (result) onDismissRequest()
+                            processing = false
+                        }
+                    },
+                ) {
+                    val id = if (processing) MR.strings.logging_in else MR.strings.login
+                    Text(text = stringResource(id))
+                }
+            },
+        )
     }
 
     @Composable
@@ -826,6 +932,10 @@ private data class LoginDialog(
 )
 
 private data class LogoutDialog(
+    val tracker: Tracker,
+)
+
+private data class NotionLoginDialog(
     val tracker: Tracker,
 )
 
