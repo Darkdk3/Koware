@@ -125,8 +125,19 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
             .build()
 
     override suspend fun login(username: String, password: String) {
-        // No real "login" call in Notion's model - the token is either valid or it isn't,
-        // verified lazily on first real request. Just store the two values.
+        // Previously this just saved whatever was typed with zero verification, so a wrong
+        // secret token or database ID silently "succeeded" with no error shown. Now the
+        // credentials are tested against a real Notion request first, and only saved if that
+        // request actually succeeds. awaitSuccess() throws on a non-2xx response (401 for a
+        // bad token, 404 for a wrong or unshared database id) - that exception propagates up
+        // to the login dialog's existing error handling, which already surfaces it as a toast.
+        val headers = Headers.Builder()
+            .add("Authorization", "Bearer $password")
+            .add("Notion-Version", notionVersion)
+            .build()
+
+        client.newCall(GET("$apiBase/databases/$username", headers)).awaitSuccess()
+
         saveCredentials(username, password)
     }
 
