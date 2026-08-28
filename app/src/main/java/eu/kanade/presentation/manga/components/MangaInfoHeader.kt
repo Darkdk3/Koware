@@ -106,6 +106,7 @@ import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.clickableNoIndication
+import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.secondaryItemAlpha
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -125,33 +126,56 @@ fun MangaInfoBox(
     doSearch: (query: String, global: Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val uiPreferences = remember {
+        Injekt.get<UiPreferences>()
+    }
+
+    val showBackdrop by uiPreferences.showMangaBackdrop.collectAsState()
+    val showAlternativeTitles by
+        uiPreferences.showMangaAlternativeTitles.collectAsState()
+    val showAuthorArtist by
+        uiPreferences.showMangaAuthorArtist.collectAsState()
+    val showStatusSource by
+        uiPreferences.showMangaStatusSource.collectAsState()
+    val showCategories by
+        uiPreferences.showMangaCategories.collectAsState()
+    val coverPosition by
+        uiPreferences.mangaCoverPosition.collectAsState()
+
     Box(modifier = modifier) {
         // Backdrop
-        val backdropGradientColors = listOf(
-            Color.Transparent,
-            MaterialTheme.colorScheme.background,
-        )
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(manga)
-                .crossfade(true)
-                .build(),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .matchParentSize()
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        brush = Brush.verticalGradient(colors = backdropGradientColors),
-                    )
-                }
-                .blur(4.dp)
-                .alpha(0.2f),
-        )
+        if (showBackdrop) {
+            val backdropGradientColors = listOf(
+                Color.Transparent,
+                MaterialTheme.colorScheme.background,
+            )
+
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(manga)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .matchParentSize()
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = backdropGradientColors,
+                            ),
+                        )
+                    }
+                    .blur(4.dp)
+                    .alpha(0.2f),
+            )
+        }
 
         // Manga & source info
-        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+        CompositionLocalProvider(
+            LocalContentColor provides MaterialTheme.colorScheme.onSurface,
+        ) {
             if (!isTabletUi) {
                 MangaAndSourceTitlesSmall(
                     appBarPadding = appBarPadding,
@@ -161,6 +185,11 @@ fun MangaInfoBox(
                     categories = categories,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
+                    showAlternativeTitles = showAlternativeTitles,
+                    showAuthorArtist = showAuthorArtist,
+                    showStatusSource = showStatusSource,
+                    showCategories = showCategories,
+                    coverPosition = coverPosition,
                 )
             } else {
                 MangaAndSourceTitlesLarge(
@@ -171,6 +200,11 @@ fun MangaInfoBox(
                     categories = categories,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
+                    showAlternativeTitles = showAlternativeTitles,
+                    showAuthorArtist = showAuthorArtist,
+                    showStatusSource = showStatusSource,
+                    showCategories = showCategories,
+                    coverPosition = coverPosition,
                 )
             }
         }
@@ -191,34 +225,56 @@ fun MangaActionRow(
     onEditCategory: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
+    val defaultActionButtonColor =
+        MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
 
-    // TODO: show something better when using custom interval
     val nextUpdateDays = remember(nextUpdate) {
-        return@remember if (nextUpdate != null) {
+        if (nextUpdate != null) {
             val now = Clock.System.now()
-            now.daysUntil(nextUpdate, TimeZone.currentSystemDefault()).coerceAtLeast(0)
+
+            now.daysUntil(
+                nextUpdate,
+                TimeZone.currentSystemDefault(),
+            ).coerceAtLeast(0)
         } else {
             null
         }
     }
 
-    Row(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
+    Row(
+        modifier = modifier.padding(
+            start = 16.dp,
+            top = 8.dp,
+            end = 16.dp,
+        ),
+    ) {
         MangaActionButton(
             title = if (favorite) {
                 stringResource(MR.strings.in_library)
             } else {
                 stringResource(MR.strings.add_to_library)
             },
-            icon = if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-            color = if (favorite) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
+            icon = if (favorite) {
+                Icons.Filled.Favorite
+            } else {
+                Icons.Outlined.FavoriteBorder
+            },
+            color = if (favorite) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                defaultActionButtonColor
+            },
             onClick = onAddToLibraryClicked,
             onLongClick = onEditCategory,
         )
+
         MangaActionButton(
             title = when (nextUpdateDays) {
                 null -> stringResource(MR.strings.not_applicable)
-                0 -> stringResource(MR.strings.manga_interval_expected_update_soon)
+                0 -> stringResource(
+                    MR.strings.manga_interval_expected_update_soon,
+                )
+
                 else -> pluralStringResource(
                     MR.plurals.day,
                     count = nextUpdateDays,
@@ -226,19 +282,39 @@ fun MangaActionRow(
                 )
             },
             icon = Icons.Default.HourglassEmpty,
-            color = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
-            onClick = { onEditIntervalClicked?.invoke() },
+            color = if (isUserIntervalMode) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                defaultActionButtonColor
+            },
+            onClick = {
+                onEditIntervalClicked?.invoke()
+            },
         )
+
         MangaActionButton(
             title = if (trackingCount == 0) {
                 stringResource(MR.strings.manga_tracking_tab)
             } else {
-                pluralStringResource(MR.plurals.num_trackers, count = trackingCount, trackingCount)
+                pluralStringResource(
+                    MR.plurals.num_trackers,
+                    count = trackingCount,
+                    trackingCount,
+                )
             },
-            icon = if (trackingCount == 0) Icons.Outlined.Sync else Icons.Outlined.Done,
-            color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
+            icon = if (trackingCount == 0) {
+                Icons.Outlined.Sync
+            } else {
+                Icons.Outlined.Done
+            },
+            color = if (trackingCount == 0) {
+                defaultActionButtonColor
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
             onClick = onTrackingClicked,
         )
+
         if (onWebViewClicked != null) {
             MangaActionButton(
                 title = stringResource(MR.strings.action_web_view),
@@ -266,8 +342,10 @@ fun ExpandableMangaDescription(
         val (expanded, onExpanded) = rememberSaveable {
             mutableStateOf(defaultExpandState)
         }
-        val desc =
-            description.takeIf { !it.isNullOrBlank() } ?: stringResource(MR.strings.description_placeholder)
+
+        val desc = description.takeIf {
+            !it.isNullOrBlank()
+        } ?: stringResource(MR.strings.description_placeholder)
 
         MangaSummary(
             description = desc,
@@ -277,9 +355,13 @@ fun ExpandableMangaDescription(
             modifier = Modifier
                 .padding(top = 8.dp)
                 .padding(horizontal = 16.dp)
-                .clickableNoIndication { onExpanded(!expanded) },
+                .clickableNoIndication {
+                    onExpanded(!expanded)
+                },
         )
+
         val tags = tagsProvider()
+
         if (!tags.isNullOrEmpty()) {
             Box(
                 modifier = Modifier
@@ -288,31 +370,55 @@ fun ExpandableMangaDescription(
                     .animateContentSize(animationSpec = spring())
                     .fillMaxWidth(),
             ) {
-                var showMenu by remember { mutableStateOf(false) }
-                var tagSelected by remember { mutableStateOf("") }
+                var showMenu by remember {
+                    mutableStateOf(false)
+                }
+
+                var tagSelected by remember {
+                    mutableStateOf("")
+                }
+
                 DropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
+                    onDismissRequest = {
+                        showMenu = false
+                    },
                 ) {
                     DropdownMenuItem(
-                        text = { Text(text = stringResource(MR.strings.action_search)) },
+                        text = {
+                            Text(
+                                text = stringResource(
+                                    MR.strings.action_search,
+                                ),
+                            )
+                        },
                         onClick = {
                             onTagSearch(tagSelected)
                             showMenu = false
                         },
                     )
+
                     DropdownMenuItem(
-                        text = { Text(text = stringResource(MR.strings.action_copy_to_clipboard)) },
+                        text = {
+                            Text(
+                                text = stringResource(
+                                    MR.strings.action_copy_to_clipboard,
+                                ),
+                            )
+                        },
                         onClick = {
                             onCopyTagToClipboard(tagSelected)
                             showMenu = false
                         },
                     )
                 }
+
                 if (expanded) {
                     FlowRow(
                         modifier = Modifier.padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            MaterialTheme.padding.extraSmall,
+                        ),
                     ) {
                         tags.forEach {
                             TagsChip(
@@ -327,8 +433,12 @@ fun ExpandableMangaDescription(
                     }
                 } else {
                     LazyRow(
-                        contentPadding = PaddingValues(horizontal = MaterialTheme.padding.medium),
-                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                        contentPadding = PaddingValues(
+                            horizontal = MaterialTheme.padding.medium,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            MaterialTheme.padding.extraSmall,
+                        ),
                     ) {
                         items(items = tags) {
                             TagsChip(
@@ -356,11 +466,20 @@ private fun MangaAndSourceTitlesLarge(
     categories: List<Category>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
+    showAlternativeTitles: Boolean,
+    showAuthorArtist: Boolean,
+    showStatusSource: Boolean,
+    showCategories: Boolean,
+    coverPosition: String,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, top = appBarPadding + 16.dp, end = 16.dp),
+            .padding(
+                start = 16.dp,
+                top = appBarPadding + 16.dp,
+                end = 16.dp,
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         MangaCover.Book(
@@ -372,7 +491,9 @@ private fun MangaAndSourceTitlesLarge(
             contentDescription = stringResource(MR.strings.manga_cover),
             onClick = onCoverClick,
         )
+
         Spacer(modifier = Modifier.height(16.dp))
+
         MangaContentInfo(
             title = manga.title,
             alternativeTitles = manga.alternativeTitles,
@@ -383,6 +504,10 @@ private fun MangaAndSourceTitlesLarge(
             isStubSource = isStubSource,
             categories = categories,
             doSearch = doSearch,
+            showAlternativeTitles = showAlternativeTitles,
+            showAuthorArtist = showAuthorArtist,
+            showStatusSource = showStatusSource,
+            showCategories = showCategories,
             textAlign = TextAlign.Center,
         )
     }
@@ -397,14 +522,13 @@ private fun MangaAndSourceTitlesSmall(
     categories: List<Category>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
+    showAlternativeTitles: Boolean,
+    showAuthorArtist: Boolean,
+    showStatusSource: Boolean,
+    showCategories: Boolean,
+    coverPosition: String,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, top = appBarPadding + 16.dp, end = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    val cover = @Composable {
         MangaCover.Book(
             modifier = Modifier
                 .sizeIn(maxWidth = 100.dp)
@@ -413,23 +537,106 @@ private fun MangaAndSourceTitlesSmall(
                 .data(manga)
                 .crossfade(true)
                 .build(),
-            contentDescription = stringResource(MR.strings.manga_cover),
+            contentDescription = stringResource(
+                MR.strings.manga_cover,
+            ),
             onClick = onCoverClick,
         )
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            MangaContentInfo(
-                title = manga.title,
-                alternativeTitles = manga.alternativeTitles,
-                author = manga.author,
-                artist = manga.artist,
-                status = manga.status,
-                sourceName = sourceName,
-                isStubSource = isStubSource,
-                categories = categories,
-                doSearch = doSearch,
-            )
+    }
+
+    val information = @Composable {
+        MangaContentInfo(
+            title = manga.title,
+            alternativeTitles = manga.alternativeTitles,
+            author = manga.author,
+            artist = manga.artist,
+            status = manga.status,
+            sourceName = sourceName,
+            isStubSource = isStubSource,
+            categories = categories,
+            doSearch = doSearch,
+            showAlternativeTitles = showAlternativeTitles,
+            showAuthorArtist = showAuthorArtist,
+            showStatusSource = showStatusSource,
+            showCategories = showCategories,
+        )
+    }
+
+    when (coverPosition) {
+        "center" -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = appBarPadding + 16.dp,
+                        end = 16.dp,
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                MangaCover.Book(
+                    modifier = Modifier.sizeIn(maxWidth = 180.dp),
+                    data = ImageRequest.Builder(LocalContext.current)
+                        .data(manga)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = stringResource(
+                        MR.strings.manga_cover,
+                    ),
+                    onClick = onCoverClick,
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                information()
+            }
+        }
+
+        "end" -> {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = appBarPadding + 16.dp,
+                        end = 16.dp,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    information()
+                }
+
+                cover()
+            }
+        }
+
+        else -> {
+            // Default/current layout: cover at the start.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = appBarPadding + 16.dp,
+                        end = 16.dp,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                cover()
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    information()
+                }
+            }
         }
     }
 }
@@ -445,12 +652,19 @@ private fun ColumnScope.MangaContentInfo(
     isStubSource: Boolean,
     categories: List<Category>,
     doSearch: (query: String, global: Boolean) -> Unit,
+    showAlternativeTitles: Boolean = true,
+    showAuthorArtist: Boolean = true,
+    showStatusSource: Boolean = true,
+    showCategories: Boolean = true,
     onEditAlternativeTitles: (() -> Unit)? = null,
     textAlign: TextAlign? = LocalTextStyle.current.textAlign,
 ) {
     val context = LocalContext.current
+
     Text(
-        text = title.ifBlank { stringResource(MR.strings.unknown_title) },
+        text = title.ifBlank {
+            stringResource(MR.strings.unknown_title)
+        },
         style = MaterialTheme.typography.titleLarge,
         modifier = Modifier.clickableNoIndication(
             onLongClick = {
@@ -461,68 +675,91 @@ private fun ColumnScope.MangaContentInfo(
                     )
                 }
             },
-            onClick = { if (title.isNotBlank()) doSearch(title, true) },
+            onClick = {
+                if (title.isNotBlank()) {
+                    doSearch(title, true)
+                }
+            },
         ),
         textAlign = textAlign,
     )
 
-    // Alternative titles section - clickable to edit
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = if (textAlign == TextAlign.Center) Arrangement.Center else Arrangement.Start,
-    ) {
-        if (alternativeTitles.isNotEmpty()) {
-            Text(
-                text = alternativeTitles.joinToString(" • "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .clickableNoIndication(
-                        onLongClick = {
-                            context.copyToClipboard(
-                                alternativeTitles.joinToString("\n"),
-                                alternativeTitles.joinToString("\n"),
-                            )
+    // Alternative titles
+    if (showAlternativeTitles) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (
+                textAlign == TextAlign.Center
+            ) {
+                Arrangement.Center
+            } else {
+                Arrangement.Start
+            },
+        ) {
+            if (alternativeTitles.isNotEmpty()) {
+                Text(
+                    text = alternativeTitles.joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .clickableNoIndication(
+                            onLongClick = {
+                                context.copyToClipboard(
+                                    alternativeTitles.joinToString("\n"),
+                                    alternativeTitles.joinToString("\n"),
+                                )
+                            },
+                            onClick = {
+                                onEditAlternativeTitles?.invoke()
+                            },
+                        ),
+                    textAlign = textAlign,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else if (onEditAlternativeTitles != null) {
+                Text(
+                    text = "Add alternative titles",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickableNoIndication(
+                        onClick = {
+                            onEditAlternativeTitles()
                         },
-                        onClick = { onEditAlternativeTitles?.invoke() },
                     ),
-                textAlign = textAlign,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        } else if (onEditAlternativeTitles != null) {
-            Text(
-                text = "Add alternative titles",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickableNoIndication(
-                    onClick = { onEditAlternativeTitles() },
-                ),
-                textAlign = textAlign,
-            )
+                    textAlign = textAlign,
+                )
+            }
         }
     }
 
-    Spacer(modifier = Modifier.height(2.dp))
+    // Author & artist
+    if (showAuthorArtist) {
+        Spacer(modifier = Modifier.height(2.dp))
 
-    Row(
-        modifier = Modifier.secondaryItemAlpha(),
-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.PersonOutline,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-        )
-        Text(
-            text = author?.takeIf { it.isNotBlank() }
-                ?: stringResource(MR.strings.unknown_author),
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier
-                .clickableNoIndication(
+        Row(
+            modifier = Modifier.secondaryItemAlpha(),
+            horizontalArrangement = Arrangement.spacedBy(
+                MaterialTheme.padding.extraSmall,
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.PersonOutline,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+
+            Text(
+                text = author?.takeIf {
+                    it.isNotBlank()
+                } ?: stringResource(
+                    MR.strings.unknown_author,
+                ),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.clickableNoIndication(
                     onLongClick = {
                         if (!author.isNullOrBlank()) {
                             context.copyToClipboard(
@@ -531,98 +768,147 @@ private fun ColumnScope.MangaContentInfo(
                             )
                         }
                     },
-                    onClick = { if (!author.isNullOrBlank()) doSearch(author, true) },
+                    onClick = {
+                        if (!author.isNullOrBlank()) {
+                            doSearch(author, true)
+                        }
+                    },
                 ),
-            textAlign = textAlign,
-        )
-    }
-
-    if (!artist.isNullOrBlank() && author != artist) {
-        Row(
-            modifier = Modifier.secondaryItemAlpha(),
-            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Brush,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-            )
-            Text(
-                text = artist,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier
-                    .clickableNoIndication(
-                        onLongClick = { context.copyToClipboard(artist, artist) },
-                        onClick = { doSearch(artist, true) },
-                    ),
                 textAlign = textAlign,
             )
         }
-    }
 
-    Spacer(modifier = Modifier.height(2.dp))
-
-    Row(
-        modifier = Modifier.secondaryItemAlpha(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = when (status) {
-                SManga.ONGOING.toLong() -> Icons.Outlined.Schedule
-                SManga.COMPLETED.toLong() -> Icons.Outlined.DoneAll
-                SManga.LICENSED.toLong() -> Icons.Outlined.AttachMoney
-                SManga.PUBLISHING_FINISHED.toLong() -> Icons.Outlined.Done
-                SManga.CANCELLED.toLong() -> Icons.Outlined.Close
-                SManga.ON_HIATUS.toLong() -> Icons.Outlined.Pause
-                else -> Icons.Outlined.Block
-            },
-            contentDescription = null,
-            modifier = Modifier
-                .padding(end = 4.dp)
-                .size(16.dp),
-        )
-        ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
-            Text(
-                text = when (status) {
-                    SManga.ONGOING.toLong() -> stringResource(MR.strings.ongoing)
-                    SManga.COMPLETED.toLong() -> stringResource(MR.strings.completed)
-                    SManga.LICENSED.toLong() -> stringResource(MR.strings.licensed)
-                    SManga.PUBLISHING_FINISHED.toLong() -> stringResource(MR.strings.publishing_finished)
-                    SManga.CANCELLED.toLong() -> stringResource(MR.strings.cancelled)
-                    SManga.ON_HIATUS.toLong() -> stringResource(MR.strings.on_hiatus)
-                    else -> stringResource(MR.strings.unknown)
-                },
-                overflow = TextOverflow.Ellipsis,
-                maxLines = 1,
-            )
-            DotSeparatorText()
-            if (isStubSource) {
+        if (!artist.isNullOrBlank() && author != artist) {
+            Row(
+                modifier = Modifier.secondaryItemAlpha(),
+                horizontalArrangement = Arrangement.spacedBy(
+                    MaterialTheme.padding.extraSmall,
+                ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(
-                    imageVector = Icons.Filled.Warning,
+                    imageVector = Icons.Filled.Brush,
                     contentDescription = null,
-                    modifier = Modifier
-                        .padding(end = 4.dp)
-                        .size(16.dp),
-                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(16.dp),
+                )
+
+                Text(
+                    text = artist,
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.clickableNoIndication(
+                        onLongClick = {
+                            context.copyToClipboard(
+                                artist,
+                                artist,
+                            )
+                        },
+                        onClick = {
+                            doSearch(artist, true)
+                        },
+                    ),
+                    textAlign = textAlign,
                 )
             }
-            Text(
-                text = sourceName,
-                modifier = Modifier.clickableNoIndication {
-                    doSearch(
-                        sourceName,
-                        false,
-                    )
-                },
-                overflow = TextOverflow.Ellipsis,
-                maxLines = 1,
-            )
         }
     }
 
-    // Categories display
-    if (categories.isNotEmpty()) {
+    // Status & source
+    if (showStatusSource) {
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Row(
+            modifier = Modifier.secondaryItemAlpha(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = when (status) {
+                    SManga.ONGOING.toLong() ->
+                        Icons.Outlined.Schedule
+
+                    SManga.COMPLETED.toLong() ->
+                        Icons.Outlined.DoneAll
+
+                    SManga.LICENSED.toLong() ->
+                        Icons.Outlined.AttachMoney
+
+                    SManga.PUBLISHING_FINISHED.toLong() ->
+                        Icons.Outlined.Done
+
+                    SManga.CANCELLED.toLong() ->
+                        Icons.Outlined.Close
+
+                    SManga.ON_HIATUS.toLong() ->
+                        Icons.Outlined.Pause
+
+                    else ->
+                        Icons.Outlined.Block
+                },
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(16.dp),
+            )
+
+            ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
+                Text(
+                    text = when (status) {
+                        SManga.ONGOING.toLong() ->
+                            stringResource(MR.strings.ongoing)
+
+                        SManga.COMPLETED.toLong() ->
+                            stringResource(MR.strings.completed)
+
+                        SManga.LICENSED.toLong() ->
+                            stringResource(MR.strings.licensed)
+
+                        SManga.PUBLISHING_FINISHED.toLong() ->
+                            stringResource(
+                                MR.strings.publishing_finished,
+                            )
+
+                        SManga.CANCELLED.toLong() ->
+                            stringResource(MR.strings.cancelled)
+
+                        SManga.ON_HIATUS.toLong() ->
+                            stringResource(MR.strings.on_hiatus)
+
+                        else ->
+                            stringResource(MR.strings.unknown)
+                    },
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                )
+
+                DotSeparatorText()
+
+                if (isStubSource) {
+                    Icon(
+                        imageVector = Icons.Filled.Warning,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .size(16.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+
+                Text(
+                    text = sourceName,
+                    modifier = Modifier.clickableNoIndication {
+                        doSearch(
+                            sourceName,
+                            false,
+                        )
+                    },
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+
+    // Categories
+    if (showCategories && categories.isNotEmpty()) {
         Row(
             modifier = Modifier.secondaryItemAlpha(),
             verticalAlignment = Alignment.CenterVertically,
@@ -634,9 +920,12 @@ private fun ColumnScope.MangaContentInfo(
                     .padding(end = 4.dp)
                     .size(16.dp),
             )
+
             ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
                 Text(
-                    text = categories.joinToString(", ") { it.name },
+                    text = categories.joinToString(", ") {
+                        it.name
+                    },
                     overflow = TextOverflow.Ellipsis,
                     maxLines = 2,
                 )
@@ -646,27 +935,58 @@ private fun ColumnScope.MangaContentInfo(
 }
 
 @Composable
-private fun descriptionAnnotator(loadImages: Boolean, linkStyle: SpanStyle) = remember(loadImages, linkStyle) {
+private fun descriptionAnnotator(
+    loadImages: Boolean,
+    linkStyle: SpanStyle,
+) = remember(loadImages, linkStyle) {
     markdownAnnotator(
         annotate = { content, child ->
-            if (!loadImages && child.type == MarkdownElementTypes.IMAGE) {
-                val inlineLink = child.findChildOfType(MarkdownElementTypes.INLINE_LINK)
+            if (!loadImages &&
+                child.type == MarkdownElementTypes.IMAGE
+            ) {
+                val inlineLink =
+                    child.findChildOfType(
+                        MarkdownElementTypes.INLINE_LINK,
+                    )
 
-                val url = inlineLink?.findChildOfType(MarkdownElementTypes.LINK_DESTINATION)
-                    ?.getUnescapedTextInNode(content)
-                    ?: inlineLink?.findChildOfType(MarkdownElementTypes.AUTOLINK)
-                        ?.findChildOfType(MarkdownTokenTypes.AUTOLINK)
+                val url =
+                    inlineLink
+                        ?.findChildOfType(
+                            MarkdownElementTypes.LINK_DESTINATION,
+                        )
                         ?.getUnescapedTextInNode(content)
-                    ?: return@markdownAnnotator false
+                        ?: inlineLink
+                            ?.findChildOfType(
+                                MarkdownElementTypes.AUTOLINK,
+                            )
+                            ?.findChildOfType(
+                                MarkdownTokenTypes.AUTOLINK,
+                            )
+                            ?.getUnescapedTextInNode(content)
+                        ?: return@markdownAnnotator false
 
-                val textNode = inlineLink?.findChildOfType(MarkdownElementTypes.LINK_TITLE)
-                    ?: inlineLink?.findChildOfType(MarkdownElementTypes.LINK_TEXT)
-                val altText = textNode?.findChildOfType(MarkdownTokenTypes.TEXT)
-                    ?.getUnescapedTextInNode(content).orEmpty()
+                val textNode =
+                    inlineLink?.findChildOfType(
+                        MarkdownElementTypes.LINK_TITLE,
+                    ) ?: inlineLink?.findChildOfType(
+                        MarkdownElementTypes.LINK_TEXT,
+                    )
 
-                withLink(LinkAnnotation.Url(url = url)) {
+                val altText =
+                    textNode
+                        ?.findChildOfType(
+                            MarkdownTokenTypes.TEXT,
+                        )
+                        ?.getUnescapedTextInNode(content)
+                        .orEmpty()
+
+                withLink(
+                    LinkAnnotation.Url(url = url),
+                ) {
                     pushStyle(linkStyle)
-                    appendInlineContent(MARKDOWN_INLINE_IMAGE_TAG)
+                    appendInlineContent(
+                        MARKDOWN_INLINE_IMAGE_TAG,
+                    )
                     append(altText)
                     pop()
                 }
@@ -675,7 +995,12 @@ private fun descriptionAnnotator(loadImages: Boolean, linkStyle: SpanStyle) = re
             }
 
             if (child.type in DISALLOWED_MARKDOWN_TYPES) {
-                append(content.substring(child.startOffset, child.endOffset))
+                append(
+                    content.substring(
+                        child.startOffset,
+                        child.endOffset,
+                    ),
+                )
                 return@markdownAnnotator true
             }
 
@@ -695,13 +1020,23 @@ private fun MangaSummary(
     onEditNotesClicked: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val preferences = remember { Injekt.get<UiPreferences>() }
-    val loadImages = remember { preferences.imagesInDescription.get() }
+    val preferences = remember {
+        Injekt.get<UiPreferences>()
+    }
+
+    val loadImages = remember {
+        preferences.imagesInDescription.get()
+    }
+
     val animProgress by animateFloatAsState(
         targetValue = if (expanded) 1f else 0f,
         label = "summary",
     )
-    var infoHeight by remember { mutableIntStateOf(0) }
+
+    var infoHeight by remember {
+        mutableIntStateOf(0)
+    }
+
     Layout(
         modifier = modifier.clipToBounds(),
         contents = listOf(
@@ -709,7 +1044,11 @@ private fun MangaSummary(
                 Text(
                     // Shows at least 3 lines if no notes
                     // when there are notes show 6
-                    text = if (notes.isBlank()) "\n\n" else "\n\n\n\n\n",
+                    text = if (notes.isBlank()) {
+                        "\n\n"
+                    } else {
+                        "\n\n\n\n\n"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
@@ -724,13 +1063,15 @@ private fun MangaSummary(
                         expanded = expanded,
                         onEditNotes = onEditNotesClicked,
                     )
+
                     SelectionContainer {
                         MarkdownRender(
                             content = description,
                             modifier = Modifier.secondaryItemAlpha(),
                             annotator = descriptionAnnotator(
                                 loadImages = loadImages,
-                                linkStyle = getMarkdownLinkStyle().toSpanStyle(),
+                                linkStyle = getMarkdownLinkStyle()
+                                    .toSpanStyle(),
                             ),
                             loadImages = loadImages,
                         )
@@ -738,46 +1079,88 @@ private fun MangaSummary(
                 }
             },
             {
-                val colors = listOf(Color.Transparent, MaterialTheme.colorScheme.background)
+                val colors = listOf(
+                    Color.Transparent,
+                    MaterialTheme.colorScheme.background,
+                )
+
                 Box(
-                    modifier = Modifier.background(Brush.verticalGradient(colors = colors)),
+                    modifier = Modifier.background(
+                        Brush.verticalGradient(
+                            colors = colors,
+                        ),
+                    ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    val image = AnimatedImageVector.animatedVectorResource(R.drawable.anim_caret_down)
+                    val image =
+                        AnimatedImageVector.animatedVectorResource(
+                            R.drawable.anim_caret_down,
+                        )
+
                     Icon(
-                        painter = rememberAnimatedVectorPainter(image, !expanded),
+                        painter = rememberAnimatedVectorPainter(
+                            image,
+                            !expanded,
+                        ),
                         contentDescription = stringResource(
-                            if (expanded) MR.strings.manga_info_collapse else MR.strings.manga_info_expand,
+                            if (expanded) {
+                                MR.strings.manga_info_collapse
+                            } else {
+                                MR.strings.manga_info_expand
+                            },
                         ),
                         tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.background(Brush.radialGradient(colors = colors.asReversed())),
+                        modifier = Modifier.background(
+                            Brush.radialGradient(
+                                colors = colors.asReversed(),
+                            ),
+                        ),
                     )
                 }
             },
         ),
     ) { (shrunk, actual, scrim), constraints ->
-        val shrunkHeight = shrunk.single()
+        val shrunkHeight = shrunk
+            .single()
             .measure(constraints)
             .height
+
         val heightDelta = infoHeight - shrunkHeight
         val scrimHeight = 24.dp.roundToPx()
 
-        val actualPlaceable = actual.single()
+        val actualPlaceable = actual
+            .single()
             .measure(constraints)
-        val scrimPlaceable = scrim.single()
-            .measure(Constraints.fixed(width = constraints.maxWidth, height = scrimHeight))
 
-        val currentHeight = shrunkHeight + ((heightDelta + scrimHeight) * animProgress).roundToInt()
-        layout(constraints.maxWidth, currentHeight) {
+        val scrimPlaceable = scrim
+            .single()
+            .measure(
+                Constraints.fixed(
+                    width = constraints.maxWidth,
+                    height = scrimHeight,
+                ),
+            )
+
+        val currentHeight =
+            shrunkHeight +
+                ((heightDelta + scrimHeight) * animProgress)
+                    .roundToInt()
+
+        layout(
+            constraints.maxWidth,
+            currentHeight,
+        ) {
             actualPlaceable.place(0, 0)
 
             val scrimY = currentHeight - scrimHeight
+
             scrimPlaceable.place(0, scrimY)
         }
     }
 }
 
-private val DefaultTagChipModifier = Modifier.padding(vertical = 4.dp)
+private val DefaultTagChipModifier =
+    Modifier.padding(vertical = 4.dp)
 
 @Composable
 private fun TagsChip(
@@ -785,11 +1168,18 @@ private fun TagsChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+    CompositionLocalProvider(
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
         SuggestionChip(
             modifier = modifier,
             onClick = onClick,
-            label = { Text(text = text, style = MaterialTheme.typography.bodySmall) },
+            label = {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            },
         )
     }
 }
@@ -807,14 +1197,18 @@ private fun RowScope.MangaActionButton(
         modifier = Modifier.weight(1f),
         onLongClick = onLongClick,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = color,
                 modifier = Modifier.size(20.dp),
             )
+
             Spacer(Modifier.height(4.dp))
+
             Text(
                 text = title,
                 color = color,
