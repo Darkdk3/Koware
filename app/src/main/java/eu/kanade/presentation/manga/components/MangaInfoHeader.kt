@@ -65,7 +65,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Brush as GraphicsBrush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -162,7 +162,7 @@ fun MangaInfoBox(
                     .drawWithContent {
                         drawContent()
                         drawRect(
-                            brush = Brush.verticalGradient(
+                            brush = GraphicsBrush.verticalGradient(
                                 colors = backdropGradientColors,
                             ),
                         )
@@ -616,7 +616,6 @@ private fun MangaAndSourceTitlesSmall(
         }
 
         else -> {
-            // Default/current layout: cover at the start.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -684,7 +683,6 @@ private fun ColumnScope.MangaContentInfo(
         textAlign = textAlign,
     )
 
-    // Alternative titles
     if (showAlternativeTitles) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -735,7 +733,6 @@ private fun ColumnScope.MangaContentInfo(
         }
     }
 
-    // Author & artist
     if (showAuthorArtist) {
         Spacer(modifier = Modifier.height(2.dp))
 
@@ -812,7 +809,6 @@ private fun ColumnScope.MangaContentInfo(
         }
     }
 
-    // Status & source
     if (showStatusSource) {
         Spacer(modifier = Modifier.height(2.dp))
 
@@ -907,7 +903,6 @@ private fun ColumnScope.MangaContentInfo(
         }
     }
 
-    // Categories
     if (showCategories && categories.isNotEmpty()) {
         Row(
             modifier = Modifier.secondaryItemAlpha(),
@@ -1042,8 +1037,6 @@ private fun MangaSummary(
         contents = listOf(
             {
                 Text(
-                    // Shows at least 3 lines if no notes
-                    // when there are notes show 6
                     text = if (notes.isBlank()) {
                         "\n\n"
                     } else {
@@ -1086,7 +1079,7 @@ private fun MangaSummary(
 
                 Box(
                     modifier = Modifier.background(
-                        Brush.verticalGradient(
+                        GraphicsBrush.verticalGradient(
                             colors = colors,
                         ),
                     ),
@@ -1111,7 +1104,7 @@ private fun MangaSummary(
                         ),
                         tint = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.background(
-                            Brush.radialGradient(
+                            GraphicsBrush.radialGradient(
                                 colors = colors.asReversed(),
                             ),
                         ),
