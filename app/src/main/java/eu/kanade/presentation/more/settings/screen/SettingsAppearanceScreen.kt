@@ -47,6 +47,28 @@ object SettingsAppearanceScreen : SearchableSettings {
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
             getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
+            getMangaDetailsGroup(libraryPreferences = libraryPreferences),
+        )
+    }
+
+    @Composable
+    private fun getMangaDetailsGroup(
+        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+    ): Preference.PreferenceGroup {
+        return Preference.PreferenceGroup(
+            title = "Manga details screen",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.mangaDetailsHideBackdrop,
+                    title = "Hide backdrop image",
+                    subtitle = "Remove the blurred cover image behind the title area",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.mangaDetailsCenterCover,
+                    title = "Center cover",
+                    subtitle = "Show a large centered cover above the title instead of beside it",
+                ),
+            ),
         )
     }
 
