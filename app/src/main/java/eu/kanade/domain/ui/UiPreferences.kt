@@ -13,84 +13,37 @@ import java.time.format.FormatStyle
 import java.util.Locale
 
 class UiPreferences(
-    preferenceStore: PreferenceStore,
+preferenceStore: PreferenceStore,
 ) {
 
-    val themeMode: Preference<ThemeMode> =
-        preferenceStore.getEnum("pref_theme_mode_key", ThemeMode.SYSTEM)
+val themeMode: Preference<ThemeMode> = preferenceStore.getEnum("pref_theme_mode_key", ThemeMode.SYSTEM)  
 
-    val appTheme: Preference<AppTheme> = preferenceStore.getEnum(
-        "pref_app_theme",
-        if (DeviceUtil.isDynamicColorAvailable) {
-            AppTheme.MONET
-        } else {
-            AppTheme.DEFAULT
-        },
-    )
+val appTheme: Preference<AppTheme> = preferenceStore.getEnum(  
+    "pref_app_theme",  
+    if (DeviceUtil.isDynamicColorAvailable) {  
+        AppTheme.MONET  
+    } else {  
+        AppTheme.DEFAULT  
+    },  
+)  
 
-    val themeDarkAmoled: Preference<Boolean> =
-        preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)
+val themeDarkAmoled: Preference<Boolean> = preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)  
 
-    val relativeTime: Preference<Boolean> =
-        preferenceStore.getBoolean("relative_time_v2", true)
+val relativeTime: Preference<Boolean> = preferenceStore.getBoolean("relative_time_v2", true)  
 
-    val dateFormat: Preference<String> =
-        preferenceStore.getString("app_date_format", "")
+val dateFormat: Preference<String> = preferenceStore.getString("app_date_format", "")  
 
-    val tabletUiMode: Preference<TabletUiMode> =
-        preferenceStore.getEnum("tablet_ui_mode", TabletUiMode.AUTOMATIC)
+val tabletUiMode: Preference<TabletUiMode> = preferenceStore.getEnum("tablet_ui_mode", TabletUiMode.AUTOMATIC)  
 
-    val imagesInDescription: Preference<Boolean> =
-        preferenceStore.getBoolean("pref_render_images_description", true)
+val imagesInDescription: Preference<Boolean> = preferenceStore.getBoolean("pref_render_images_description", true)  
 
-    /*
-     * Manga information display preferences
-     *
-     * Defaults preserve the existing manga information UI.
-     */
-    val showMangaBackdrop: Preference<Boolean> =
-        preferenceStore.getBoolean("pref_show_manga_backdrop", true)
+val showNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean("pref_show_navigation_labels", true)  
 
-    val showMangaAlternativeTitles: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_show_manga_alternative_titles",
-            true,
-        )
+companion object {  
+    fun dateFormat(format: String): DateTimeFormatter = when (format) {  
+        "" -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)  
+        else -> DateTimeFormatter.ofPattern(format, Locale.getDefault())  
+    }  
+}
 
-    val showMangaAuthorArtist: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_show_manga_author_artist",
-            true,
-        )
-
-    val showMangaStatusSource: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_show_manga_status_source",
-            true,
-        )
-
-    val showMangaCategories: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_show_manga_categories",
-            true,
-        )
-
-    val mangaCoverPosition: Preference<String> =
-        preferenceStore.getString(
-            "pref_manga_cover_position",
-            "start",
-        )
-
-    val showNavigationLabels: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_show_navigation_labels",
-            true,
-        )
-
-    companion object {
-        fun dateFormat(format: String): DateTimeFormatter = when (format) {
-            "" -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
-            else -> DateTimeFormatter.ofPattern(format, Locale.getDefault())
-        }
-    }
 }
