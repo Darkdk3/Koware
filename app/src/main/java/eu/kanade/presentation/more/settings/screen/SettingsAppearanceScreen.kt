@@ -41,15 +41,11 @@ object SettingsAppearanceScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        val libraryPreferences =
-            remember {
-                Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>()
-            }
+        val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
 
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
-            getMangaInformationGroup(uiPreferences = uiPreferences),
             getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
         )
     }
@@ -87,9 +83,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                         AppThemePreferenceWidget(
                             value = appTheme,
                             amoled = amoled,
-                            onItemClick = {
-                                appThemePref.set(it)
-                            },
+                            onItemClick = { appThemePref.set(it) },
                         )
                     }
                 },
@@ -98,9 +92,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                     title = stringResource(MR.strings.pref_dark_theme_pure_black),
                     enabled = themeMode != ThemeMode.LIGHT,
                     onValueChanged = {
-                        (context as? Activity)?.let {
-                            ActivityCompat.recreate(it)
-                        }
+                        (context as? Activity)?.let { ActivityCompat.recreate(it) }
                         true
                     },
                 ),
@@ -115,14 +107,9 @@ object SettingsAppearanceScreen : SearchableSettings {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
 
-        val now = remember {
-            Clock.System.now()
-                .toLocalDateTime(TimeZone.currentSystemDefault())
-                .toJavaLocalDateTime()
-        }
+        val now = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toJavaLocalDateTime() }
 
         val dateFormat by uiPreferences.dateFormat.collectAsState()
-
         val formattedNow = remember(dateFormat) {
             UiPreferences.dateFormat(dateFormat).format(now)
         }
@@ -132,16 +119,12 @@ object SettingsAppearanceScreen : SearchableSettings {
             preferenceItems = listOf(
                 Preference.PreferenceItem.TextPreference(
                     title = stringResource(MR.strings.pref_app_language),
-                    onClick = {
-                        navigator.push(AppLanguageScreen())
-                    },
+                    onClick = { navigator.push(AppLanguageScreen()) },
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = uiPreferences.tabletUiMode,
                     entries = TabletUiMode.entries
-                        .associateWith {
-                            stringResource(it.titleRes)
-                        },
+                        .associateWith { stringResource(it.titleRes) },
                     title = stringResource(MR.strings.pref_tablet_ui_mode),
                     onValueChanged = {
                         context.toast(MR.strings.requires_app_restart)
@@ -152,16 +135,8 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = uiPreferences.dateFormat,
                     entries = DateFormats
                         .associateWith {
-                            val formattedDate =
-                                UiPreferences.dateFormat(it).format(now)
-
-                            "${
-                                it.ifEmpty {
-                                    stringResource(
-                                        MR.strings.label_default,
-                                    )
-                                }
-                            } ($formattedDate)"
+                            val formattedDate = UiPreferences.dateFormat(it).format(now)
+                            "${it.ifEmpty { stringResource(MR.strings.label_default) }} ($formattedDate)"
                         },
                     title = stringResource(MR.strings.pref_date_format),
                 ),
@@ -176,60 +151,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = uiPreferences.imagesInDescription,
-                    title = stringResource(
-                        MR.strings.pref_display_images_description,
-                    ),
-                ),
-            ),
-        )
-    }
-
-    /**
-     * Manga information display settings.
-     *
-     * Kept separate from the normal Display settings so the existing
-     * appearance settings remain unchanged.
-     */
-    @Composable
-    private fun getMangaInformationGroup(
-        uiPreferences: UiPreferences,
-    ): Preference.PreferenceGroup {
-        return Preference.PreferenceGroup(
-            title = "Manga information",
-            preferenceItems = listOf(
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = uiPreferences.showMangaBackdrop,
-                    title = "Manga backdrop",
-                    subtitle = "Show blurred cover artwork behind manga information",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = uiPreferences.showMangaAlternativeTitles,
-                    title = "Alternative titles",
-                    subtitle = "Show alternative manga titles",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = uiPreferences.showMangaAuthorArtist,
-                    title = "Author & artist",
-                    subtitle = "Show the manga author and artist",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = uiPreferences.showMangaStatusSource,
-                    title = "Status & source",
-                    subtitle = "Show the manga status and source",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = uiPreferences.showMangaCategories,
-                    title = "Categories",
-                    subtitle = "Show the manga categories",
-                ),
-                Preference.PreferenceItem.ListPreference(
-                    preference = uiPreferences.mangaCoverPosition,
-                    entries = mapOf(
-                        "start" to "Start",
-                        "center" to "Center",
-                        "end" to "End",
-                    ),
-                    title = "Cover position",
+                    title = stringResource(MR.strings.pref_display_images_description),
                 ),
             ),
         )
@@ -240,11 +162,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val basePreferences =
-            remember {
-                Injekt.get<eu.kanade.domain.base.BasePreferences>()
-            }
-
+        val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
@@ -259,12 +177,8 @@ object SettingsAppearanceScreen : SearchableSettings {
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = basePreferences.hideMangaUi,
-                    title = stringResource(
-                        TDMR.strings.pref_hide_manga_ui,
-                    ),
-                    subtitle = stringResource(
-                        TDMR.strings.pref_hide_manga_ui_summary,
-                    ),
+                    title = stringResource(TDMR.strings.pref_hide_manga_ui),
+                    subtitle = stringResource(TDMR.strings.pref_hide_manga_ui_summary),
                     onValueChanged = {
                         context.toast(MR.strings.requires_app_restart)
                         true
