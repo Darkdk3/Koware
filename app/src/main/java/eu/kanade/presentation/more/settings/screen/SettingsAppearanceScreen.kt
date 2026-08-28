@@ -184,6 +184,11 @@ object SettingsAppearanceScreen : SearchableSettings {
                         true
                     },
                 ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.alwaysShowNavigationLabels,
+                    title = "Always show navigation labels",
+                    subtitle = "When off, bottom bar labels only show under the selected tab",
+                ),
             ),
         )
     }
