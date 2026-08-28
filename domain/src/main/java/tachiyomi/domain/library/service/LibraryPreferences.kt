@@ -283,6 +283,19 @@ class LibraryPreferences(
         true,
     )
 
+    /**
+     * Manga details screen appearance - both default false, preserving the existing look
+     * unless explicitly turned on.
+     */
+    val mangaDetailsHideBackdrop: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_hide_backdrop",
+        false,
+    )
+    val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_center_cover",
+        false,
+    )
+
     val autoRefreshLibrary: Preference<Boolean> = preferenceStore.getBoolean("pref_auto_refresh_library", true)
 
     val swipeToStartAction: Preference<ChapterSwipeAction> = preferenceStore.getEnum(
