@@ -44,7 +44,9 @@ note : The Manga sude will be a bit neglected but i will get to it
 
 * **Discover tab** — a source-pinning feed of latest/popular novels across your pinned sources 
 * **Source suggestions** — "more from this source" recommendations on each novel's details page (super boot strapped)
-* Plus much more...
+* Plus much more coming ... ^^
+
+
 
 
 </div>
