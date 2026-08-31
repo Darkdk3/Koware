@@ -57,6 +57,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,9 +82,11 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.palette.graphics.Palette
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import coil3.toBitmap
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
@@ -125,6 +128,7 @@ fun MangaInfoBox(
     categories: List<Category>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
+    onCoverLoaded: (Color) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
@@ -132,21 +136,39 @@ fun MangaInfoBox(
     val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
 
     Box(modifier = modifier) {
-        // Backdrop - hidden entirely when the "hide backdrop" appearance setting is on.
-        // Default (false) preserves the existing look exactly.
-        if (!hideBackdrop) {
-            val backdropGradientColors = listOf(
-                Color.Transparent,
-                MaterialTheme.colorScheme.background,
-            )
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(manga)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
+        // Backdrop image is always loaded (needed for palette extraction below, which is
+        // independent of whether it's visually shown), but only rendered visibly when the
+        // "hide backdrop" appearance setting is off. Default (false) preserves the existing
+        // look exactly.
+        val backdropGradientColors = listOf(
+            Color.Transparent,
+            MaterialTheme.colorScheme.background,
+        )
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(manga)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            onSuccess = { state ->
+                // Feeds the "cover-based theme" appearance option. Runs regardless of the
+                // hideBackdrop toggle since the two are independent settings.
+                // NOTE: coil3.toBitmap() is the one line here I'm not fully certain about -
+                // if this fails to resolve, check Coil3 3.5.0's real Image->Bitmap API
+                // (version pinned in libs.versions.toml) and swap this call accordingly.
+                runCatching {
+                    val bitmap = state.result.image.toBitmap()
+                    Palette.Builder(bitmap).generate { palette ->
+                        val rgb = palette?.vibrantSwatch?.rgb
+                            ?: palette?.dominantSwatch?.rgb
+                            ?: palette?.mutedSwatch?.rgb
+                        if (rgb != null) onCoverLoaded(Color(rgb))
+                    }
+                }
+            },
+            modifier = if (!hideBackdrop) {
+                Modifier
                     .matchParentSize()
                     .drawWithContent {
                         drawContent()
@@ -155,9 +177,12 @@ fun MangaInfoBox(
                         )
                     }
                     .blur(4.dp)
-                    .alpha(0.2f),
-            )
-        }
+                    .alpha(0.2f)
+            } else {
+                // Still needs to load for palette extraction, but shouldn't be visible.
+                Modifier.size(1.dp).alpha(0f)
+            },
+        )
 
         // Manga & source info. The "center cover" appearance setting forces the centered
         // layout (normally tablet-only) even on phone, reusing it rather than building a
