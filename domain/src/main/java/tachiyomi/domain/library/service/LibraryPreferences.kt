@@ -296,6 +296,16 @@ class LibraryPreferences(
         false,
     )
 
+    /**
+     * When true, the manga details screen's whole color scheme (not just one element) is
+     * regenerated from a dominant color extracted from the cover, via the existing
+     * TachiyomiTheme(seedColor) overload + materialkolor infra already present but unused.
+     */
+    val mangaDetailsCoverTheme: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_cover_theme",
+        false,
+    )
+
     val autoRefreshLibrary: Preference<Boolean> = preferenceStore.getBoolean("pref_auto_refresh_library", true)
 
     val swipeToStartAction: Preference<ChapterSwipeAction> = preferenceStore.getEnum(
