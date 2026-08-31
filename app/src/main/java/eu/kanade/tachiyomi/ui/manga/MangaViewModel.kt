@@ -748,6 +748,15 @@ class MangaViewModel(
      * row can use the same MangaComfortableGridItem card as everywhere else in the app,
      * and tapping a card doesn't need any async conversion step.
      */
+    /**
+     * Stores a color extracted from the cover (via Palette, in MangaInfoBox's onCoverLoaded
+     * callback) so the Screen can pass it into TachiyomiTheme(seedColor = ...) and re-theme
+     * the whole details screen around it.
+     */
+    fun setSeedColor(color: androidx.compose.ui.graphics.Color) {
+        updateSuccessState { it.copy(seedColor = color) }
+    }
+
     private fun loadSourceSuggestions(source: Source, manga: Manga) {
         viewModelScope.launchIO {
             val results = runCatching {
@@ -1809,6 +1818,7 @@ class MangaViewModel(
             val categories: List<Category> = emptyList(),
             val showSourceName: Boolean = true,
             val sourceSuggestions: List<Manga>? = null,
+            val seedColor: androidx.compose.ui.graphics.Color? = null,
         ) : State {
             val processedChapters by lazy {
                 chapters.applyFilters(manga).toList()
