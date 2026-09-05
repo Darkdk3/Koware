@@ -12,7 +12,10 @@ import androidx.palette.graphics.Palette
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
+import coil3.request.allowHardware
 import coil3.toBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.asMangaCover
 
@@ -33,9 +36,12 @@ fun rememberCoverSeedColor(manga: Manga, enabled: Boolean): Color? {
                 .build()
             val result = context.imageLoader.execute(request)
             if (result is SuccessResult) {
-                val palette = Palette.from(result.image.toBitmap()).generate()
-                val swatch = palette.dominantSwatch ?: palette.vibrantSwatch ?: palette.mutedSwatch
-                swatch?.let { seedColor = Color(it.rgb) }
+                val extractedColor = withContext(Dispatchers.Default) {
+                    val palette = Palette.from(result.image.toBitmap()).generate()
+                    val swatch = palette.dominantSwatch ?: palette.vibrantSwatch ?: palette.mutedSwatch
+                    swatch?.rgb
+                }
+                extractedColor?.let { seedColor = Color(it) }
             }
         }
     }
