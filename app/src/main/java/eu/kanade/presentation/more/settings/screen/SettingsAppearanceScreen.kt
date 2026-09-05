@@ -100,6 +100,11 @@ object SettingsAppearanceScreen : SearchableSettings {
                     title = "Uncropped cover",
                     subtitle = "Show the manga's real cover shape on this screen instead of cropping it to a fixed size",
                 ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.mangaDetailsCoverTheme,
+                    title = "Theme from cover",
+                    subtitle = "Recolor this screen's whole theme using a dominant color from the manga's cover",
+                ),
             ),
         )
     }
