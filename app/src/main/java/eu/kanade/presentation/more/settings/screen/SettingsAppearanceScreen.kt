@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
@@ -53,16 +54,18 @@ object SettingsAppearanceScreen : SearchableSettings {
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
             getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
-            getMangaDetailsGroup(libraryPreferences = libraryPreferences),
+            getMangaDetailsGroup(libraryPreferences = libraryPreferences, uiPreferences = uiPreferences),
         )
     }
 
     @Composable
     private fun getMangaDetailsGroup(
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+        uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
         val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
         val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
+        val coverTheme by libraryPreferences.mangaDetailsCoverTheme.collectAsState()
         return Preference.PreferenceGroup(
             title = "Manga details screen",
             preferenceItems = listOf(
@@ -109,6 +112,13 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.mangaDetailsCoverTheme,
                     title = "Theme from cover",
                     subtitle = "Recolor this screen's whole theme using a dominant color from the manga's cover",
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    preference = uiPreferences.themeCoverBasedStyle,
+                    entries = PaletteStyle.entries.associateWith { it.name },
+                    title = "Cover theme style",
+                    subtitle = "How the cover's color is turned into a full theme",
+                    enabled = coverTheme,
                 ),
             ),
         )
