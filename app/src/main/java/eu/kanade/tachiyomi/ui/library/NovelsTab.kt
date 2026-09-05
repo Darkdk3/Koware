@@ -79,6 +79,7 @@ data object NovelsTab : Tab {
             val image = AnimatedImageVector.animatedVectorResource(R.drawable.anim_library_enter)
             val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
             val isJoined by libraryPreferences.joinedLibrary.collectAsState()
+
             return TabOptions(
                 index = 0u,
                 title = if (isJoined) stringResource(MR.strings.label_library) else "Novels",
@@ -100,6 +101,7 @@ data object NovelsTab : Tab {
         val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
         val libraryType = if (isJoined) LibraryViewModel.LibraryType.All else LibraryViewModel.LibraryType.Novel
+
         val viewModel = viewModel<LibraryViewModel>(
             factory = LibraryViewModel.Factory,
             extras = CreationExtras {
@@ -113,11 +115,21 @@ data object NovelsTab : Tab {
             },
         )
         val state by viewModel.state.collectAsState()
+
         val titleMaxLines by settingsViewModel.libraryPreferences.titleMaxLines.changes().collectAsState(
             settingsViewModel.libraryPreferences.titleMaxLines.get(),
         )
         val showUrlInList by settingsViewModel.libraryPreferences.showUrlInList.changes().collectAsState(
             settingsViewModel.libraryPreferences.showUrlInList.get(),
+        )
+        val showAuthorArtistSubtitle by settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.changes().collectAsState(
+            settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.get(),
+        )
+        val freeformCoverGrid by settingsViewModel.libraryPreferences.freeformCoverGrid.changes().collectAsState(
+            settingsViewModel.libraryPreferences.freeformCoverGrid.get(),
+        )
+        val freeformCoverGridStaggered by settingsViewModel.libraryPreferences.freeformCoverGridStaggered.changes().collectAsState(
+            settingsViewModel.libraryPreferences.freeformCoverGridStaggered.get(),
         )
 
         val snackbarHostState = remember { SnackbarHostState() }
@@ -275,6 +287,9 @@ data object NovelsTab : Tab {
                         getItemsForCategory = { state.getItemsForCategory(it) },
                         titleMaxLines = titleMaxLines,
                         showUrlInList = showUrlInList,
+                        showAuthorArtistSubtitle = showAuthorArtistSubtitle,
+                        freeformCoverGrid = freeformCoverGrid,
+                        freeformCoverGridStaggered = freeformCoverGridStaggered,
                         paginationEnabled = viewModel.paginationEnabled,
                         onCategoryFirstVisible = viewModel::onCategoryFirstVisible,
                         onLoadMore = viewModel::loadMoreForCategory,
@@ -283,49 +298,48 @@ data object NovelsTab : Tab {
                     )
                 }
             }
-        }
 
-        val onDismissRequest = viewModel::closeDialog
-        when (val dialog = state.dialog) {
-            is LibraryViewModel.Dialog.SettingsSheet -> run {
-                LibrarySettingsDialog(
-                    onDismissRequest = onDismissRequest,
-                    viewModel = settingsViewModel,
-                    category = state.activeCategory,
-                )
-            }
-            is LibraryViewModel.Dialog.ChangeCategory -> {
-                ChangeCategoryDialog(
-                    initialSelection = dialog.initialSelection,
-                    onDismissRequest = onDismissRequest,
-                    onEditCategories = {
-                        viewModel.clearSelection()
-                        navigator.push(CategoryScreen())
-                    },
-                    onConfirm = { include, exclude ->
-                        viewModel.clearSelection()
-                        viewModel.setMangaCategories(dialog.manga, include, exclude)
-                    },
-                )
-            }
-            is LibraryViewModel.Dialog.UpdateSelected -> {
-                UpdateSelectedDialog(
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = { fetchChapters, fetchDetails, ignoreSkipRecentlyUpdated ->
-                        viewModel.updateSelected(
-                            dialog.manga,
-                            fetchChapters,
-                            fetchDetails,
-                            ignoreSkipRecentlyUpdated,
-                        )
-                    },
-                )
-            }
-            is LibraryViewModel.Dialog.DeleteManga -> {
-                DeleteLibraryMangaDialog(
-                    containsLocalManga = dialog.manga.any(Manga::isLocal),
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = {
+            val onDismissRequest = viewModel::closeDialog
+            when (val dialog = state.dialog) {
+                is LibraryViewModel.Dialog.SettingsSheet -> run {
+                    LibrarySettingsDialog(
+                        onDismissRequest = onDismissRequest,
+                        viewModel = settingsViewModel,
+                        category = state.activeCategory,
+                    )
+                }
+                is LibraryViewModel.Dialog.ChangeCategory -> {
+                    ChangeCategoryDialog(
+                        initialSelection = dialog.initialSelection,
+                        onDismissRequest = onDismissRequest,
+                        onEditCategories = {
+                            viewModel.clearSelection()
+                            navigator.push(CategoryScreen())
+                        },
+                        onConfirm = { include, exclude ->
+                            viewModel.clearSelection()
+                            viewModel.setMangaCategories(dialog.manga, include, exclude)
+                        },
+                    )
+                }
+                is LibraryViewModel.Dialog.UpdateSelected -> {
+                    UpdateSelectedDialog(
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = { fetchChapters, fetchDetails, ignoreSkipRecentlyUpdated ->
+                            viewModel.updateSelected(
+                                dialog.manga,
+                                fetchChapters,
+                                fetchDetails,
+                                ignoreSkipRecentlyUpdated,
+                            )
+                        },
+                    )
+                }
+                is LibraryViewModel.Dialog.DeleteManga -> {
+                    DeleteLibraryMangaDialog(
+                        containsLocalManga = dialog.manga.any(Manga::isLocal),
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = {
                             deleteManga,
                             deleteChapter,
                             clearChaptersFromDb,
@@ -333,9 +347,26 @@ data object NovelsTab : Tab {
                             clearCovers,
                             clearDescriptions,
                             clearTags,
-                        ->
-                        viewModel.removeMangas(
-                            dialog.manga,
+                            ->
+                            viewModel.removeMangas(
+                                dialog.manga,
+                                deleteManga,
+                                deleteChapter,
+                                clearChaptersFromDb,
+                                deleteTranslations,
+                                clearCovers,
+                                clearDescriptions,
+                                clearTags,
+                            )
+                            viewModel.clearSelection()
+                        },
+                    )
+                }
+                is LibraryViewModel.Dialog.CategoryAction -> {
+                    DeleteLibraryMangaDialog(
+                        containsLocalManga = false,
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = {
                             deleteManga,
                             deleteChapter,
                             clearChaptersFromDb,
@@ -343,70 +374,54 @@ data object NovelsTab : Tab {
                             clearCovers,
                             clearDescriptions,
                             clearTags,
-                        )
-                        viewModel.clearSelection()
-                    },
-                )
+                            ->
+                            viewModel.removeCategoryMangas(
+                                categoryId = dialog.category.id,
+                                deleteFromLibrary = deleteManga,
+                                deleteChapters = deleteChapter,
+                                clearChaptersFromDb = clearChaptersFromDb,
+                                deleteTranslations = deleteTranslations,
+                                clearCovers = clearCovers,
+                                clearDescriptions = clearDescriptions,
+                                clearTags = clearTags,
+                            )
+                        },
+                    )
+                }
+                is LibraryViewModel.Dialog.MarkReadConfirmation -> {
+                    MarkReadConfirmationDialog(
+                        read = dialog.read,
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = {
+                            viewModel.markReadSelection(dialog.read)
+                        },
+                    )
+                }
+                is LibraryViewModel.Dialog.MassImport -> {
+                    MassImportDialog(
+                        onDismissRequest = onDismissRequest,
+                    )
+                }
+                is LibraryViewModel.Dialog.ImportEpub -> {
+                    // EPUB import now uses full-screen navigation from the toolbar action.
+                    onDismissRequest()
+                }
+                is LibraryViewModel.Dialog.ExportEpub -> {
+                    eu.kanade.presentation.library.components.BatchExportEpubDialog(
+                        mangaList = dialog.manga,
+                        onDismissRequest = onDismissRequest,
+                        onExport = { uri, options ->
+                            viewModel.exportNovelsAsEpub(dialog.manga, uri, options)
+                        },
+                    )
+                }
+                // DuplicateDetection now navigates to new screen, not a dialog
+                is LibraryViewModel.Dialog.DuplicateDetection -> {
+                    // Navigation handled by toolbar click, dismiss dialog
+                    onDismissRequest()
+                }
+                null -> {}
             }
-            is LibraryViewModel.Dialog.CategoryAction -> {
-                DeleteLibraryMangaDialog(
-                    containsLocalManga = false,
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = {
-                            deleteManga,
-                            deleteChapter,
-                            clearChaptersFromDb,
-                            deleteTranslations,
-                            clearCovers,
-                            clearDescriptions,
-                            clearTags,
-                        ->
-                        viewModel.removeCategoryMangas(
-                            categoryId = dialog.category.id,
-                            deleteFromLibrary = deleteManga,
-                            deleteChapters = deleteChapter,
-                            clearChaptersFromDb = clearChaptersFromDb,
-                            deleteTranslations = deleteTranslations,
-                            clearCovers = clearCovers,
-                            clearDescriptions = clearDescriptions,
-                            clearTags = clearTags,
-                        )
-                    },
-                )
-            }
-            is LibraryViewModel.Dialog.MarkReadConfirmation -> {
-                MarkReadConfirmationDialog(
-                    read = dialog.read,
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = {
-                        viewModel.markReadSelection(dialog.read)
-                    },
-                )
-            }
-            is LibraryViewModel.Dialog.MassImport -> {
-                MassImportDialog(
-                    onDismissRequest = onDismissRequest,
-                )
-            }
-            is LibraryViewModel.Dialog.ImportEpub -> {
-                // EPUB import now uses full-screen navigation from the toolbar action.
-                onDismissRequest()
-            }
-            is LibraryViewModel.Dialog.ExportEpub -> {
-                eu.kanade.presentation.library.components.BatchExportEpubDialog(
-                    mangaList = dialog.manga,
-                    onDismissRequest = onDismissRequest,
-                    onExport = { uri, options ->
-                        viewModel.exportNovelsAsEpub(dialog.manga, uri, options)
-                    },
-                )
-            }
-            // DuplicateDetection now navigates to new screen, not a dialog
-            is LibraryViewModel.Dialog.DuplicateDetection -> {
-                // Navigation handled by toolbar click, dismiss dialog
-                onDismissRequest()
-            }
-            null -> {}
         }
 
         BackHandler(enabled = state.selectionMode || state.toolbarQuery != null) {
