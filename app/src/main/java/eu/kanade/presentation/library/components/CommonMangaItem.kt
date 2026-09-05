@@ -25,6 +25,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -176,6 +180,11 @@ private fun BoxScope.CoverTextOverlay(
 
 /**
  * Layout of grid list item with title below the cover.
+ *
+ * When [showAuthorArtistSubtitle] is on and [authorArtist] is non-blank, the author/artist is
+ * shown under the title, but only once we know (via [androidx.compose.ui.text.TextLayoutResult])
+ * that the title itself only needed one line - otherwise the second line stays reserved for the
+ * title's own wrap, matching the old View-based behavior this replaces.
  */
 @Composable
 fun MangaComfortableGridItem(
@@ -189,6 +198,9 @@ fun MangaComfortableGridItem(
     coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
     coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
     onClickContinueReading: (() -> Unit)? = null,
+    authorArtist: String? = null,
+    showAuthorArtistSubtitle: Boolean = false,
+    freeformCoverRatio: Float? = null,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -197,6 +209,7 @@ fun MangaComfortableGridItem(
     ) {
         Column {
             MangaGridCover(
+                aspectRatio = freeformCoverRatio ?: MangaCover.Book.ratio,
                 cover = {
                     MangaCover.Book(
                         modifier = Modifier
@@ -220,13 +233,22 @@ fun MangaComfortableGridItem(
                     }
                 },
             )
-            GridItemTitle(
-                modifier = Modifier.padding(4.dp),
-                title = title,
-                style = MaterialTheme.typography.titleSmall,
-                minLines = 2,
-                maxLines = titleMaxLines,
-            )
+            if (showAuthorArtistSubtitle && !authorArtist.isNullOrBlank()) {
+                GridItemTitleWithSubtitle(
+                    modifier = Modifier.padding(4.dp),
+                    title = title,
+                    authorArtist = authorArtist,
+                    titleMaxLines = titleMaxLines,
+                )
+            } else {
+                GridItemTitle(
+                    modifier = Modifier.padding(4.dp),
+                    title = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    minLines = 2,
+                    maxLines = titleMaxLines,
+                )
+            }
         }
     }
 }
@@ -237,6 +259,7 @@ fun MangaComfortableGridItem(
 @Composable
 private fun MangaGridCover(
     modifier: Modifier = Modifier,
+    aspectRatio: Float = MangaCover.Book.ratio,
     cover: @Composable BoxScope.() -> Unit = {},
     badgesStart: (@Composable RowScope.() -> Unit)? = null,
     badgesEnd: (@Composable RowScope.() -> Unit)? = null,
@@ -245,7 +268,7 @@ private fun MangaGridCover(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(MangaCover.Book.ratio),
+            .aspectRatio(aspectRatio),
     ) {
         cover()
         content?.invoke(this)
@@ -288,6 +311,49 @@ private fun GridItemTitle(
         overflow = TextOverflow.Ellipsis,
         style = style,
     )
+}
+
+/**
+ * Title + author/artist subtitle for the comfortable grid, ported from the old
+ * LibraryGridHolder's post-layout line-count check. The title is first measured with room for
+ * [titleMaxLines]; if it only needed one line, we collapse it to one line via [onTextLayout] and
+ * reveal the subtitle underneath. If the title needed the extra line(s), the subtitle never shows
+ * and the title keeps its full [titleMaxLines] allowance.
+ */
+@Composable
+private fun GridItemTitleWithSubtitle(
+    title: String,
+    authorArtist: String,
+    titleMaxLines: Int,
+    modifier: Modifier = Modifier,
+) {
+    var titleFitsOneLine by remember(title) { mutableStateOf(false) }
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            minLines = 1,
+            maxLines = if (titleFitsOneLine) 1 else titleMaxLines,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { result ->
+                val fits = result.lineCount <= 1
+                if (fits != titleFitsOneLine) titleFitsOneLine = fits
+            },
+            style = MaterialTheme.typography.titleSmall,
+        )
+        if (titleFitsOneLine) {
+            Text(
+                text = authorArtist,
+                fontSize = 11.sp,
+                lineHeight = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 /**
