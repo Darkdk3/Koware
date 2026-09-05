@@ -28,6 +28,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.roundToInt
 import kotlin.time.Clock
 
 object SettingsAppearanceScreen : SearchableSettings {
@@ -55,6 +56,8 @@ object SettingsAppearanceScreen : SearchableSettings {
     private fun getMangaDetailsGroup(
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
     ): Preference.PreferenceGroup {
+        val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
+        val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
         return Preference.PreferenceGroup(
             title = "Manga details screen",
             preferenceItems = listOf(
@@ -67,6 +70,35 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.mangaDetailsCenterCover,
                     title = "Center cover",
                     subtitle = "Show a large centered cover above the title instead of beside it",
+                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Center cover size",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Center cover size: $centerCoverSizePercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (centerCover) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = centerCoverSizePercent.toFloat(),
+                            valueRange = 40f..90f,
+                            steps = 9,
+                            enabled = centerCover,
+                            onValueChange = {
+                                libraryPreferences.mangaDetailsCenterCoverSizePercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.mangaDetailsFreeformCover,
+                    title = "Uncropped cover",
+                    subtitle = "Show the manga's real cover shape on this screen instead of cropping it to a fixed size",
                 ),
             ),
         )
@@ -185,6 +217,7 @@ object SettingsAppearanceScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
+        val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
@@ -210,6 +243,22 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.alwaysShowNavigationLabels,
                     title = "Always show navigation labels",
                     subtitle = "When off, bottom bar labels only show under the selected tab",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.showAuthorArtistSubtitle,
+                    title = "Show author/artist under title",
+                    subtitle = "In library grid view, shows the author (or author + artist) below the title when it fits",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGrid,
+                    title = "Freeform cover grid",
+                    subtitle = "Size grid cells to each cover's real aspect ratio instead of a fixed shape",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGridStaggered,
+                    title = "Staggered layout for freeform covers",
+                    subtitle = "Pack covers tightly with a masonry layout instead of leaving gaps under shorter ones. Disables fast-scroll.",
+                    enabled = freeformCoverGrid,
                 ),
             ),
         )
