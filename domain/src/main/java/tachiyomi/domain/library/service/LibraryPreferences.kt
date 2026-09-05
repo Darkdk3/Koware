@@ -275,6 +275,36 @@ class LibraryPreferences(
     val showMangaSourceName: Preference<Boolean> = preferenceStore.getBoolean("pref_show_manga_source_name", true)
 
     /**
+     * When true, the library grid shows the author (or author + artist) below the title,
+     * as long as the title fits on one line (or the active filter matches the author/artist).
+     */
+    val showAuthorArtistSubtitle: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_show_author_artist_subtitle",
+        false,
+    )
+
+    /**
+     * When true, grid cells use each manga's real cover aspect ratio (measured once and cached
+     * in MangaCoverMetadata) instead of forcing every cover into the standard 2:3 book shape.
+     */
+    val freeformCoverGrid: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_freeform_cover_grid",
+        false,
+    )
+
+    /**
+     * Only meaningful when [freeformCoverGrid] is on. Switches the comfortable grid from the
+     * standard row-major LazyVerticalGrid (uniform row heights, gaps under shorter covers) to a
+     * masonry-style staggered grid that packs each column independently. Off by default since it
+     * drops fast-scroll support, which the staggered grid scope doesn't share with the standard
+     * one.
+     */
+    val freeformCoverGridStaggered: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_freeform_cover_grid_staggered",
+        false,
+    )
+
+    /**
      * When false, bottom navigation bar labels only show under the currently selected tab,
      * instead of under every tab all the time. Default true preserves existing behavior.
      */
@@ -294,6 +324,25 @@ class LibraryPreferences(
     val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_manga_details_center_cover",
         false,
+    )
+
+    /**
+     * When true, the manga details screen shows each cover at its real aspect ratio instead of
+     * forcing it into MangaCover.Book's default shape. Applies to both the large (centered) and
+     * small (side-by-side) cover layouts.
+     */
+    val mangaDetailsFreeformCover: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_freeform_cover",
+        false,
+    )
+
+    /**
+     * Width of the large centered cover (see [mangaDetailsCenterCover]) as a percentage of the
+     * available width. Only meaningful - and only exposed in settings - when centerCover is on.
+     */
+    val mangaDetailsCenterCoverSizePercent: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_center_cover_size_percent",
+        65,
     )
 
     /**
@@ -388,4 +437,3 @@ class LibraryPreferences(
         )
     }
 }
-
