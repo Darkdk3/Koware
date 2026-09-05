@@ -312,6 +312,9 @@ dependencies {
     }
     implementation(libs.image.decoder)
 
+    // Cover palette extraction (dominant color for cover-based theming)
+    implementation(libs.palette.ktx)
+
     // UI libraries
     implementation(libs.material)
     implementation(libs.flexibleAdapter)
