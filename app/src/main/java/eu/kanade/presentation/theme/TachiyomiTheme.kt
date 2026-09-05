@@ -6,6 +6,7 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.AppTheme
@@ -15,6 +16,7 @@ import eu.kanade.presentation.theme.colorscheme.GreenAppleColorScheme
 import eu.kanade.presentation.theme.colorscheme.LavenderColorScheme
 import eu.kanade.presentation.theme.colorscheme.MidnightDuskColorScheme
 import eu.kanade.presentation.theme.colorscheme.MonetColorScheme
+import eu.kanade.presentation.theme.colorscheme.MonetCompatColorScheme
 import eu.kanade.presentation.theme.colorscheme.MonochromeColorScheme
 import eu.kanade.presentation.theme.colorscheme.NordColorScheme
 import eu.kanade.presentation.theme.colorscheme.StrawberryColorScheme
@@ -32,12 +34,14 @@ import uy.kohesive.injekt.api.get
 fun TachiyomiTheme(
     appTheme: AppTheme? = null,
     amoled: Boolean? = null,
+    seedColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
     val uiPreferences = Injekt.get<UiPreferences>()
     BaseTachiyomiTheme(
         appTheme = appTheme ?: uiPreferences.appTheme.get(),
         isAmoled = amoled ?: uiPreferences.themeDarkAmoled.get(),
+        seedColor = seedColor,
         content = content,
     )
 }
@@ -47,23 +51,26 @@ fun TachiyomiPreviewTheme(
     appTheme: AppTheme = AppTheme.DEFAULT,
     isAmoled: Boolean = false,
     content: @Composable () -> Unit,
-) = BaseTachiyomiTheme(appTheme, isAmoled, content)
+) = BaseTachiyomiTheme(appTheme, isAmoled, seedColor = null, content = content)
 
 @Composable
 private fun BaseTachiyomiTheme(
     appTheme: AppTheme,
     isAmoled: Boolean,
+    seedColor: Color?,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
+
     MaterialExpressiveTheme(
-        colorScheme = remember(appTheme, isDark, isAmoled) {
+        colorScheme = remember(appTheme, isDark, isAmoled, seedColor) {
             getThemeColorScheme(
                 context = context,
                 appTheme = appTheme,
                 isDark = isDark,
                 isAmoled = isAmoled,
+                seedColor = seedColor,
             )
         },
         content = content,
@@ -75,16 +82,18 @@ private fun getThemeColorScheme(
     appTheme: AppTheme,
     isDark: Boolean,
     isAmoled: Boolean,
+    seedColor: Color?,
 ): ColorScheme {
-    val colorScheme = if (appTheme == AppTheme.MONET) {
-        MonetColorScheme(context)
-    } else {
-        colorSchemes.getOrDefault(appTheme, TachiyomiColorScheme)
+    val colorScheme = when {
+        seedColor != null -> MonetCompatColorScheme(seedColor)
+        appTheme == AppTheme.MONET -> MonetColorScheme(context)
+        else -> colorSchemes.getOrDefault(appTheme, TachiyomiColorScheme)
     }
+
     return colorScheme.getColorScheme(
         isDark = isDark,
         isAmoled = isAmoled,
-        overrideDarkSurfaceContainers = appTheme != AppTheme.MONET,
+        overrideDarkSurfaceContainers = seedColor == null && appTheme != AppTheme.MONET,
     )
 }
 
