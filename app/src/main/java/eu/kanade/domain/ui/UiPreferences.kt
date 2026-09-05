@@ -1,5 +1,6 @@
 package eu.kanade.domain.ui
 
+import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.model.AppTheme
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
@@ -13,37 +14,42 @@ import java.time.format.FormatStyle
 import java.util.Locale
 
 class UiPreferences(
-preferenceStore: PreferenceStore,
+    preferenceStore: PreferenceStore,
 ) {
 
-val themeMode: Preference<ThemeMode> = preferenceStore.getEnum("pref_theme_mode_key", ThemeMode.SYSTEM)  
+    val themeMode: Preference<ThemeMode> = preferenceStore.getEnum("pref_theme_mode_key", ThemeMode.SYSTEM)
 
-val appTheme: Preference<AppTheme> = preferenceStore.getEnum(  
-    "pref_app_theme",  
-    if (DeviceUtil.isDynamicColorAvailable) {  
-        AppTheme.MONET  
-    } else {  
-        AppTheme.DEFAULT  
-    },  
-)  
+    val appTheme: Preference<AppTheme> = preferenceStore.getEnum(
+        "pref_app_theme",
+        if (DeviceUtil.isDynamicColorAvailable) {
+            AppTheme.MONET
+        } else {
+            AppTheme.DEFAULT
+        },
+    )
 
-val themeDarkAmoled: Preference<Boolean> = preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)  
+    val themeDarkAmoled: Preference<Boolean> = preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)
 
-val relativeTime: Preference<Boolean> = preferenceStore.getBoolean("relative_time_v2", true)  
+    /** Material Kolor palette style used when theming from a manga's cover color. */
+    val themeCoverBasedStyle: Preference<PaletteStyle> = preferenceStore.getEnum(
+        "pref_theme_cover_based_style",
+        PaletteStyle.TonalSpot,
+    )
 
-val dateFormat: Preference<String> = preferenceStore.getString("app_date_format", "")  
+    val relativeTime: Preference<Boolean> = preferenceStore.getBoolean("relative_time_v2", true)
 
-val tabletUiMode: Preference<TabletUiMode> = preferenceStore.getEnum("tablet_ui_mode", TabletUiMode.AUTOMATIC)  
+    val dateFormat: Preference<String> = preferenceStore.getString("app_date_format", "")
 
-val imagesInDescription: Preference<Boolean> = preferenceStore.getBoolean("pref_render_images_description", true)  
+    val tabletUiMode: Preference<TabletUiMode> = preferenceStore.getEnum("tablet_ui_mode", TabletUiMode.AUTOMATIC)
 
-val showNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean("pref_show_navigation_labels", true)  
+    val imagesInDescription: Preference<Boolean> = preferenceStore.getBoolean("pref_render_images_description", true)
 
-companion object {  
-    fun dateFormat(format: String): DateTimeFormatter = when (format) {  
-        "" -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)  
-        else -> DateTimeFormatter.ofPattern(format, Locale.getDefault())  
-    }  
-}
+    val showNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean("pref_show_navigation_labels", true)
 
+    companion object {
+        fun dateFormat(format: String): DateTimeFormatter = when (format) {
+            "" -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
+            else -> DateTimeFormatter.ofPattern(format, Locale.getDefault())
+        }
+    }
 }
