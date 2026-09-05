@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionContext
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import eu.kanade.presentation.theme.TachiyomiTheme
@@ -39,12 +40,19 @@ inline fun ComponentActivity.setComposeContent(
     }
 }
 
+/**
+ * @param seedColorProvider optional composable read for a cover-based theme seed color (see
+ * LibraryPreferences.mangaDetailsCoverTheme). Returning null - the default - keeps the normal
+ * app theme; callers compute this themselves since it usually depends on state (e.g. which manga
+ * is showing) that isn't known until inside composition.
+ */
 fun ComposeView.setComposeContent(
+    seedColorProvider: (@Composable () -> Color?)? = null,
     content: @Composable () -> Unit,
 ) {
     setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
     setContent {
-        TachiyomiTheme {
+        TachiyomiTheme(seedColor = seedColorProvider?.invoke()) {
             CompositionLocalProvider(
                 LocalTextStyle provides MaterialTheme.typography.bodySmall,
                 LocalContentColor provides MaterialTheme.colorScheme.onBackground,
