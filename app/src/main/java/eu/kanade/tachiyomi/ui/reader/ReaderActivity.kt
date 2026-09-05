@@ -66,6 +66,7 @@ import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.presentation.reader.DisplayRefreshHost
 import eu.kanade.presentation.reader.EstimatedStatusBarHeight
+import eu.kanade.presentation.manga.rememberCoverSeedColor
 import eu.kanade.presentation.reader.NovelStatusBar
 import eu.kanade.presentation.reader.OrientationSelectDialog
 import eu.kanade.presentation.reader.ReaderContentOverlay
@@ -137,6 +138,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import tachiyomi.domain.library.service.LibraryPreferences
 import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.seconds
@@ -377,7 +379,22 @@ class ReaderActivity : BaseActivity() {
             .launchIn(lifecycleScope)
     }
 
-    private fun ReaderActivityBinding.setComposeOverlay(): Unit = composeOverlay.setComposeContent {
+    private fun ReaderActivityBinding.setComposeOverlay(): Unit = composeOverlay.setComposeContent(
+        seedColorProvider = {
+            // Reuses the same "theme from cover" setting as the manga details screen, so the
+            // reader picks up the same seed color rather than introducing a separate toggle.
+            val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+            val themeCoverBased by libraryPreferences.mangaDetailsCoverTheme.changes().collectAsState(
+                initial = libraryPreferences.mangaDetailsCoverTheme.get(),
+            )
+            val manga = viewModel.state.collectAsState().value.manga
+            if (manga != null) {
+                rememberCoverSeedColor(manga = manga, enabled = themeCoverBased)
+            } else {
+                null
+            }
+        },
+    ) {
         val state by viewModel.state.collectAsState()
         val showPageNumber by readerPreferences.showPageNumber.collectAsState()
         val autoTranslateEnabled by readerPreferences.autoTranslate.collectAsState()
