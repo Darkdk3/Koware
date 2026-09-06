@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
@@ -19,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.util.fastAll
 import androidx.lifecycle.viewmodel.CreationExtras
@@ -44,6 +48,7 @@ import eu.kanade.tachiyomi.data.library.LibraryUpdateJob
 import eu.kanade.tachiyomi.ui.browse.source.globalsearch.NovelGlobalSearchScreen
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
+import eu.kanade.tachiyomi.ui.home.LocalBottomNavInset
 import eu.kanade.tachiyomi.ui.library.duplicate.DuplicateDetectionScreen
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
@@ -71,7 +76,6 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 data object NovelsTab : Tab {
-
     override val options: TabOptions
         @Composable
         get() {
@@ -79,7 +83,6 @@ data object NovelsTab : Tab {
             val image = AnimatedImageVector.animatedVectorResource(R.drawable.anim_library_enter)
             val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
             val isJoined by libraryPreferences.joinedLibrary.collectAsState()
-
             return TabOptions(
                 index = 0u,
                 title = if (isJoined) stringResource(MR.strings.label_library) else "Novels",
@@ -97,11 +100,9 @@ data object NovelsTab : Tab {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
         val haptic = LocalHapticFeedback.current
-
         val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
         val libraryType = if (isJoined) LibraryViewModel.LibraryType.All else LibraryViewModel.LibraryType.Novel
-
         val viewModel = viewModel<LibraryViewModel>(
             factory = LibraryViewModel.Factory,
             extras = CreationExtras {
@@ -115,23 +116,12 @@ data object NovelsTab : Tab {
             },
         )
         val state by viewModel.state.collectAsState()
-
         val titleMaxLines by settingsViewModel.libraryPreferences.titleMaxLines.changes().collectAsState(
             settingsViewModel.libraryPreferences.titleMaxLines.get(),
         )
         val showUrlInList by settingsViewModel.libraryPreferences.showUrlInList.changes().collectAsState(
             settingsViewModel.libraryPreferences.showUrlInList.get(),
         )
-        val showAuthorArtistSubtitle by settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.changes().collectAsState(
-            settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.get(),
-        )
-        val freeformCoverGrid by settingsViewModel.libraryPreferences.freeformCoverGrid.changes().collectAsState(
-            settingsViewModel.libraryPreferences.freeformCoverGrid.get(),
-        )
-        val freeformCoverGridStaggered by settingsViewModel.libraryPreferences.freeformCoverGridStaggered.changes().collectAsState(
-            settingsViewModel.libraryPreferences.freeformCoverGridStaggered.get(),
-        )
-
         val snackbarHostState = remember { SnackbarHostState() }
 
         // Local reload from database - doesn't fetch from sources
@@ -252,7 +242,12 @@ data object NovelsTab : Tab {
                         categories = state.displayedCategories,
                         searchQuery = state.searchQuery,
                         selection = state.selection,
-                        contentPadding = contentPadding,
+                        contentPadding = PaddingValues(
+                            start = contentPadding.calculateStartPadding(LocalLayoutDirection.current),
+                            end = contentPadding.calculateEndPadding(LocalLayoutDirection.current),
+                            top = contentPadding.calculateTopPadding(),
+                            bottom = contentPadding.calculateBottomPadding() + LocalBottomNavInset.current,
+                        ),
                         currentPage = state.coercedActiveCategoryIndex,
                         hasActiveFilters = state.hasActiveFilters,
                         isQueryRunning = state.isQueryRunning,
@@ -287,9 +282,6 @@ data object NovelsTab : Tab {
                         getItemsForCategory = { state.getItemsForCategory(it) },
                         titleMaxLines = titleMaxLines,
                         showUrlInList = showUrlInList,
-                        showAuthorArtistSubtitle = showAuthorArtistSubtitle,
-                        freeformCoverGrid = freeformCoverGrid,
-                        freeformCoverGridStaggered = freeformCoverGridStaggered,
                         paginationEnabled = viewModel.paginationEnabled,
                         onCategoryFirstVisible = viewModel::onCategoryFirstVisible,
                         onLoadMore = viewModel::loadMoreForCategory,
@@ -422,28 +414,28 @@ data object NovelsTab : Tab {
                 }
                 null -> {}
             }
-        }
 
-        BackHandler(enabled = state.selectionMode || state.toolbarQuery != null) {
-            when {
-                state.selectionMode -> viewModel.clearSelection()
-                state.toolbarQuery != null -> viewModel.clearSearch()
+            BackHandler(enabled = state.selectionMode || state.toolbarQuery != null) {
+                when {
+                    state.selectionMode -> viewModel.clearSelection()
+                    state.toolbarQuery != null -> viewModel.clearSearch()
+                }
             }
-        }
 
-        LaunchedEffect(state.selectionMode, state.dialog) {
-            HomeScreen.showBottomNav(!state.selectionMode)
-        }
-
-        LaunchedEffect(state.isLoading) {
-            if (!state.isLoading) {
-                (context as? MainActivity)?.ready = true
+            LaunchedEffect(state.selectionMode, state.dialog) {
+                HomeScreen.showBottomNav(!state.selectionMode)
             }
-        }
 
-        LaunchedEffect(Unit) {
-            launch { queryEvent.receiveAsFlow().collect(viewModel::search) }
-            launch { requestSettingsSheetEvent.receiveAsFlow().collectLatest { viewModel.showSettingsDialog() } }
+            LaunchedEffect(state.isLoading) {
+                if (!state.isLoading) {
+                    (context as? MainActivity)?.ready = true
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                launch { queryEvent.receiveAsFlow().collect(viewModel::search) }
+                launch { requestSettingsSheetEvent.receiveAsFlow().collectLatest { viewModel.showSettingsDialog() } }
+            }
         }
     }
 
