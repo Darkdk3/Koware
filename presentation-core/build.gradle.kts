@@ -1,7 +1,6 @@
 plugins {
     alias(mihonx.plugins.android.library)
     alias(mihonx.plugins.compose)
-
     alias(mihonx.plugins.spotless)
 }
 
@@ -38,7 +37,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.uiTooling)
     implementation(libs.androidx.compose.uiToolingPreview)
     implementation(libs.androidx.compose.uiUtil)
-
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
+    implementation(libs.haze)
 }
