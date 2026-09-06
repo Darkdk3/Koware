@@ -42,6 +42,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabNavigator
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.util.Screen
@@ -116,6 +118,10 @@ object HomeScreen : Screen() {
         val alwaysShowNavLabels by libraryPreferences.alwaysShowNavigationLabels.collectAsState()
         val tabs = if (isJoined || hideMangaUi) JOINED_TABS else TABS
 
+        // Shared blur source: the tab content is registered against this state below
+        // (.hazeSource), and the nav bar reads from it when Frosted style is selected.
+        val hazeState = remember { HazeState() }
+
         TabNavigator(
             tab = NovelsTab,
             key = TabNavigatorKey,
@@ -145,16 +151,41 @@ object HomeScreen : Screen() {
                                 val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
                                 val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
                                 val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
+                                val navBarPillShape by libraryPreferences.navBarPillShape.collectAsState()
+                                val navBarBackgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
+                                val navBarOpacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
+                                    val barShape = if (navBarPillShape) {
+                                        RoundedCornerShape(percent = 50)
+                                    } else {
+                                        RoundedCornerShape(16.dp)
+                                    }
+                                    val barColor = MaterialTheme.colorScheme.surfaceContainer
+                                    val barAlpha = when (navBarBackgroundStyle) {
+                                        LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
+                                        LibraryPreferences.NavBarBackgroundStyle.Transparent,
+                                        LibraryPreferences.NavBarBackgroundStyle.Frosted,
+                                        -> navBarOpacityPercent / 100f
+                                    }
+                                    val barHaze = if (
+                                        navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
+                                    ) {
+                                        hazeState
+                                    } else {
+                                        null
+                                    }
                                     NavigationBar(
-                                        shape = RoundedCornerShape(percent = 50),
+                                        shape = barShape,
                                         height = navBarHeightDp.dp,
                                         itemSpacing = navBarItemSpacingDp.dp,
+                                        containerColor = barColor,
+                                        containerAlpha = barAlpha,
+                                        hazeState = barHaze,
                                         modifier = Modifier.fillMaxWidth(navBarWidthPercent / 100f),
                                     ) {
                                         tabs.fastForEach {
@@ -178,7 +209,10 @@ object HomeScreen : Screen() {
                                     start = contentPadding.calculateStartPadding(layoutDirection),
                                     end = contentPadding.calculateEndPadding(layoutDirection),
                                 )
-                                .consumeWindowInsets(contentPadding),
+                                .consumeWindowInsets(contentPadding)
+                                // Registers this content as the blur source for the
+                                // floating nav bar's Frosted style.
+                                .hazeSource(hazeState),
                         ) {
                             AnimatedContent(
                                 targetState = tabNavigator.current,
