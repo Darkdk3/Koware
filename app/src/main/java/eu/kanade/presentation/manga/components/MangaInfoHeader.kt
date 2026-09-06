@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -147,7 +148,6 @@ fun MangaInfoBox(
             Color.Transparent,
             MaterialTheme.colorScheme.background,
         )
-
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
@@ -235,6 +235,7 @@ fun MangaActionRow(
     modifier: Modifier = Modifier,
 ) {
     val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
+
     val nextUpdateDays = remember(nextUpdate) {
         return@remember if (nextUpdate != null) {
             val now = Clock.System.now()
@@ -313,6 +314,7 @@ fun ExpandableMangaDescription(
 
         val desc =
             description.takeIf { !it.isNullOrBlank() } ?: stringResource(MR.strings.description_placeholder)
+
         MangaSummary(
             description = desc,
             expanded = expanded,
@@ -409,6 +411,9 @@ private fun MangaAndSourceTitlesLarge(
     // default ratio via the `?:` below, same pattern used for the library grid's freeform mode.
     val ratio = rememberCoverRatio(manga = manga, enabled = freeformCover)
 
+    // TEMPORARY DEBUG - remove once the freeform cover issue is diagnosed.
+    Text("DEBUG ratio=$ratio freeform=$freeformCover", color = Color.Red)
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -416,8 +421,9 @@ private fun MangaAndSourceTitlesLarge(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         MangaCover.Book(
-            modifier = Modifier.fillMaxWidth(coverSizePercent / 100f),
-            ratio = ratio ?: MangaCover.Book.ratio,
+            modifier = Modifier
+                .fillMaxWidth(coverSizePercent / 100f)
+                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m },
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
                 .crossfade(true)
@@ -464,8 +470,8 @@ private fun MangaAndSourceTitlesSmall(
         MangaCover.Book(
             modifier = Modifier
                 .sizeIn(maxWidth = 100.dp)
-                .align(Alignment.Top),
-            ratio = ratio ?: MangaCover.Book.ratio,
+                .align(Alignment.Top)
+                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m },
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
                 .crossfade(true)
@@ -706,28 +712,34 @@ private fun descriptionAnnotator(loadImages: Boolean, linkStyle: SpanStyle) = re
         annotate = { content, child ->
             if (!loadImages && child.type == MarkdownElementTypes.IMAGE) {
                 val inlineLink = child.findChildOfType(MarkdownElementTypes.INLINE_LINK)
+
                 val url = inlineLink?.findChildOfType(MarkdownElementTypes.LINK_DESTINATION)
                     ?.getUnescapedTextInNode(content)
                     ?: inlineLink?.findChildOfType(MarkdownElementTypes.AUTOLINK)
                         ?.findChildOfType(MarkdownTokenTypes.AUTOLINK)
                         ?.getUnescapedTextInNode(content)
                     ?: return@markdownAnnotator false
+
                 val textNode = inlineLink?.findChildOfType(MarkdownElementTypes.LINK_TITLE)
                     ?: inlineLink?.findChildOfType(MarkdownElementTypes.LINK_TEXT)
                 val altText = textNode?.findChildOfType(MarkdownTokenTypes.TEXT)
                     ?.getUnescapedTextInNode(content).orEmpty()
+
                 withLink(LinkAnnotation.Url(url = url)) {
                     pushStyle(linkStyle)
                     appendInlineContent(MARKDOWN_INLINE_IMAGE_TAG)
                     append(altText)
                     pop()
                 }
+
                 return@markdownAnnotator true
             }
+
             if (child.type in DISALLOWED_MARKDOWN_TYPES) {
                 append(content.substring(child.startOffset, child.endOffset))
                 return@markdownAnnotator true
             }
+
             false
         },
         config = markdownAnnotatorConfig(
@@ -808,13 +820,16 @@ private fun MangaSummary(
             .height
         val heightDelta = infoHeight - shrunkHeight
         val scrimHeight = 24.dp.roundToPx()
+
         val actualPlaceable = actual.single()
             .measure(constraints)
         val scrimPlaceable = scrim.single()
             .measure(Constraints.fixed(width = constraints.maxWidth, height = scrimHeight))
+
         val currentHeight = shrunkHeight + ((heightDelta + scrimHeight) * animProgress).roundToInt()
         layout(constraints.maxWidth, currentHeight) {
             actualPlaceable.place(0, 0)
+
             val scrimY = currentHeight - scrimHeight
             scrimPlaceable.place(0, scrimY)
         }
