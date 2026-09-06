@@ -78,6 +78,7 @@ android {
             versionNameSuffix = "-${getLatestCommitCount()}"
             isPseudoLocalesEnabled = true
         }
+
         val release = getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -86,12 +87,15 @@ android {
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = true)}\"")
         }
+
         val commonMatchingFallbacks = listOf(release.name)
+
         create("foss") {
             initWith(release)
             applicationIdSuffix = ".foss"
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }
+
         create("preview") {
             initWith(release)
             applicationIdSuffix = ".debug"
@@ -99,6 +103,7 @@ android {
             matchingFallbacks.addAll(commonMatchingFallbacks)
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = false)}\"")
         }
+
         create("nightly") {
             initWith(release)
             applicationIdSuffix = ".nightly"
@@ -107,6 +112,7 @@ android {
             matchingFallbacks.addAll(commonMatchingFallbacks)
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = false)}\"")
         }
+
         create("benchmark") {
             initWith(release)
             versionNameSuffix = "-benchmark"
@@ -199,6 +205,7 @@ baselineProfile {
 
 dependencies {
     baselineProfile(projects.baselineProfile)
+
     implementation(projects.i18n)
     implementation(projects.i18nNovel)
     implementation(projects.core.archive)
@@ -302,9 +309,7 @@ dependencies {
     implementation(libs.reorderable)
     implementation(libs.bundles.markdown)
     implementation(libs.materialKolor)
-
-    // Background blur / glass nav bar effects
-    implementation(libs.bundles.haze)
+    implementation(libs.haze)
 
     // Logging
     implementation(libs.logcat)
