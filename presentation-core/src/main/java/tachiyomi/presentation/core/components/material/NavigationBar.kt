@@ -13,8 +13,6 @@ import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -26,18 +24,16 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun NavigationBar(
     modifier: Modifier = Modifier,
-    containerColor: Color = NavigationBarDefaults.containerColor,
+    containerColor: Color = NavigationBarDefaults.containerColor.copy(alpha = 0.7f),
     contentColor: Color = MaterialTheme.colorScheme.contentColorFor(containerColor),
-    tonalElevation: Dp = NavigationBarDefaults.Elevation,
+    tonalElevation: Dp = 0.dp,
     windowInsets: WindowInsets = NavigationBarDefaults.windowInsets,
-    shape: Shape = RectangleShape,
     content: @Composable RowScope.() -> Unit,
 ) {
     androidx.compose.material3.Surface(
         color = containerColor,
         contentColor = contentColor,
         tonalElevation = tonalElevation,
-        shape = shape,
         modifier = modifier,
     ) {
         Row(
