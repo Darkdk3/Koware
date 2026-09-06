@@ -142,16 +142,20 @@ object HomeScreen : Screen() {
                                 enter = expandVertically(),
                                 exit = shrinkVertically(),
                             ) {
+                                val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
+                                val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
+                                val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 32.dp, vertical = 12.dp),
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
                                     NavigationBar(
                                         shape = RoundedCornerShape(percent = 50),
-                                        height = 64.dp,
-                                        modifier = Modifier.fillMaxWidth(0.85f),
+                                        height = navBarHeightDp.dp,
+                                        itemSpacing = navBarItemSpacingDp.dp,
+                                        modifier = Modifier.fillMaxWidth(navBarWidthPercent / 100f),
                                     ) {
                                         tabs.fastForEach {
                                             NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
