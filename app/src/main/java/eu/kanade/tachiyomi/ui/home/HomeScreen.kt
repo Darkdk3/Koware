@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -130,11 +132,19 @@ object HomeScreen : Screen() {
                                 enter = expandVertically(),
                                 exit = shrinkVertically(),
                             ) {
-                                NavigationBar(
-                                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 32.dp, vertical = 12.dp),
+                                    contentAlignment = Alignment.Center,
                                 ) {
-                                    tabs.fastForEach {
-                                        NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
+                                    NavigationBar(
+                                        shape = RoundedCornerShape(percent = 50),
+                                        height = 64.dp,
+                                        modifier = Modifier.fillMaxWidth(0.85f),
+                                    ) {
+                                        tabs.fastForEach {
+                                            NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
+                                        }
                                     }
                                 }
                             }
