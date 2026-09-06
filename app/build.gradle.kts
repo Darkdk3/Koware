@@ -11,7 +11,6 @@ plugins {
     alias(mihonx.plugins.android.application)
     alias(mihonx.plugins.compose)
     alias(mihonx.plugins.spotless)
-
     alias(libs.plugins.aboutLibraries)
     alias(libs.plugins.androidx.baselineProfile)
     alias(libs.plugins.kotlin.serialization)
@@ -31,7 +30,6 @@ android {
 
     defaultConfig {
         applicationId = "app.Koware"
-
         versionCode = 24
         versionName = "0.3.3"
 
@@ -48,7 +46,6 @@ android {
         System.getenv("GITHUB_REPOSITORY_OWNER") == "tsundoku-otaku"
     ) {
         val tempStoreFile = file(System.getenv("RUNNER_TEMP")).resolve("tsundoku.keystore")
-
         val storeFileBytes = System.getenv("storeFileBase64").filter {
             !it.isWhitespace() && it != '"'
         }.let(Base64::decode)
@@ -84,54 +81,36 @@ android {
         val release = getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
-
             signingConfig = debug.signingConfig
-
             isProfileable = true
-
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
-
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = true)}\"")
         }
-
         val commonMatchingFallbacks = listOf(release.name)
-
         create("foss") {
             initWith(release)
-
             applicationIdSuffix = ".foss"
-
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }
         create("preview") {
             initWith(release)
-
             applicationIdSuffix = ".debug"
-
             versionNameSuffix = debug.versionNameSuffix
-
             matchingFallbacks.addAll(commonMatchingFallbacks)
-
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = false)}\"")
         }
         create("nightly") {
             initWith(release)
-
             applicationIdSuffix = ".nightly"
-
             versionNameSuffix = debug.versionNameSuffix
             signingConfig = debug.signingConfig
-
             matchingFallbacks.addAll(commonMatchingFallbacks)
-
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = false)}\"")
         }
         create("benchmark") {
             initWith(release)
-
             versionNameSuffix = "-benchmark"
             applicationIdSuffix = ".benchmark"
-
             matchingFallbacks.addAll(commonMatchingFallbacks)
         }
     }
@@ -220,7 +199,6 @@ baselineProfile {
 
 dependencies {
     baselineProfile(projects.baselineProfile)
-
     implementation(projects.i18n)
     implementation(projects.i18nNovel)
     implementation(projects.core.archive)
@@ -245,20 +223,13 @@ dependencies {
     debugImplementation(libs.androidx.compose.uiTooling)
     implementation(libs.androidx.compose.uiToolingPreview)
     implementation(libs.androidx.compose.uiUtil)
-
     implementation(libs.androidx.interpolator)
-
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
-
     implementation(libs.androidx.sqlite.bundled)
-
     implementation(libs.kotlin.reflect)
-
     implementation(libs.bundles.kotlinx.coroutines)
-
     implementation(libs.sqldelight.async)
-
     implementation(libs.kotlinx.datetime)
 
     // AndroidX libraries
@@ -271,7 +242,6 @@ dependencies {
     implementation(libs.androidx.recyclerView)
     implementation(libs.androidx.viewPager)
     implementation(libs.androidx.profileInstaller)
-
     implementation(libs.bundles.androidx.lifecycle)
 
     // Job scheduling
@@ -333,6 +303,9 @@ dependencies {
     implementation(libs.bundles.markdown)
     implementation(libs.materialKolor)
 
+    // Background blur / glass nav bar effects
+    implementation(libs.bundles.haze)
+
     // Logging
     implementation(libs.logcat)
 
@@ -353,7 +326,6 @@ dependencies {
     // For detecting memory leaks; see https://square.github.io/leakcanary/
     // debugImplementation(libs.leakCanary.android)
     implementation(libs.leakCanary.plumber)
-
     testImplementation(libs.kotlinx.coroutines.test)
 
     // media for tts notification
@@ -363,7 +335,6 @@ dependencies {
 androidComponents {
     onVariants { variant ->
         val resSource = variant.sources.res ?: return@onVariants
-
         val variantName = variant.name.replaceFirstChar { it.uppercase() }
         val replaceShortcutsPlaceholderTask = tasks.register<ReplaceShortcutsPlaceholderTask>(
             "replace${variantName}ShortcutPlaceholder",
