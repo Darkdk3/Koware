@@ -221,8 +221,6 @@ fun MangaComfortableGridItem(
                 badgesStart = coverBadgeStart,
                 badgesEnd = coverBadgeEnd,
                 content = {
-                    // TEMPORARY DEBUG - remove once the freeform grid issue is diagnosed.
-                    Text("R=$freeformCoverRatio", color = Color.Red)
                     if (onClickContinueReading != null) {
                         ContinueReadingButton(
                             size = ContinueReadingButtonSizeLarge,
