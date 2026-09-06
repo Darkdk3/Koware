@@ -102,8 +102,6 @@ object HomeScreen : Screen() {
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
         val hideMangaUi by basePreferences.hideMangaUi.collectAsState()
         val alwaysShowNavLabels by libraryPreferences.alwaysShowNavigationLabels.collectAsState()
-        val navBarOpacityPercent by basePreferences.navigationBarOpacity.collectAsState()
-        val navBarCornerRadius by basePreferences.navigationBarCornerRadius.collectAsState()
         val tabs = if (isJoined || hideMangaUi) JOINED_TABS else TABS
 
         TabNavigator(
@@ -132,21 +130,8 @@ object HomeScreen : Screen() {
                                 enter = expandVertically(),
                                 exit = shrinkVertically(),
                             ) {
-                                // Opacity and corner radius come from the same navigation-bar
-                                // customization preferences used for the system nav bar scrim
-                                // in MainActivity (see BasePreferences.navigationBar*). Blur
-                                // ("Glass" style) isn't wired up for this bar yet since it would
-                                // need to share MainActivity's HazeState with this screen; both
-                                // styles currently render as a tinted solid color here.
-                                val navBarContainerColor = MaterialTheme.colorScheme.surfaceContainer.copy(
-                                    alpha = navBarOpacityPercent / 100f,
-                                )
-                                val navBarShape = remember(navBarCornerRadius) {
-                                    RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
-                                }
                                 NavigationBar(
-                                    containerColor = navBarContainerColor,
-                                    shape = navBarShape,
+                                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                                 ) {
                                     tabs.fastForEach {
                                         NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
