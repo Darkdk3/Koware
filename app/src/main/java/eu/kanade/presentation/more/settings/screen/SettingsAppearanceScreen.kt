@@ -301,7 +301,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         basePreferences: BasePreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
 
         return Preference.PreferenceGroup(
             title = "Library layout",
@@ -328,22 +327,6 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.alwaysShowNavigationLabels,
                     title = "Always show navigation labels",
                     subtitle = "When off, bottom bar labels only show under the selected tab",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.showAuthorArtistSubtitle,
-                    title = "Show author/artist under title",
-                    subtitle = "In library grid view, shows the author (or author + artist) below the title when it fits",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.freeformCoverGrid,
-                    title = "Freeform cover grid",
-                    subtitle = "Size grid cells to each cover's real aspect ratio instead of a fixed shape",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.freeformCoverGridStaggered,
-                    title = "Staggered layout for freeform covers",
-                    subtitle = "Pack covers tightly with a masonry layout instead of leaving gaps under shorter ones. Disables fast-scroll.",
-                    enabled = freeformCoverGrid,
                 ),
             ),
         )
