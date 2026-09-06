@@ -28,6 +28,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toLocalDateTime
+import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -48,7 +49,7 @@ object SettingsAppearanceScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
+        val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
@@ -59,7 +60,7 @@ object SettingsAppearanceScreen : SearchableSettings {
 
     @Composable
     private fun getMangaDetailsGroup(
-        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+        libraryPreferences: LibraryPreferences,
         uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
         val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
@@ -224,7 +225,7 @@ object SettingsAppearanceScreen : SearchableSettings {
 
     @Composable
     private fun getLibraryLayoutGroup(
-        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+        libraryPreferences: LibraryPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
@@ -232,6 +233,8 @@ object SettingsAppearanceScreen : SearchableSettings {
         val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
         val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
         val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
+        val navBarBackgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
+        val navBarOpacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
@@ -258,6 +261,46 @@ object SettingsAppearanceScreen : SearchableSettings {
                     title = "Always show navigation labels",
                     subtitle = "When off, bottom bar labels only show under the selected tab",
                 ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.navBarPillShape,
+                    title = "Pill-shaped nav bar",
+                    subtitle = "When off, the floating nav bar uses softer rounded corners instead of a full pill",
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    preference = libraryPreferences.navBarBackgroundStyle,
+                    entries = mapOf(
+                        LibraryPreferences.NavBarBackgroundStyle.Solid to "Solid",
+                        LibraryPreferences.NavBarBackgroundStyle.Transparent to "Transparent",
+                        LibraryPreferences.NavBarBackgroundStyle.Frosted to "Frosted (blur)",
+                    ),
+                    title = "Nav bar background",
+                    subtitle = "Frosted blurs the content scrolling behind the bar",
+                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar opacity",
+                ) {
+                    val enabled = navBarBackgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Opacity: $navBarOpacityPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (enabled) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = navBarOpacityPercent.toFloat(),
+                            valueRange = 20f..100f,
+                            steps = 7,
+                            enabled = enabled,
+                            onValueChange = {
+                                libraryPreferences.navBarOpacityPercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
                 Preference.PreferenceItem.CustomPreference(
                     title = "Nav bar width",
                 ) {
