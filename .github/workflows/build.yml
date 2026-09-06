@@ -77,7 +77,7 @@ jobs:
 
 
       - name: Build release APK(s) (unsigned)
-        run: ./gradlew assembleNightly -Penable-updater
+        run: ./gradlew clean assembleNightly -Penable-updater
 
       - name: Upload unsigned APK(s)
         uses: actions/upload-artifact@v5
