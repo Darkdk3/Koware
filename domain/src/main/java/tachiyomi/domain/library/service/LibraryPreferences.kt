@@ -351,6 +351,32 @@ class LibraryPreferences(
     )
 
     /**
+     * When true, the floating bottom nav bar uses a full pill (fully rounded) shape.
+     * When false, it uses a softer rounded-rectangle shape instead.
+     */
+    val navBarPillShape: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_nav_bar_pill_shape",
+        true,
+    )
+
+    /**
+     * Background rendering style for the floating bottom nav bar.
+     */
+    val navBarBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(
+        "pref_nav_bar_background_style",
+        NavBarBackgroundStyle.Transparent,
+    )
+
+    /**
+     * Opacity of the nav bar background, as a percentage. Only applies when
+     * [navBarBackgroundStyle] is not [NavBarBackgroundStyle.Solid].
+     */
+    val navBarOpacityPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_nav_bar_opacity_percent",
+        70,
+    )
+
+    /**
      * Manga details screen appearance - both default false, preserving the existing look
      * unless explicitly turned on.
      */
@@ -442,6 +468,12 @@ class LibraryPreferences(
         ToggleBookmark,
         Download,
         Disabled,
+    }
+
+    enum class NavBarBackgroundStyle {
+        Solid,
+        Transparent,
+        Frosted,
     }
 
     companion object {
