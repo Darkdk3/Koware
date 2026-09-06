@@ -5,6 +5,7 @@ import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.util.system.GLUtil
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.core.common.preference.getEnum
 import tachiyomi.i18n.MR
 
 class BasePreferences(
