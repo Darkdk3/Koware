@@ -27,8 +27,9 @@ import androidx.compose.ui.unit.dp
 fun NavigationBar(
     modifier: Modifier = Modifier,
     shape: Shape = RectangleShape,
-    containerColor: Color = NavigationBarDefaults.containerColor.copy(alpha = 0.7f),
-    contentColor: Color = MaterialTheme.colorScheme.contentColorFor(containerColor),
+    height: Dp = 80.dp,
+    containerColor: Color = Color.Transparent,
+    contentColor: Color = MaterialTheme.colorScheme.onSurface,
     tonalElevation: Dp = 0.dp,
     windowInsets: WindowInsets = NavigationBarDefaults.windowInsets,
     content: @Composable RowScope.() -> Unit,
@@ -44,7 +45,7 @@ fun NavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(windowInsets)
-                .height(80.dp)
+                .height(height)
                 .selectableGroup(),
             content = content,
         )
