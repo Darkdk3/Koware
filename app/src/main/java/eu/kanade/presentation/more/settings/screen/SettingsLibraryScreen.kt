@@ -64,6 +64,7 @@ object SettingsLibraryScreen : SearchableSettings {
 
         return listOf(
             getCategoriesGroup(LocalNavigator.currentOrThrow, allCategories, libraryPreferences),
+            getLayoutGroup(libraryPreferences),
             getGlobalUpdateGroup(allCategories, libraryPreferences),
             getBehaviorGroup(libraryPreferences, sourcePreferences, isJoined),
         )
@@ -117,19 +118,50 @@ object SettingsLibraryScreen : SearchableSettings {
         )
     }
 
+    /**
+     * Library-grid layout preferences: how covers are sized and what's shown under
+     * the title. Moved here from Settings > Appearance so all library-specific
+     * customization lives in one place.
+     */
+    @Composable
+    private fun getLayoutGroup(
+        libraryPreferences: LibraryPreferences,
+    ): Preference.PreferenceGroup {
+        val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
+
+        return Preference.PreferenceGroup(
+            title = "Layout",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.showAuthorArtistSubtitle,
+                    title = "Show author/artist under title",
+                    subtitle = "In library grid view, shows the author (or author + artist) below the title when it fits",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGrid,
+                    title = "Freeform cover grid",
+                    subtitle = "Size grid cells to each cover's real aspect ratio instead of a fixed shape",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGridStaggered,
+                    title = "Staggered layout for freeform covers",
+                    subtitle = "Pack covers tightly with a masonry layout instead of leaving gaps under shorter ones. Disables fast-scroll.",
+                    enabled = freeformCoverGrid,
+                ),
+            ),
+        )
+    }
+
     @Composable
     private fun getGlobalUpdateGroup(
         allCategories: List<Category>,
         libraryPreferences: LibraryPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-
         val autoUpdateIntervalPref = libraryPreferences.autoUpdateInterval
         val autoUpdateCategoriesPref = libraryPreferences.updateCategories
         val autoUpdateCategoriesExcludePref = libraryPreferences.updateCategoriesExclude
-
         val autoUpdateInterval by autoUpdateIntervalPref.collectAsState()
-
         val included by autoUpdateCategoriesPref.collectAsState()
         val excluded by autoUpdateCategoriesExcludePref.collectAsState()
         var showCategoriesDialog by rememberSaveable { mutableStateOf(false) }
