@@ -38,10 +38,12 @@ class LibraryPreferences(
         Preference.appStateKey("library_update_last_timestamp"),
         0L,
     )
+
     val lastUpdatesClearedTimestamp: Preference<Long> = preferenceStore.getLong(
         Preference.appStateKey("updates_cleared_timestamp"),
         0L,
     )
+
     val autoUpdateInterval: Preference<Int> = preferenceStore.getInt("pref_library_update_interval_key", 0)
 
     val autoUpdateDeviceRestrictions: Preference<Set<String>> = preferenceStore.getStringSet(
@@ -50,6 +52,7 @@ class LibraryPreferences(
             DEVICE_ONLY_ON_WIFI,
         ),
     )
+
     val autoUpdateMangaRestrictions: Preference<Set<String>> = preferenceStore.getStringSet(
         "library_update_manga_restriction",
         setOf(
@@ -140,22 +143,26 @@ class LibraryPreferences(
         "pref_filter_library_included_tags",
         emptySet(),
     )
+
     val excludedTags: Preference<Set<String>> = preferenceStore.getStringSet(
         "pref_filter_library_excluded_tags",
         emptySet(),
     )
+
     fun filterNoTags() = preferenceStore.getEnum("pref_filter_library_no_tags", TriState.DISABLED)
 
     val tagIncludeMode: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_include_mode_and",
         false,
     )
+
     val tagExcludeMode: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_exclude_mode_and",
         false,
     )
 
     val tagSortByName: Preference<Boolean> = preferenceStore.getBoolean("pref_tag_sort_by_name", false)
+
     val tagSortAscending: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_sort_ascending",
         false,
@@ -169,16 +176,21 @@ class LibraryPreferences(
     val sortMangaTags: Preference<Boolean> = preferenceStore.getBoolean("pref_sort_manga_tags", false)
 
     val searchChapterNames: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_names", false)
+
     val searchChapterContent: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_content", false)
+
     val searchByUrl: Preference<Boolean> = preferenceStore.getBoolean("pref_search_by_url", false)
+
     val searchAlternativeTitles: Preference<Boolean> =
         preferenceStore.getBoolean("pref_search_alternative_titles", true)
+
     val useRegexSearch: Preference<Boolean> = preferenceStore.getBoolean("pref_use_regex_search", false)
 
     fun filterChapterCount() = preferenceStore.getEnum(
         "pref_filter_library_chapter_count",
         TriState.DISABLED,
     )
+
     val filterChapterCountThreshold: Preference<Int> = preferenceStore.getInt(
         "pref_filter_library_chapter_count_threshold",
         10,
@@ -195,6 +207,7 @@ class LibraryPreferences(
     val showUrlInList: Preference<Boolean> = preferenceStore.getBoolean("display_url_in_list", false)
 
     val newShowUpdatesCount: Preference<Boolean> = preferenceStore.getBoolean("library_show_updates_count", true)
+
     val newUpdatesCount: Preference<Int> = preferenceStore.getInt(
         Preference.appStateKey("library_unseen_updates_count"),
         0,
@@ -314,6 +327,30 @@ class LibraryPreferences(
     )
 
     /**
+     * Width of the floating pill bottom nav bar, as a percentage of the available screen width.
+     */
+    val navBarWidthPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_nav_bar_width_percent",
+        85,
+    )
+
+    /**
+     * Horizontal spacing between icons in the pill bottom nav bar.
+     */
+    val navBarItemSpacingDp: Preference<Int> = preferenceStore.getInt(
+        "pref_nav_bar_item_spacing_dp",
+        0,
+    )
+
+    /**
+     * Height of the floating pill bottom nav bar.
+     */
+    val navBarHeightDp: Preference<Int> = preferenceStore.getInt(
+        "pref_nav_bar_height_dp",
+        80,
+    )
+
+    /**
      * Manga details screen appearance - both default false, preserving the existing look
      * unless explicitly turned on.
      */
@@ -321,6 +358,7 @@ class LibraryPreferences(
         "pref_manga_details_hide_backdrop",
         false,
     )
+
     val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_manga_details_center_cover",
         false,
@@ -380,6 +418,7 @@ class LibraryPreferences(
     )
 
     val mangaReadProgress100: Preference<Boolean> = preferenceStore.getBoolean("pref_manga_read_progress_100", true)
+
     val novelReadProgress100: Preference<Boolean> = preferenceStore.getBoolean("pref_novel_read_progress_100", true)
 
     val duplicateSortMode: Preference<DuplicateSortMode> = preferenceStore.getEnum(
@@ -430,6 +469,7 @@ class LibraryPreferences(
         const val DEFAULT_CATEGORY_PREF_KEY = "default_category"
         private const val LIBRARY_UPDATE_CATEGORIES_PREF_KEY = "library_update_categories"
         private const val LIBRARY_UPDATE_CATEGORIES_EXCLUDE_PREF_KEY = "library_update_categories_exclude"
+
         val categoryPreferenceKeys = setOf(
             DEFAULT_CATEGORY_PREF_KEY,
             LIBRARY_UPDATE_CATEGORIES_PREF_KEY,
