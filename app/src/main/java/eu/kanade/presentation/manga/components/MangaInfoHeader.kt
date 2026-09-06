@@ -411,9 +411,6 @@ private fun MangaAndSourceTitlesLarge(
     // default ratio via the `?:` below, same pattern used for the library grid's freeform mode.
     val ratio = rememberCoverRatio(manga = manga, enabled = freeformCover)
 
-    // TEMPORARY DEBUG - remove once the freeform cover issue is diagnosed.
-    Text("DEBUG ratio=$ratio freeform=$freeformCover", color = Color.Red)
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
