@@ -1,5 +1,6 @@
 package tachiyomi.presentation.core.components.material
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -11,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -28,6 +30,7 @@ fun NavigationBar(
     modifier: Modifier = Modifier,
     shape: Shape = RectangleShape,
     height: Dp = 80.dp,
+    itemSpacing: Dp = 0.dp,
     containerColor: Color = Color.Transparent,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
     tonalElevation: Dp = 0.dp,
@@ -47,6 +50,11 @@ fun NavigationBar(
                 .windowInsetsPadding(windowInsets)
                 .height(height)
                 .selectableGroup(),
+            horizontalArrangement = if (itemSpacing > 0.dp) {
+                Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally)
+            } else {
+                Arrangement.SpaceBetween
+            },
             content = content,
         )
     }
