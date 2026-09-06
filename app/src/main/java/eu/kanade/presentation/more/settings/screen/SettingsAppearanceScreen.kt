@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -16,6 +17,7 @@ import androidx.core.app.ActivityCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.materialkolor.PaletteStyle
+import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
@@ -49,11 +51,13 @@ object SettingsAppearanceScreen : SearchableSettings {
     override fun getPreferences(): List<Preference> {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
         val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
+        val basePreferences = remember { Injekt.get<BasePreferences>() }
 
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
-            getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
+            getNavigationBarGroup(basePreferences = basePreferences),
+            getLibraryLayoutGroup(libraryPreferences = libraryPreferences, basePreferences = basePreferences),
             getMangaDetailsGroup(libraryPreferences = libraryPreferences, uiPreferences = uiPreferences),
         )
     }
@@ -66,6 +70,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
         val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
         val coverTheme by libraryPreferences.mangaDetailsCoverTheme.collectAsState()
+
         return Preference.PreferenceGroup(
             title = "Manga details screen",
             preferenceItems = listOf(
@@ -92,7 +97,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             },
                         )
-                        androidx.compose.material3.Slider(
+                        Slider(
                             value = centerCoverSizePercent.toFloat(),
                             valueRange = 40f..90f,
                             steps = 9,
@@ -129,13 +134,10 @@ object SettingsAppearanceScreen : SearchableSettings {
         uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-
         val themeModePref = uiPreferences.themeMode
         val themeMode by themeModePref.collectAsState()
-
         val appThemePref = uiPreferences.appTheme
         val appTheme by appThemePref.collectAsState()
-
         val amoledPref = uiPreferences.themeDarkAmoled
         val amoled by amoledPref.collectAsState()
 
@@ -153,7 +155,6 @@ object SettingsAppearanceScreen : SearchableSettings {
                                 setAppCompatDelegateThemeMode(it)
                             },
                         )
-
                         AppThemePreferenceWidget(
                             value = appTheme,
                             amoled = amoled,
@@ -180,9 +181,7 @@ object SettingsAppearanceScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-
         val now = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toJavaLocalDateTime() }
-
         val dateFormat by uiPreferences.dateFormat.collectAsState()
         val formattedNow = remember(dateFormat) {
             UiPreferences.dateFormat(dateFormat).format(now)
@@ -231,13 +230,79 @@ object SettingsAppearanceScreen : SearchableSettings {
         )
     }
 
+    /**
+     * Controls for the scrim drawn behind the system navigation bar (see
+     * [eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim] and its use in
+     * `MainActivity`). Style picks between a flat color and a blurred/tinted glass
+     * look; opacity and corner radius apply to both styles.
+     */
+    @Composable
+    private fun getNavigationBarGroup(
+        basePreferences: BasePreferences,
+    ): Preference.PreferenceGroup {
+        val navigationBarOpacity by basePreferences.navigationBarOpacity.collectAsState()
+        val navigationBarCornerRadius by basePreferences.navigationBarCornerRadius.collectAsState()
+
+        return Preference.PreferenceGroup(
+            title = "Navigation bar",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.ListPreference(
+                    preference = basePreferences.navigationBarStyle,
+                    entries = mapOf(
+                        BasePreferences.NavigationBarStyle.SOLID to "Solid",
+                        BasePreferences.NavigationBarStyle.GLASS to "Glass",
+                    ),
+                    title = "Navigation bar style",
+                    subtitle = "Style of the scrim drawn behind the system navigation bar",
+                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Navigation bar opacity",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Navigation bar opacity: $navigationBarOpacity%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Slider(
+                            value = navigationBarOpacity.toFloat(),
+                            valueRange = 0f..100f,
+                            steps = 19,
+                            onValueChange = {
+                                basePreferences.navigationBarOpacity.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Navigation bar corner radius",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Navigation bar corner radius: ${navigationBarCornerRadius}dp",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Slider(
+                            value = navigationBarCornerRadius.toFloat(),
+                            valueRange = 0f..32f,
+                            steps = 15,
+                            onValueChange = {
+                                basePreferences.navigationBarCornerRadius.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+            ),
+        )
+    }
+
     @Composable
     private fun getLibraryLayoutGroup(
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+        basePreferences: BasePreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-        val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
         val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
+
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
