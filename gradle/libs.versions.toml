@@ -39,6 +39,7 @@ firebase-bom = "34.17.0"
 firebase-crashlytics = "3.0.7"
 flexibleAdapter = "c8013533"
 google-services = "4.5.0"
+haze = "1.7.2"
 image-decoder = "e03b81e18a"
 injekt = "91edab2317"
 jsoup = "1.23.1"
@@ -136,6 +137,8 @@ firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 flexibleAdapter = { module = "com.github.arkon.FlexibleAdapter:flexible-adapter", version.ref = "flexibleAdapter" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
+haze-materials = { module = "dev.chrisbanes.haze:haze-materials", version.ref = "haze" }
 image-decoder = { module = "com.github.mihonapp:image-decoder", version.ref = "image-decoder" }
 injekt = { module = "com.github.mihonapp:injekt", version.ref = "injekt" }
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
@@ -193,6 +196,7 @@ voyager-tabNavigator = { module = "cafe.adriel.voyager:voyager-tab-navigator", v
 voyager-transitions = { module = "cafe.adriel.voyager:voyager-transitions", version.ref = "voyager" }
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core-android", version.ref = "xmlutil" }
 xmlutil-serialization = { module = "io.github.pdvrieze.xmlutil:serialization", version.ref = "xmlutil" }
+
 [plugins]
 aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutLibraries" }
 android-application = { id = "com.android.application", version.ref = "android-gradle" }
@@ -214,6 +218,7 @@ sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }
 [bundles]
 androidx-lifecycle = ["androidx-lifecycle-common", "androidx-lifecycle-process", "androidx-lifecycle-runtime", "androidx-lifecycle-viewmodel", "androidx-lifecycle-viewmodelCompose"]
 coil = ["coil-core", "coil-gif", "coil-compose", "coil-network-okhttp", "coil-svg"]
+haze = ["haze", "haze-materials"]
 kotlinx-coroutines = ["kotlinx-coroutines-core", "kotlinx-coroutines-android", "kotlinx-coroutines-guava"]
 markdown = ["markdown-core", "markdown-coil"]
 okhttp = ["okhttp-core", "okhttp-logging", "okhttp-brotli", "okhttp-dnsOverHttps", "okhttp-zstd"]
