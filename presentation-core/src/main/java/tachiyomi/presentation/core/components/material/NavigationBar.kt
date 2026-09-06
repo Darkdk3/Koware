@@ -19,6 +19,10 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 
 /**
  * M3 Navbar with no horizontal spacer
@@ -32,17 +36,29 @@ fun NavigationBar(
     height: Dp = 80.dp,
     itemSpacing: Dp = 0.dp,
     containerColor: Color = Color.Transparent,
+    containerAlpha: Float = 1f,
+    hazeState: HazeState? = null,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
     tonalElevation: Dp = 0.dp,
     windowInsets: WindowInsets = NavigationBarDefaults.windowInsets,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val resolvedColor = containerColor.copy(alpha = containerAlpha)
     androidx.compose.material3.Surface(
         shape = shape,
-        color = containerColor,
+        // When hazing, the surface itself stays transparent; the tint is applied
+        // by the haze effect instead so the blur underneath still shows through.
+        color = if (hazeState != null) Color.Transparent else resolvedColor,
         contentColor = contentColor,
         tonalElevation = tonalElevation,
-        modifier = modifier,
+        modifier = if (hazeState != null) {
+            modifier.hazeEffect(
+                state = hazeState,
+                style = HazeStyle(tint = HazeTint(resolvedColor)),
+            )
+        } else {
+            modifier
+        },
     ) {
         Row(
             modifier = Modifier
