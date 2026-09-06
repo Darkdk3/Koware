@@ -4,7 +4,6 @@ import android.app.Activity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -17,7 +16,6 @@ import androidx.core.app.ActivityCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.materialkolor.PaletteStyle
-import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
@@ -51,13 +49,10 @@ object SettingsAppearanceScreen : SearchableSettings {
     override fun getPreferences(): List<Preference> {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
         val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
-        val basePreferences = remember { Injekt.get<BasePreferences>() }
-
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
-            getNavigationBarGroup(basePreferences = basePreferences),
-            getLibraryLayoutGroup(libraryPreferences = libraryPreferences, basePreferences = basePreferences),
+            getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
             getMangaDetailsGroup(libraryPreferences = libraryPreferences, uiPreferences = uiPreferences),
         )
     }
@@ -70,7 +65,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
         val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
         val coverTheme by libraryPreferences.mangaDetailsCoverTheme.collectAsState()
-
         return Preference.PreferenceGroup(
             title = "Manga details screen",
             preferenceItems = listOf(
@@ -97,7 +91,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             },
                         )
-                        Slider(
+                        androidx.compose.material3.Slider(
                             value = centerCoverSizePercent.toFloat(),
                             valueRange = 40f..90f,
                             steps = 9,
@@ -140,7 +134,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         val appTheme by appThemePref.collectAsState()
         val amoledPref = uiPreferences.themeDarkAmoled
         val amoled by amoledPref.collectAsState()
-
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_theme),
             preferenceItems = listOf(
@@ -186,7 +179,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         val formattedNow = remember(dateFormat) {
             UiPreferences.dateFormat(dateFormat).format(now)
         }
-
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_display),
             preferenceItems = listOf(
@@ -230,78 +222,16 @@ object SettingsAppearanceScreen : SearchableSettings {
         )
     }
 
-    /**
-     * Controls for the scrim drawn behind the system navigation bar (see
-     * [eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim] and its use in
-     * `MainActivity`). Style picks between a flat color and a blurred/tinted glass
-     * look; opacity and corner radius apply to both styles.
-     */
-    @Composable
-    private fun getNavigationBarGroup(
-        basePreferences: BasePreferences,
-    ): Preference.PreferenceGroup {
-        val navigationBarOpacity by basePreferences.navigationBarOpacity.collectAsState()
-        val navigationBarCornerRadius by basePreferences.navigationBarCornerRadius.collectAsState()
-
-        return Preference.PreferenceGroup(
-            title = "Navigation bar",
-            preferenceItems = listOf(
-                Preference.PreferenceItem.ListPreference(
-                    preference = basePreferences.navigationBarStyle,
-                    entries = mapOf(
-                        BasePreferences.NavigationBarStyle.SOLID to "Solid",
-                        BasePreferences.NavigationBarStyle.GLASS to "Glass",
-                    ),
-                    title = "Navigation bar style",
-                    subtitle = "Style of the scrim drawn behind the system navigation bar",
-                ),
-                Preference.PreferenceItem.CustomPreference(
-                    title = "Navigation bar opacity",
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Navigation bar opacity: $navigationBarOpacity%",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Slider(
-                            value = navigationBarOpacity.toFloat(),
-                            valueRange = 0f..100f,
-                            steps = 19,
-                            onValueChange = {
-                                basePreferences.navigationBarOpacity.set(it.roundToInt())
-                            },
-                        )
-                    }
-                },
-                Preference.PreferenceItem.CustomPreference(
-                    title = "Navigation bar corner radius",
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Navigation bar corner radius: ${navigationBarCornerRadius}dp",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Slider(
-                            value = navigationBarCornerRadius.toFloat(),
-                            valueRange = 0f..32f,
-                            steps = 15,
-                            onValueChange = {
-                                basePreferences.navigationBarCornerRadius.set(it.roundToInt())
-                            },
-                        )
-                    }
-                },
-            ),
-        )
-    }
-
     @Composable
     private fun getLibraryLayoutGroup(
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
-        basePreferences: BasePreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
-
+        val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
+        val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
+        val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
+        val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
+        val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
@@ -327,6 +257,76 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.alwaysShowNavigationLabels,
                     title = "Always show navigation labels",
                     subtitle = "When off, bottom bar labels only show under the selected tab",
+                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar width",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Nav bar width: $navBarWidthPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = navBarWidthPercent.toFloat(),
+                            valueRange = 50f..100f,
+                            steps = 9,
+                            onValueChange = {
+                                libraryPreferences.navBarWidthPercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar height",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Nav bar height: ${navBarHeightDp}dp",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = navBarHeightDp.toFloat(),
+                            valueRange = 56f..100f,
+                            steps = 10,
+                            onValueChange = {
+                                libraryPreferences.navBarHeightDp.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar icon spacing",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Icon spacing: ${navBarItemSpacingDp}dp",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = navBarItemSpacingDp.toFloat(),
+                            valueRange = 0f..32f,
+                            steps = 15,
+                            onValueChange = {
+                                libraryPreferences.navBarItemSpacingDp.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.showAuthorArtistSubtitle,
+                    title = "Show author/artist under title",
+                    subtitle = "In library grid view, shows the author (or author + artist) below the title when it fits",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGrid,
+                    title = "Freeform cover grid",
+                    subtitle = "Size grid cells to each cover's real aspect ratio instead of a fixed shape",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGridStaggered,
+                    title = "Staggered layout for freeform covers",
+                    subtitle = "Pack covers tightly with a masonry layout instead of leaving gaps under shorter ones. Disables fast-scroll.",
+                    enabled = freeformCoverGrid,
                 ),
             ),
         )
