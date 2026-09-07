@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -122,12 +121,7 @@ fun MangaCompactGridItem(
 }
 
 /**
- * Title overlay for [MangaCompactGridItem].
- *
- * The gradient scrim and the title text are combined into a single content-sized Column
- * (instead of a fixed-fraction Box), so the scrim always grows to match however many lines
- * the title actually wraps to - preventing a long title from bleeding above the scrim and
- * overlapping the plain, un-darkened artwork.
+ * Title overlay for [MangaCompactGridItem]
  */
 @Composable
 private fun BoxScope.CoverTextOverlay(
@@ -135,49 +129,48 @@ private fun BoxScope.CoverTextOverlay(
     onClickContinueReading: (() -> Unit)? = null,
     titleMaxLines: Int = 2,
 ) {
-    Column(
+    Box(
         modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .wrapContentHeight(align = Alignment.Bottom)
+            .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
             .background(
                 Brush.verticalGradient(
                     0f to Color.Transparent,
                     1f to Color(0xAA000000),
                 ),
             )
-            .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp)),
+            .fillMaxHeight(0.33f)
+            .fillMaxWidth()
+            .align(Alignment.BottomCenter),
+    )
+    Row(
+        modifier = Modifier.align(Alignment.BottomStart),
+        verticalAlignment = Alignment.Bottom,
     ) {
-        Row(
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            GridItemTitle(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(8.dp),
-                title = title,
-                style = MaterialTheme.typography.titleSmall.copy(
-                    color = Color.White,
-                    shadow = Shadow(
-                        color = Color.Black,
-                        blurRadius = 4f,
-                    ),
+        GridItemTitle(
+            modifier = Modifier
+                .weight(1f)
+                .padding(8.dp),
+            title = title,
+            style = MaterialTheme.typography.titleSmall.copy(
+                color = Color.White,
+                shadow = Shadow(
+                    color = Color.Black,
+                    blurRadius = 4f,
                 ),
-                minLines = 1,
-                maxLines = titleMaxLines,
+            ),
+            minLines = 1,
+            maxLines = titleMaxLines,
+        )
+        if (onClickContinueReading != null) {
+            ContinueReadingButton(
+                size = ContinueReadingButtonSizeSmall,
+                iconSize = ContinueReadingButtonIconSizeSmall,
+                onClick = onClickContinueReading,
+                modifier = Modifier.padding(
+                    end = ContinueReadingButtonGridPadding,
+                    bottom = ContinueReadingButtonGridPadding,
+                ),
             )
-
-            if (onClickContinueReading != null) {
-                ContinueReadingButton(
-                    size = ContinueReadingButtonSizeSmall,
-                    iconSize = ContinueReadingButtonIconSizeSmall,
-                    onClick = onClickContinueReading,
-                    modifier = Modifier.padding(
-                        end = ContinueReadingButtonGridPadding,
-                        bottom = ContinueReadingButtonGridPadding,
-                    ),
-                )
-            }
         }
     }
 }
@@ -217,9 +210,10 @@ fun MangaComfortableGridItem(
                 cover = {
                     MangaCover.Book(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
                         data = coverData,
+                        applyAspectRatio = freeformCoverRatio == null,
                     )
                 },
                 badgesStart = coverBadgeStart,
@@ -237,7 +231,6 @@ fun MangaComfortableGridItem(
                     }
                 },
             )
-
             if (showAuthorArtistSubtitle && !authorArtist.isNullOrBlank()) {
                 GridItemTitleWithSubtitle(
                     modifier = Modifier.padding(4.dp),
@@ -277,7 +270,6 @@ private fun MangaGridCover(
     ) {
         cover()
         content?.invoke(this)
-
         if (badgesStart != null) {
             BadgeGroup(
                 modifier = Modifier
@@ -286,7 +278,6 @@ private fun MangaGridCover(
                 content = badgesStart,
             )
         }
-
         if (badgesEnd != null) {
             BadgeGroup(
                 modifier = Modifier
@@ -334,7 +325,6 @@ private fun GridItemTitleWithSubtitle(
     modifier: Modifier = Modifier,
 ) {
     var titleFitsOneLine by remember(title) { mutableStateOf(false) }
-
     Column(modifier = modifier) {
         Text(
             text = title,
@@ -349,7 +339,6 @@ private fun GridItemTitleWithSubtitle(
             },
             style = MaterialTheme.typography.titleSmall,
         )
-
         if (titleFitsOneLine) {
             Text(
                 text = authorArtist,
@@ -390,7 +379,6 @@ private fun GridItemSelectable(
         } else {
             LocalContentColor.current
         }
-
         CompositionLocalProvider(LocalContentColor provides contentColor) {
             content()
         }
@@ -429,7 +417,6 @@ fun MangaListItem(
     } else {
         56.dp
     }
-
     Row(
         modifier = Modifier
             .selectedBackground(isSelected)
@@ -447,7 +434,6 @@ fun MangaListItem(
                 .alpha(coverAlpha),
             data = coverData,
         )
-
         Column(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
@@ -459,7 +445,6 @@ fun MangaListItem(
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium,
             )
-
             if (showUrl && !url.isNullOrEmpty()) {
                 Text(
                     text = url,
@@ -470,9 +455,7 @@ fun MangaListItem(
                 )
             }
         }
-
         BadgeGroup(content = badge)
-
         if (onClickContinueReading != null) {
             ContinueReadingButton(
                 size = ContinueReadingButtonSizeSmall,
