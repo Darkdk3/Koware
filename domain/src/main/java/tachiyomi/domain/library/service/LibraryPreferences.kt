@@ -377,6 +377,25 @@ class LibraryPreferences(
     )
 
     /**
+     * Background rendering style for bottom sheets and dialogs (the library filter sheet,
+     * category edit sheet, chapter options sheet, etc). Solid by default so nothing changes
+     * unless the user opts in.
+     */
+    val sheetBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(
+        "pref_sheet_background_style",
+        NavBarBackgroundStyle.Solid,
+    )
+
+    /**
+     * Opacity of the sheet/dialog background, as a percentage. Only applies when
+     * [sheetBackgroundStyle] is not [NavBarBackgroundStyle.Solid].
+     */
+    val sheetOpacityPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_sheet_opacity_percent",
+        85,
+    )
+
+    /**
      * Manga details screen appearance - both default false, preserving the existing look
      * unless explicitly turned on.
      */
