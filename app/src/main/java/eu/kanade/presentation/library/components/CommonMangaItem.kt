@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -143,6 +142,7 @@ private fun BoxScope.CoverTextOverlay(
             .fillMaxWidth()
             .align(Alignment.BottomCenter),
     )
+
     Row(
         modifier = Modifier.align(Alignment.BottomStart),
         verticalAlignment = Alignment.Bottom,
@@ -162,6 +162,7 @@ private fun BoxScope.CoverTextOverlay(
             minLines = 1,
             maxLines = titleMaxLines,
         )
+
         if (onClickContinueReading != null) {
             ContinueReadingButton(
                 size = ContinueReadingButtonSizeSmall,
@@ -211,10 +212,12 @@ fun MangaComfortableGridItem(
                 cover = {
                     MangaCover.Book(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxWidth()
                             .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
                         data = coverData,
-                        applyAspectRatio = freeformCoverRatio == null,
+                        // Match the outer container's ratio so the visible image actually
+                        // varies in shape instead of always rendering at the fixed book ratio.
+                        aspectRatio = freeformCoverRatio ?: MangaCover.Book.ratio,
                     )
                 },
                 badgesStart = coverBadgeStart,
@@ -232,6 +235,7 @@ fun MangaComfortableGridItem(
                     }
                 },
             )
+
             if (showAuthorArtistSubtitle && !authorArtist.isNullOrBlank()) {
                 GridItemTitleWithSubtitle(
                     modifier = Modifier.padding(4.dp),
@@ -271,6 +275,7 @@ private fun MangaGridCover(
     ) {
         cover()
         content?.invoke(this)
+
         if (badgesStart != null) {
             BadgeGroup(
                 modifier = Modifier
@@ -279,6 +284,7 @@ private fun MangaGridCover(
                 content = badgesStart,
             )
         }
+
         if (badgesEnd != null) {
             BadgeGroup(
                 modifier = Modifier
@@ -326,6 +332,7 @@ private fun GridItemTitleWithSubtitle(
     modifier: Modifier = Modifier,
 ) {
     var titleFitsOneLine by remember(title) { mutableStateOf(false) }
+
     Column(modifier = modifier) {
         Text(
             text = title,
@@ -340,6 +347,7 @@ private fun GridItemTitleWithSubtitle(
             },
             style = MaterialTheme.typography.titleSmall,
         )
+
         if (titleFitsOneLine) {
             Text(
                 text = authorArtist,
@@ -380,6 +388,7 @@ private fun GridItemSelectable(
         } else {
             LocalContentColor.current
         }
+
         CompositionLocalProvider(LocalContentColor provides contentColor) {
             content()
         }
@@ -418,6 +427,7 @@ fun MangaListItem(
     } else {
         56.dp
     }
+
     Row(
         modifier = Modifier
             .selectedBackground(isSelected)
@@ -435,6 +445,7 @@ fun MangaListItem(
                 .alpha(coverAlpha),
             data = coverData,
         )
+
         Column(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
@@ -446,6 +457,7 @@ fun MangaListItem(
                 overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium,
             )
+
             if (showUrl && !url.isNullOrEmpty()) {
                 Text(
                     text = url,
@@ -456,7 +468,9 @@ fun MangaListItem(
                 )
             }
         }
+
         BadgeGroup(content = badge)
+
         if (onClickContinueReading != null) {
             ContinueReadingButton(
                 size = ContinueReadingButtonSizeSmall,
