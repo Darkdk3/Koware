@@ -27,9 +27,10 @@ enum class MangaCover(val ratio: Float) {
         contentDescription: String = "",
         shape: Shape = MaterialTheme.shapes.extraSmall,
         onClick: (() -> Unit)? = null,
-        // Overridable so callers (e.g. the freeform cover grid) can render this cover at its
-        // real aspect ratio instead of the enum's fixed default.
-        aspectRatio: Float = ratio,
+        // False when a caller (e.g. the freeform cover grid) has already sized the
+        // surrounding container to the real cover ratio - forcing this fixed ratio
+        // again here would just override that and silently undo freeform sizing.
+        applyAspectRatio: Boolean = true,
     ) {
         AsyncImage(
             model = data,
@@ -38,7 +39,7 @@ enum class MangaCover(val ratio: Float) {
             fallback = rememberResourceBitmapPainter(id = R.drawable.cover_default),
             contentDescription = contentDescription,
             modifier = modifier
-                .aspectRatio(aspectRatio)
+                .then(if (applyAspectRatio) Modifier.aspectRatio(ratio) else Modifier)
                 .clip(shape)
                 .then(
                     if (onClick != null) {
