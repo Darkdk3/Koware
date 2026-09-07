@@ -968,9 +968,9 @@ private fun ColumnScope.ExtensionsPage(
                 CheckboxItem(
                     label = if (extensionInfo.isStub) "${extensionInfo.sourceName} (Missing)" else extensionInfo.sourceName,
                     checked = isChecked,
-                    // ⚠️ YOUR EXISTING CODE CONTINUES HERE — paste your unmodified tail
-                    // starting from this point (onCheckedChange = ..., closing the Row,
-                    // the forEachIndexed lambda, ExtensionsPage, and end of file).
+                    onClick = {
+                        viewModel.toggleExtensionFilter(extensionInfo.sourceId.toString(), !isChecked)
+                    },
                 )
             }
         }
