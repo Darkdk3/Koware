@@ -4,7 +4,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -14,6 +17,11 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.Navigator
 import eu.kanade.presentation.util.ScreenTransition
 import eu.kanade.presentation.util.isTabletUi
+import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.presentation.core.util.LocalHazeState
+import tachiyomi.presentation.core.util.collectAsState
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import tachiyomi.presentation.core.components.AdaptiveSheet as AdaptiveSheetImpl
 
 @OptIn(InternalVoyagerApi::class)
@@ -68,6 +76,26 @@ fun AdaptiveSheet(
     content: @Composable () -> Unit,
 ) {
     val isTabletUi = isTabletUi()
+    val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+    val backgroundStyle by libraryPreferences.sheetBackgroundStyle.collectAsState()
+    val opacityPercent by libraryPreferences.sheetOpacityPercent.collectAsState()
+    // Shared with HomeScreen's tab content; null (or Solid/Transparent style)
+    // just means no blur is applied - see LocalHazeState for why.
+    val hazeState = LocalHazeState.current
+
+    val containerAlpha = when (backgroundStyle) {
+        LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
+        LibraryPreferences.NavBarBackgroundStyle.Transparent,
+        LibraryPreferences.NavBarBackgroundStyle.Frosted,
+        -> opacityPercent / 100f
+    }
+    val sheetHazeState = if (
+        backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
+    ) {
+        hazeState
+    } else {
+        null
+    }
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -78,6 +106,9 @@ fun AdaptiveSheet(
             enableImplicitDismiss = enableImplicitDismiss,
             onDismissRequest = onDismissRequest,
             modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            containerAlpha = containerAlpha,
+            hazeState = sheetHazeState,
         ) {
             content()
         }
