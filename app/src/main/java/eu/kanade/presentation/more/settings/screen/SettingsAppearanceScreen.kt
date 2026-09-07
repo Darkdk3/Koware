@@ -54,6 +54,7 @@ object SettingsAppearanceScreen : SearchableSettings {
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
             getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
+            getSheetsAndDialogsGroup(libraryPreferences = libraryPreferences),
             getMangaDetailsGroup(libraryPreferences = libraryPreferences, uiPreferences = uiPreferences),
         )
     }
@@ -371,6 +372,54 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = "Pack covers tightly with a masonry layout instead of leaving gaps under shorter ones. Disables fast-scroll.",
                     enabled = freeformCoverGrid,
                 ),
+            ),
+        )
+    }
+
+    @Composable
+    private fun getSheetsAndDialogsGroup(
+        libraryPreferences: LibraryPreferences,
+    ): Preference.PreferenceGroup {
+        val sheetBackgroundStyle by libraryPreferences.sheetBackgroundStyle.collectAsState()
+        val sheetOpacityPercent by libraryPreferences.sheetOpacityPercent.collectAsState()
+        return Preference.PreferenceGroup(
+            title = "Sheets & dialogs",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.ListPreference(
+                    preference = libraryPreferences.sheetBackgroundStyle,
+                    entries = mapOf(
+                        LibraryPreferences.NavBarBackgroundStyle.Solid to "Solid",
+                        LibraryPreferences.NavBarBackgroundStyle.Transparent to "Transparent",
+                        LibraryPreferences.NavBarBackgroundStyle.Frosted to "Frosted (blur)",
+                    ),
+                    title = "Sheet background",
+                    subtitle = "Applies to bottom sheets and dialogs. Frosted only blurs while a Home tab is behind it.",
+                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Sheet opacity",
+                ) {
+                    val enabled = sheetBackgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Opacity: $sheetOpacityPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (enabled) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = sheetOpacityPercent.toFloat(),
+                            valueRange = 40f..100f,
+                            steps = 5,
+                            enabled = enabled,
+                            onValueChange = {
+                                libraryPreferences.sheetOpacityPercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
             ),
         )
     }
