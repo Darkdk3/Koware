@@ -69,6 +69,7 @@ import tachiyomi.presentation.core.components.material.NavigationBar
 import tachiyomi.presentation.core.components.material.NavigationRail
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.i18n.pluralStringResource
+import tachiyomi.presentation.core.util.LocalHazeState
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -118,148 +119,152 @@ object HomeScreen : Screen() {
         val alwaysShowNavLabels by libraryPreferences.alwaysShowNavigationLabels.collectAsState()
         val tabs = if (isJoined || hideMangaUi) JOINED_TABS else TABS
 
-        // Shared blur source: the tab content is registered against this state below
-        // (.hazeSource), and the nav bar reads from it when Frosted style is selected.
+        // Shared blur source: the tab content below is registered against this
+        // state (.hazeSource), and it's provided app-wide via LocalHazeState so
+        // the floating nav bar AND any bottom sheet/dialog opened on top of a
+        // Home tab can both read it for their Frosted background style.
         val hazeState = remember { HazeState() }
 
-        TabNavigator(
-            tab = NovelsTab,
-            key = TabNavigatorKey,
-        ) { tabNavigator ->
-            // Provide usable navigator to content screen
-            CompositionLocalProvider(LocalNavigator provides navigator) {
-                Scaffold(
-                    startBar = {
-                        if (isTabletUi()) {
-                            NavigationRail {
-                                tabs.fastForEach {
-                                    NavigationRailItem(it)
+        CompositionLocalProvider(LocalHazeState provides hazeState) {
+            TabNavigator(
+                tab = NovelsTab,
+                key = TabNavigatorKey,
+            ) { tabNavigator ->
+                // Provide usable navigator to content screen
+                CompositionLocalProvider(LocalNavigator provides navigator) {
+                    Scaffold(
+                        startBar = {
+                            if (isTabletUi()) {
+                                NavigationRail {
+                                    tabs.fastForEach {
+                                        NavigationRailItem(it)
+                                    }
                                 }
                             }
-                        }
-                    },
-                    bottomBar = {
-                        if (!isTabletUi()) {
-                            val bottomNavVisible by produceState(initialValue = true) {
-                                showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
-                            }
-                            AnimatedVisibility(
-                                visible = bottomNavVisible,
-                                enter = expandVertically(),
-                                exit = shrinkVertically(),
-                            ) {
-                                val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
-                                val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
-                                val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
-                                val navBarPillShape by libraryPreferences.navBarPillShape.collectAsState()
-                                val navBarBackgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
-                                val navBarOpacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    contentAlignment = Alignment.Center,
+                        },
+                        bottomBar = {
+                            if (!isTabletUi()) {
+                                val bottomNavVisible by produceState(initialValue = true) {
+                                    showBottomNavEvent.receiveAsFlow().collectLatest { value = it }
+                                }
+                                AnimatedVisibility(
+                                    visible = bottomNavVisible,
+                                    enter = expandVertically(),
+                                    exit = shrinkVertically(),
                                 ) {
-                                    val barShape = if (navBarPillShape) {
-                                        RoundedCornerShape(percent = 50)
-                                    } else {
-                                        RoundedCornerShape(16.dp)
-                                    }
-                                    val barColor = MaterialTheme.colorScheme.surfaceContainer
-                                    val barAlpha = when (navBarBackgroundStyle) {
-                                        LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
-                                        LibraryPreferences.NavBarBackgroundStyle.Transparent,
-                                        LibraryPreferences.NavBarBackgroundStyle.Frosted,
-                                        -> navBarOpacityPercent / 100f
-                                    }
-                                    val barHaze = if (
-                                        navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
+                                    val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
+                                    val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
+                                    val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
+                                    val navBarPillShape by libraryPreferences.navBarPillShape.collectAsState()
+                                    val navBarBackgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
+                                    val navBarOpacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        hazeState
-                                    } else {
-                                        null
-                                    }
-                                    NavigationBar(
-                                        shape = barShape,
-                                        height = navBarHeightDp.dp,
-                                        itemSpacing = navBarItemSpacingDp.dp,
-                                        containerColor = barColor,
-                                        containerAlpha = barAlpha,
-                                        hazeState = barHaze,
-                                        modifier = Modifier.fillMaxWidth(navBarWidthPercent / 100f),
-                                    ) {
-                                        tabs.fastForEach {
-                                            NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
+                                        val barShape = if (navBarPillShape) {
+                                            RoundedCornerShape(percent = 50)
+                                        } else {
+                                            RoundedCornerShape(16.dp)
+                                        }
+                                        val barColor = MaterialTheme.colorScheme.surfaceContainer
+                                        val barAlpha = when (navBarBackgroundStyle) {
+                                            LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
+                                            LibraryPreferences.NavBarBackgroundStyle.Transparent,
+                                            LibraryPreferences.NavBarBackgroundStyle.Frosted,
+                                            -> navBarOpacityPercent / 100f
+                                        }
+                                        val barHaze = if (
+                                            navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
+                                        ) {
+                                            hazeState
+                                        } else {
+                                            null
+                                        }
+                                        NavigationBar(
+                                            shape = barShape,
+                                            height = navBarHeightDp.dp,
+                                            itemSpacing = navBarItemSpacingDp.dp,
+                                            containerColor = barColor,
+                                            containerAlpha = barAlpha,
+                                            hazeState = barHaze,
+                                            modifier = Modifier.fillMaxWidth(navBarWidthPercent / 100f),
+                                        ) {
+                                            tabs.fastForEach {
+                                                NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                    },
-                    contentWindowInsets = WindowInsets(0),
-                ) { contentPadding ->
-                    val layoutDirection = LocalLayoutDirection.current
-                    CompositionLocalProvider(
-                        LocalBottomNavInset provides contentPadding.calculateBottomPadding(),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .padding(
-                                    top = contentPadding.calculateTopPadding(),
-                                    start = contentPadding.calculateStartPadding(layoutDirection),
-                                    end = contentPadding.calculateEndPadding(layoutDirection),
-                                )
-                                .consumeWindowInsets(contentPadding)
-                                // Registers this content as the blur source for the
-                                // floating nav bar's Frosted style.
-                                .hazeSource(hazeState),
+                        },
+                        contentWindowInsets = WindowInsets(0),
+                    ) { contentPadding ->
+                        val layoutDirection = LocalLayoutDirection.current
+                        CompositionLocalProvider(
+                            LocalBottomNavInset provides contentPadding.calculateBottomPadding(),
                         ) {
-                            AnimatedContent(
-                                targetState = tabNavigator.current,
-                                transitionSpec = {
-                                    materialFadeThroughIn(initialScale = 1f, durationMillis = TabFadeDuration) togetherWith
-                                        materialFadeThroughOut(durationMillis = TabFadeDuration)
-                                },
-                                label = "tabContent",
+                            Box(
+                                modifier = Modifier
+                                    .padding(
+                                        top = contentPadding.calculateTopPadding(),
+                                        start = contentPadding.calculateStartPadding(layoutDirection),
+                                        end = contentPadding.calculateEndPadding(layoutDirection),
+                                    )
+                                    .consumeWindowInsets(contentPadding)
+                                    // Registers this content as the blur source for the
+                                    // floating nav bar's AND any sheet/dialog's Frosted style.
+                                    .hazeSource(hazeState),
                             ) {
-                                tabNavigator.saveableState(key = "currentTab", it) {
-                                    it.Content()
+                                AnimatedContent(
+                                    targetState = tabNavigator.current,
+                                    transitionSpec = {
+                                        materialFadeThroughIn(initialScale = 1f, durationMillis = TabFadeDuration) togetherWith
+                                            materialFadeThroughOut(durationMillis = TabFadeDuration)
+                                    },
+                                    label = "tabContent",
+                                ) {
+                                    tabNavigator.saveableState(key = "currentTab", it) {
+                                        it.Content()
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            val goToNovelsTab = { tabNavigator.current = NovelsTab }
-            BackHandler(enabled = tabNavigator.current != NovelsTab, onBack = goToNovelsTab)
+                val goToNovelsTab = { tabNavigator.current = NovelsTab }
+                BackHandler(enabled = tabNavigator.current != NovelsTab, onBack = goToNovelsTab)
 
-            LaunchedEffect(Unit) {
-                launch {
-                    librarySearchEvent.receiveAsFlow().collectLatest {
-                        goToNovelsTab()
-                        NovelsTab.search(it)
+                LaunchedEffect(Unit) {
+                    launch {
+                        librarySearchEvent.receiveAsFlow().collectLatest {
+                            goToNovelsTab()
+                            NovelsTab.search(it)
+                        }
                     }
-                }
-                launch {
-                    openTabEvent.receiveAsFlow().collectLatest {
-                        tabNavigator.current = when (it) {
-                            is Tab.Library -> if (isJoined || hideMangaUi) NovelsTab else LibraryTab
-                            Tab.Updates -> UpdatesTab
-                            Tab.History -> HistoryTab
-                            is Tab.Browse -> {
-                                if (it.toExtensions) {
-                                    BrowseTab.showExtension()
+                    launch {
+                        openTabEvent.receiveAsFlow().collectLatest {
+                            tabNavigator.current = when (it) {
+                                is Tab.Library -> if (isJoined || hideMangaUi) NovelsTab else LibraryTab
+                                Tab.Updates -> UpdatesTab
+                                Tab.History -> HistoryTab
+                                is Tab.Browse -> {
+                                    if (it.toExtensions) {
+                                        BrowseTab.showExtension()
+                                    }
+                                    BrowseTab
                                 }
-                                BrowseTab
+                                is Tab.More -> MoreTab
                             }
-                            is Tab.More -> MoreTab
-                        }
-                        if (it is Tab.Library && it.mangaIdToOpen != null) {
-                            navigator.push(MangaScreen(it.mangaIdToOpen))
-                        }
-                        if (it is Tab.More && it.toDownloads) {
-                            navigator.push(DownloadQueueScreen())
+                            if (it is Tab.Library && it.mangaIdToOpen != null) {
+                                navigator.push(MangaScreen(it.mangaIdToOpen))
+                            }
+                            if (it is Tab.More && it.toDownloads) {
+                                navigator.push(DownloadQueueScreen())
+                            }
                         }
                     }
                 }
