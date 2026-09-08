@@ -63,6 +63,8 @@ object SettingsAppearanceScreen : SearchableSettings {
         uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
         val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
+        val backdropBlurRadius by libraryPreferences.mangaDetailsBackdropBlurRadius.collectAsState()
+        val backdropBrightness by libraryPreferences.mangaDetailsBackdropBrightness.collectAsState()
         val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
         val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
         val coverTheme by libraryPreferences.mangaDetailsCoverTheme.collectAsState()
@@ -75,12 +77,58 @@ object SettingsAppearanceScreen : SearchableSettings {
                     title = "Hide backdrop image",
                     subtitle = "Remove the blurred cover image behind the title area",
                 ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.mangaDetailsBlurBackdrop,
-                    title = "Blur backdrop image",
-                    subtitle = "Turn off to show the backdrop image sharp instead of blurred",
-                    enabled = !hideBackdrop,
-                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Backdrop blur",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = if (backdropBlurRadius == 0) {
+                                "Backdrop blur: off"
+                            } else {
+                                "Backdrop blur: ${backdropBlurRadius}dp"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (!hideBackdrop) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = backdropBlurRadius.toFloat(),
+                            valueRange = 0f..20f,
+                            steps = 19,
+                            enabled = !hideBackdrop,
+                            onValueChange = {
+                                libraryPreferences.mangaDetailsBackdropBlurRadius.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Backdrop brightness",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Backdrop brightness: $backdropBrightness%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (!hideBackdrop) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = backdropBrightness.toFloat(),
+                            valueRange = 0f..100f,
+                            steps = 19,
+                            enabled = !hideBackdrop,
+                            onValueChange = {
+                                libraryPreferences.mangaDetailsBackdropBrightness.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
                 Preference.PreferenceItem.SwitchPreference(
                     preference = libraryPreferences.mangaDetailsCenterCover,
                     title = "Center cover",
