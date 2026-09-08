@@ -180,9 +180,7 @@ private fun BoxScope.CoverTextOverlay(
  * Layout of grid list item with title below the cover.
  *
  * When [showAuthorArtistSubtitle] is on and [authorArtist] is non-blank, the author/artist is
- * shown under the title, but only once we know (via [androidx.compose.ui.text.TextLayoutResult])
- * that the title itself only needed one line - otherwise the second line stays reserved for the
- * title's own wrap, matching the old View-based behavior this replaces.
+ * shown under the title.
  */
 @Composable
 fun MangaComfortableGridItem(
@@ -325,32 +323,25 @@ private fun GridItemTitleWithSubtitle(
     titleMaxLines: Int,
     modifier: Modifier = Modifier,
 ) {
-    var titleFitsOneLine by remember(title) { mutableStateOf(false) }
     Column(modifier = modifier) {
         Text(
             text = title,
             fontSize = 12.sp,
             lineHeight = 18.sp,
             minLines = 1,
-            maxLines = if (titleFitsOneLine) 1 else titleMaxLines,
+            maxLines = titleMaxLines,
             overflow = TextOverflow.Ellipsis,
-            onTextLayout = { result ->
-                val fits = result.lineCount <= 1
-                if (fits != titleFitsOneLine) titleFitsOneLine = fits
-            },
             style = MaterialTheme.typography.titleSmall,
         )
-        if (titleFitsOneLine) {
-            Text(
-                text = authorArtist,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = authorArtist,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
