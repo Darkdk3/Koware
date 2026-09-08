@@ -65,6 +65,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta
 import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.quoteForJson
 import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.unescapeJsResult
 import eu.kanade.tachiyomi.util.system.toast
+import kotlin.math.ceil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -95,6 +96,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         const val SEEK_ECHO_SUPPRESS_MS = 350L
         const val AUTO_SCROLL_START_VERIFY_MS = 400L
         const val AUTO_SCROLL_MAX_START_ATTEMPTS = 3
+        const val PAGED_CHAPTER_SWITCH_WATCHDOG_MS = 8_000L
 
         const val TTS_TEXT_EXTRACTION_JS = """
             (function() {
@@ -155,13 +157,9 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
     // Latched once the novel has no further chapter to append.
     private var reachedNovelEnd = false
 
-    // Suppresses auto-append for NEXT_LOAD_RETRY_COOLDOWN_MS after a failure; the JS load guard
-    // clears each finally, so without this a chapter that keeps timing out re-fires every frame.
-    private var lastNextLoadFailedAt = 0L
-
-    // True while a delayed JS-latch release is queued for the current cooldown, so the JS load latch
-    // is held (not re-fired every scroll frame) and released exactly once when the cooldown ends.
-    private var cooldownReleaseScheduled = false
+    // Set after a failed infinite-scroll append; blocks auto-append retries until the user taps
+    // the inline error banner (never auto-retries on its own).
+    private var nextLoadRequiresManualRetry = false
 
     // Lightweight property accessors so existing call sites keep working.
     // Mutations should go through chapterQueue's methods (append / prepend /
@@ -180,6 +178,16 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         }
     private var isDestroyed = false
     private var isEditingMode = false
+    // Debounces paged mode's next/prev bridge calls, which skip the isLoadingNext guard below.
+    // Cleared once the new chapter's document commits (DocState.READY/ERROR).
+    private var pagedChapterSwitchPending = false
+
+    // Last non-zero page count reported by paged-reader.js, independent of the ViewModel's
+    // novelPageCount (which gets zeroed synchronously on chapter switch - see saveProgress()).
+    private var lastKnownPagedPageCount = 0
+
+    // Mode the currently-rendered DOM was built in (not a live pref read - can diverge from it).
+    private var loadedDocumentIsPaged = false
 
     private var isAutoScrolling = false
     private var autoScrollStartAttempt = 0
@@ -246,6 +254,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
 
     private val inlineFeedback by lazy {
         NovelWebViewInlineFeedback(
+            context = activity,
             scope = scope,
             evaluateJs = { js -> evaluateJavascriptSafe(js, null) },
         )
@@ -267,6 +276,10 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 velocityY: Float,
             ): Boolean {
                 if (isEditingMode) return false
+                // Paged mode's own touch tracking (see the touch listener below) already drives
+                // and resolves the whole gesture live; this fling callback would otherwise fire
+                // on release too and double-turn the page, so it's a pure no-op while paged.
+                if (isPagedModeActive()) return true
                 if (!preferences.novelSwipeNavigation.get()) return false
                 return handleNovelFlingGesture(
                     e1,
@@ -345,7 +358,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 }
 
                 override fun onLastChunkDone() {
-                    val nextAlreadyLoaded = preferences.novelInfiniteScroll.get() &&
+                    val nextAlreadyLoaded = preferences.novelInfiniteScroll.get() && !isPagedModeActive() &&
                         loadedChapters.getOrNull(ttsController.ttsPlaybackChapterIndex + 1) != null
                     if (nextAlreadyLoaded) {
                         unloadReadChaptersAndStartNextTts()
@@ -437,7 +450,14 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
 
                 state.currentEl = target;
                 if ($keepInView) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    var pagedActive = window.$TSUNDOKU_OBJECT_NAME &&
+                        window.$TSUNDOKU_OBJECT_NAME.runtime &&
+                        window.$TSUNDOKU_OBJECT_NAME.runtime.pagingEnabled;
+                    if (pagedActive && window.__tdPagedGoToElement) {
+                        window.__tdPagedGoToElement(target);
+                    } else {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                    }
                 }
             })();
         """.trimIndent()
@@ -465,7 +485,10 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         }
 
         scope.launch {
-            if (preferences.novelInfiniteScroll.get()) {
+            // Paged mode never appends into the DOM (see loadNextChapter()'s JS-interface guard) -
+            // always fall through to the full chapter-switch handoff below, same as infinite
+            // scroll being off.
+            if (preferences.novelInfiniteScroll.get() && !isPagedModeActive()) {
                 // TTS owns the chapter transition here; suppress the visible "Loading…"
                 // banner so it doesn't flash while the cache hits (or the fresh fetch
                 // runs in the background). Errors still surface via showInlineError.
@@ -679,14 +702,21 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                     // inject only on the first genuine chapter load.
                     if (docState != DocState.LOADING_REAL) return
                     docState = DocState.READY
+                    pagedChapterSwitchPending = false
 
                     styler.injectScript { buildTsundokuScript() }
                     styler.injectScrollTracking()
+                    loadedDocumentIsPaged = isPagedModeActive()
+                    if (loadedDocumentIsPaged) styler.injectPagedReader()
                     // Fresh DOM lost the --tsundoku-safe-* vars and menuVisible flag; re-apply them.
                     pushReaderChrome()
                     restoreScrollPosition()
                     syncShortChapterProgressIfNeeded()
-                    if (!preferences.novelInfiniteScroll.get()) {
+                    // Paged mode's own edge-swipe chevron replaces this button; it would also
+                    // render inert here anyway since paged-reader.js already moved body's content
+                    // into the page container by this point, leaving the button appended outside
+                    // it and clipped by body's paged overflow:hidden.
+                    if (!preferences.novelInfiniteScroll.get() && !isPagedModeActive()) {
                         styler.injectNextChapterButton(currentChapters?.nextChapter != null)
                     }
                     if (isEditingMode) {
@@ -791,7 +821,10 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
 
             isLongClickable = true
 
-            setOnTouchListener { _, event ->
+            setOnTouchListener { view, event ->
+                if (isPagedModeActive() && preferences.novelPagedSwipeEnabled.get() && !isEditingMode) {
+                    handlePagedDragTouch(event, view.width)
+                }
                 gestureDetector.onTouchEvent(event)
                 false
             }
@@ -825,7 +858,12 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         NovelWebViewPreferenceObserver(
             preferences = preferences,
             scope = scope,
-            onStyleChanged = { styler.injectStyles() },
+            onStyleChanged = {
+                styler.injectStyles()
+                if (isPagedModeActive()) {
+                    evaluateJavascriptSafe("if (window.__tdPagedRepaginate) window.__tdPagedRepaginate();")
+                }
+            },
             onScriptChanged = {
                 val isAppend = preferences.novelInfiniteScroll.get() && loadedChapterIds.size > 1
                 styler.injectScript(isAppend = isAppend, reapplyChangedOnly = true) { buildTsundokuScript() }
@@ -844,6 +882,15 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             },
             onTtsSettingsChanged = {
                 if (ttsController.ttsInitialized) ttsController.applySettings()
+            },
+            onPagedDragCommitPercentChanged = { percent ->
+                val fraction = percent / 100.0
+                evaluateJavascriptSafe(
+                    "if (window.$TSUNDOKU_OBJECT_NAME && window.$TSUNDOKU_OBJECT_NAME.actions && " +
+                        "window.$TSUNDOKU_OBJECT_NAME.actions.setPagedConfig) " +
+                        "window.$TSUNDOKU_OBJECT_NAME.actions.setPagedConfig(" +
+                        "{dragCommitFraction: $fraction, edgeCommitFraction: $fraction});",
+                )
             },
         ).observe()
     }
@@ -867,6 +914,14 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             activity.onNovelProgressChanged(progress)
             isRestoringScroll = true
             val token = ++scrollRestoreToken
+
+            if (isPagedModeActive()) {
+                evaluateJavascriptSafe(
+                    "if (window.__tdPagedRestoreRatio) window.__tdPagedRestoreRatio($progress, $token);",
+                )
+                webView.postDelayed({ liftRestoreGuard(token) }, 3000)
+                return
+            }
 
             // Apply the saved ratio once the content has a scrollable range: immediately if laid
             // out, else a ResizeObserver waits for the body height. onScrollRestoreComplete lifts
@@ -915,9 +970,16 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         } else {
             isRestoringScroll = true
             val token = ++scrollRestoreToken
-            webView.scrollTo(0, 0)
             lastSavedProgress = 0f
             activity.onNovelProgressChanged(0f)
+            if (isPagedModeActive()) {
+                evaluateJavascriptSafe(
+                    "if (window.__tdPagedRestoreRatio) window.__tdPagedRestoreRatio(0, $token);",
+                )
+                webView.postDelayed({ liftRestoreGuard(token) }, 3000)
+                return
+            }
+            webView.scrollTo(0, 0)
             // Hold the guard past the scrollTo(0,0) settle so it can't persist 0 over a read chapter.
             webView.postDelayed({ liftRestoreGuard(token) }, 300)
         }
@@ -991,7 +1053,23 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         currentPage?.let { page ->
             val progressValue = NovelProgress.progressToPercent(lastSavedProgress)
             lastPersistedPercent = progressValue
-            activity.saveNovelProgress(page, progressValue)
+            // Paged mode's reports are always a deliberate page-turn ratio, never a relayout
+            // blip, so a legitimate single-page-back turn in a short chapter isn't rejected by
+            // the backward-jump guard the way a spurious continuous-scroll 0% would be. The
+            // allowance is sized to exactly one page (never more), not an unconditional bypass -
+            // an actual spurious backward report in paged mode should still be caught.
+            // Uses lastKnownPagedPageCount, not the ViewModel's novelPageCount: the latter is
+            // zeroed synchronously by resetNovelPageInfoIfPaged() the moment a chapter switch
+            // starts, before the outgoing chapter's WebView can be guaranteed done reporting -
+            // reading it here would size a straggler's allowance off 0 (falling through to the
+            // stricter 10% default) instead of the outgoing chapter's own page count.
+            val pageCount = lastKnownPagedPageCount
+            val backwardJumpAllowance = if (isPagedModeActive() && pageCount > 1) {
+                ceil(100.0 / pageCount).toInt()
+            } else {
+                10
+            }
+            activity.saveNovelProgress(page, progressValue, backwardJumpAllowance)
             logcat(LogPriority.DEBUG) { "NovelWebViewViewer: Saving progress $progressValue%" }
         }
     }
@@ -1032,10 +1110,18 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         if (!shouldAutoMarkShortChapter(page)) return
         if (page.status != Page.State.Ready || page.text.isNullOrBlank()) return
 
+        val isPaged = isPagedModeActive()
         evaluateJavascriptSafe(
             """
             (function() {
                 function checkIfShortChapter() {
+                    if ($isPaged) {
+                        // Paged mode never has scroll room (docHeight - viewport is always ~0),
+                        // so "short" means "fits on one page" instead. Require p.restored: before
+                        // that, pageCount still holds its unmeasured default of 1.
+                        var pd = window.__tdPaged;
+                        return !!(pd && pd.restored && typeof pd.pageCount === 'number' && pd.pageCount <= 1);
+                    }
                     var docHeight = Math.max(
                         document.documentElement.scrollHeight,
                         document.body ? document.body.scrollHeight : 0
@@ -1050,15 +1136,27 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                         Android.markChapterAsShort();
                     }
                 }
+                var debounceTimer = null;
                 var resizeObserver = new ResizeObserver(function() {
-                    tryMarkShort();
-                    if (called) resizeObserver.disconnect();
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(function() {
+                        tryMarkShort();
+                        if (called) resizeObserver.disconnect();
+                    }, 450);
                 });
                 resizeObserver.observe(document.body);
-                setTimeout(function() {
+                function finish() {
                     tryMarkShort();
                     resizeObserver.disconnect();
-                }, 500);
+                }
+                function deadline(remainingRetries) {
+                    if ($isPaged && !called && !(window.__tdPaged && window.__tdPaged.restored) && remainingRetries > 0) {
+                        setTimeout(function() { deadline(remainingRetries - 1); }, 150);
+                        return;
+                    }
+                    finish();
+                }
+                setTimeout(function() { deadline(14); }, 900);
             })();
             """.trimIndent(),
             null,
@@ -1097,13 +1195,27 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
     }
 
     override fun setChapters(chapters: ViewerChapters) {
-        val page = chapters.currChapter.pages?.firstOrNull() ?: return
-        val chapterId = chapters.currChapter.chapter.id ?: return
+        // A getPageList failure leaves the chapter in Error state with no pages - must be checked
+        // before the null-pages early return below, which would otherwise swallow it silently.
+        val chapterLoadError = (chapters.currChapter.state as? ReaderChapter.State.Error)?.error
+        if (chapterLoadError != null) {
+            hideLoadingIndicator()
+            displayError(chapterLoadError)
+            return
+        }
+        val page = chapters.currChapter.pages?.firstOrNull()
+        val chapterId = chapters.currChapter.chapter.id
+        if (page == null || chapterId == null) {
+            releasePagedChapterSwitchIfPending()
+            return
+        }
 
         loadJob?.cancel()
 
         currentPage = page
         currentChapters = chapters
+        lastPreloadRequestedNextChapterId = null
+        lastPreloadRequestedPrevChapterId = null
 
         val isPrepend = isInfiniteScrollPrepend
         isInfiniteScrollPrepend = false
@@ -1115,12 +1227,15 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             if (index >= 0) {
                 currentChapterIndex = index
             }
+            releasePagedChapterSwitchIfPending()
             return
         }
 
         ttsController.stop()
 
-        if (!preferences.novelInfiniteScroll.get() || loadedChapterIds.isEmpty()) {
+        // Paged mode always does a full chapter switch (never an append), same as infinite
+        // scroll being off, so the queue resets here too regardless of the underlying pref.
+        if (!preferences.novelInfiniteScroll.get() || loadedDocumentIsPaged || loadedChapterIds.isEmpty()) {
             chapterQueue.clear()
             currentChapterIndex = 0
         }
@@ -1139,6 +1254,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             if (loader == null) {
                 logcat(LogPriority.ERROR) { "NovelWebViewViewer: No page loader available" }
                 if (!isPrepend) hideLoadingIndicator()
+                releasePagedChapterSwitchIfPending()
                 return@launch
             }
 
@@ -1185,7 +1301,10 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
     ) {
         val rawContent = page.text
         if (rawContent.isNullOrBlank()) {
-            displayError(Exception(activity.stringResource(TDMR.strings.novel_error_empty_chapter)))
+            // An append/prepend failure must not wipe the whole multi-chapter DOM with a full-page error.
+            if (!isAppendOrPrepend) {
+                displayError(Exception(activity.stringResource(TDMR.strings.novel_error_empty_chapter)))
+            }
             return
         }
 
@@ -1222,6 +1341,22 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
 
             val processed = withContext(Dispatchers.Default) {
                 contentPipeline.process(rawContent, cfg, translator)
+            }
+            // Raw HTML wasn't blank, but the pipeline's selectors can still extract it to nothing.
+            if (!NovelProgress.isUsableChapterText(processed.text)) {
+                withContext(Dispatchers.Main) {
+                    if (!isAppendOrPrepend) {
+                        displayError(Exception(activity.stringResource(TDMR.strings.novel_error_empty_chapter)))
+                    } else {
+                        inlineFeedback.hideInlineLoading(isPrepend = isPrepend)
+                        inlineFeedback.showInlineError(
+                            activity.stringResource(TDMR.strings.novel_error_empty_chapter),
+                            isPrepend = isPrepend,
+                            onRetry = if (!isPrepend) ::retryAppendNextChapter else null,
+                        )
+                    }
+                }
+                return@launch
             }
 
             // For infinite-scroll appends/prepends, prefix every tsundoku-novel-image://
@@ -1465,6 +1600,10 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         lastSavedProgress = 0f
         lastPersistedPercent = -1
         reachedNovelEnd = false
+        // Fresh document: a prior auto-append failure latch is stale. Without this, switching
+        // chapters via the toolbar (instead of tapping the inline retry banner) destroys the banner
+        // DOM but leaves the flag set, permanently disabling infinite-scroll auto-append.
+        nextLoadRequiresManualRetry = false
         webView.loadDataWithBaseURL(resolveWebViewBaseUrl(chapterPath), html, "text/html", "UTF-8", null)
     }
 
@@ -1502,6 +1641,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             },
             isEditingMode = isEditingMode,
             isInfiniteScroll = preferences.novelInfiniteScroll.get(),
+            isPagedMode = isPagedModeActive(),
             textSelectionBlocked = !preferences.novelTextSelectable.get(),
             forcedLowercase = preferences.novelForceTextLowercase.get(),
             menuVisible = activity.viewModel.state.value.menuVisible,
@@ -1658,6 +1798,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         // transition. ERROR keeps webChapterContentReady true (so a failed load can't block
         // infinite-scroll appends forever) while marking the body un-appendable.
         docState = DocState.ERROR
+        releasePagedChapterSwitchIfPending()
 
         val theme = preferences.novelTheme.get()
         val backgroundColor = preferences.novelBackgroundColor.get()
@@ -1688,7 +1829,8 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
               .err { max-width: 600px; margin: 0 auto; text-align: center; padding-top: 10vh; }
               .category { color: #ff5555; font-size: 18px; font-weight: bold; margin-bottom: 12px; }
               .summary { color: #888; font-size: 14px; margin-bottom: 24px; word-break: break-word; }
-              .copy-btn { background: transparent; color: $textColorHex; border: 1px solid #555; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; margin-bottom: 20px; }
+              .copy-btn, .retry-btn { background: transparent; color: $textColorHex; border: 1px solid #555; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; margin-bottom: 12px; margin-right: 8px; }
+              .retry-btn { border-color: #4a90d9; color: #4a90d9; }
               details { text-align: left; margin-top: 4px; }
               summary { cursor: pointer; color: #777; font-size: 13px; padding: 8px 0; user-select: none; }
               pre { background: rgba(0,0,0,0.25); color: #bbb; padding: 12px; border-radius: 6px; font-size: 11px; white-space: pre-wrap; word-break: break-all; max-height: 280px; overflow-y: auto; margin: 0; }
@@ -1698,13 +1840,21 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             <div class="err">
               <div class="category">$escapedCategory</div>
               <div class="summary">$escapedSummary</div>
-              <button class="copy-btn" onclick="copyErr()">Copy error details</button>
+              <div>
+                <button class="retry-btn" onclick="retryErr()">${HtmlUtils.escapeHtml(activity.stringResource(TDMR.strings.novel_error_retry))}</button>
+                <button class="copy-btn" onclick="copyErr()">${HtmlUtils.escapeHtml(activity.stringResource(TDMR.strings.novel_error_copy_details))}</button>
+              </div>
               <details>
-                <summary>Technical details</summary>
+                <summary>${HtmlUtils.escapeHtml(activity.stringResource(TDMR.strings.novel_error_technical_details))}</summary>
                 <pre>$escapedTrace</pre>
               </details>
             </div>
             <script>
+            function retryErr() {
+              if (window.Android && window.Android.retryChapterLoad) {
+                window.Android.retryChapterLoad();
+              }
+            }
             function copyErr() {
               if (window.Android && window.Android.copyToClipboard) {
                 window.Android.copyToClipboard('$base64Trace');
@@ -1724,6 +1874,9 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
 
     override fun handleKeyEvent(event: KeyEvent): Boolean {
         val isUp = event.action == KeyEvent.ACTION_UP
+        // Paged mode's page turn doesn't need the menu hidden first, unlike continuous scroll.
+        val volumeKeysActive = preferences.novelVolumeKeysScroll.get() && !isEditingMode &&
+            (isPagedModeActive() || !activity.viewModel.state.value.menuVisible)
 
         when (event.keyCode) {
             KeyEvent.KEYCODE_MENU -> {
@@ -1731,14 +1884,14 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 return true
             }
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                if (preferences.novelVolumeKeysScroll.get() && !activity.viewModel.state.value.menuVisible) {
+                if (volumeKeysActive) {
                     if (!isUp) pageScrollBy(1, 0.3)
                     return true
                 }
                 return false
             }
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                if (preferences.novelVolumeKeysScroll.get() && !activity.viewModel.state.value.menuVisible) {
+                if (volumeKeysActive) {
                     if (!isUp) pageScrollBy(-1, 0.3)
                     return true
                 }
@@ -1837,6 +1990,9 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
 
         val script = """
             (function() {
+                if (window.__tdPagedSetSuspended) {
+                    window.__tdPagedSetSuspended('$isEditing' === 'true');
+                }
                 function enableEdit() {
                     document.designMode = 'off';
                     var styleId = '${ID_EDIT_MODE_STYLE}';
@@ -1941,6 +2097,37 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         }
 
         @JavascriptInterface
+        fun onPageInfoChanged(pageIndex: Int, pageCount: Int) {
+            activity.runOnUiThread {
+                if (pageCount > 0) lastKnownPagedPageCount = pageCount
+                activity.onNovelPageInfoChanged(pageIndex, pageCount)
+                // Prefetch the neighbor chapter(s) once the reader nears an edge, so a chapter-switch
+                // triggered by paging past it (always a full switch now, never an append) is fast.
+                // A single-page chapter is simultaneously at both edges, so both are checked
+                // independently rather than an if/else-if that can only ever pick one.
+                // Reads the ViewModel's viewerChapters, not this viewer's own (possibly stale)
+                // currentChapters - see loadNextChapter()'s matching comment.
+                val chapters = activity.viewModel.state.value.viewerChapters
+                if (pageIndex >= pageCount - 1) {
+                    val next = chapters?.nextChapter
+                    val nextId = next?.chapter?.id
+                    if (next != null && nextId != lastPreloadRequestedNextChapterId) {
+                        lastPreloadRequestedNextChapterId = nextId
+                        activity.requestPreloadChapter(next)
+                    }
+                }
+                if (pageIndex <= 0) {
+                    val prev = chapters?.prevChapter
+                    val prevId = prev?.chapter?.id
+                    if (prev != null && prevId != lastPreloadRequestedPrevChapterId) {
+                        lastPreloadRequestedPrevChapterId = prevId
+                        activity.requestPreloadChapter(prev)
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
         fun onScrollProgress(progress: Float) {
             activity.runOnUiThread {
                 if (isRestoringScroll) return@runOnUiThread
@@ -2023,6 +2210,18 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         @JavascriptInterface
         fun loadNextChapter() {
             activity.runOnUiThread {
+                // Paged mode never appends into the DOM (in-place append fights the page-index
+                // math and caused real progress bugs) - always a full chapter switch, regardless
+                // of infinite scroll; Kotlin prefetches the next chapter ahead of time instead
+                // (see onPageInfoChanged below) so the switch is still fast.
+                if (isPagedModeActive()) {
+                    // Check the ViewModel's viewerChapters, not this viewer's own (possibly
+                    // stale) currentChapters, matching what activity.loadNextChapter() reads -
+                    // otherwise the latch could be set and never cleared.
+                    val hasNext = activity.viewModel.state.value.viewerChapters?.nextChapter != null
+                    if (beginPagedEdgeCrossing(hasNext)) activity.loadNextChapter()
+                    return@runOnUiThread
+                }
                 logcat(LogPriority.DEBUG) {
                     "NovelWebViewViewer: loadNextChapter triggered, infiniteScroll=${preferences.novelInfiniteScroll.get()}, isLoadingNext=$isLoadingNext, loadedCount=${loadedChapterIds.size}"
                 }
@@ -2051,28 +2250,15 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                     if (handoffState.isIdle) {
                         scope.launch { preFetchNextChapterForTts() }
                     }
-                } else if (System.currentTimeMillis() - lastNextLoadFailedAt <
-                    NovelProgress.NEXT_LOAD_RETRY_COOLDOWN_MS
-                ) {
-                    // Keep the JS load latch held (JS set it before this call) so it stops re-firing
-                    // loadNextChapter every scroll frame during the cooldown; schedule a single
-                    // release for when the cooldown expires so it can't become permanent.
-                    if (!cooldownReleaseScheduled) {
-                        cooldownReleaseScheduled = true
-                        val remaining = NovelProgress.NEXT_LOAD_RETRY_COOLDOWN_MS -
-                            (System.currentTimeMillis() - lastNextLoadFailedAt)
-                        webView.postDelayed({
-                            cooldownReleaseScheduled = false
-                            setJsLoadingNext()
-                        }, remaining.coerceAtLeast(0))
-                    }
-                    logcat(LogPriority.DEBUG) { "NovelWebViewViewer: loadNextChapter ignored, in failure cooldown" }
+                } else if (nextLoadRequiresManualRetry) {
+                    // Awaiting an explicit tap on the inline error banner's retry.
+                    logcat(LogPriority.DEBUG) { "NovelWebViewViewer: loadNextChapter ignored, awaiting manual retry" }
                 } else if (!isLoadingNext) {
                     isLoadingNext = true
                     appendJob = scope.launch {
                         try {
                             val ok = appendNextChapterIfAvailable()
-                            lastNextLoadFailedAt = if (ok) 0L else System.currentTimeMillis()
+                            nextLoadRequiresManualRetry = !ok
                         } finally {
                             isLoadingNext = false
                             setJsLoadingNext()
@@ -2095,9 +2281,12 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 logcat(LogPriority.DEBUG) { "NovelWebViewViewer: Chapter marked as short (fits in viewport)" }
 
                 // Chapter fits in viewport → no scroll events fire → threshold never reached.
-                // Trigger infinite scroll append manually.
-                if (preferences.novelInfiniteScroll.get() && !isLoadingNext && !ttsController.isTtsAutoPlay &&
-                    !webChapterIsError
+                // Trigger infinite scroll append manually. Paged mode's own "fits on one page"
+                // check reuses this same short-chapter path but must never append (see
+                // loadNextChapter()'s JS-interface guard) - a paged chapter switch happens on the
+                // next explicit page turn past this single page instead.
+                if (preferences.novelInfiniteScroll.get() && !isPagedModeActive() && !isLoadingNext &&
+                    !ttsController.isTtsAutoPlay && !webChapterIsError
                 ) {
                     isLoadingNext = true
                     appendJob = scope.launch {
@@ -2128,13 +2317,32 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         }
 
         @JavascriptInterface
+        fun retryInlineError() {
+            activity.runOnUiThread { inlineFeedback.retryPendingError() }
+        }
+
+        @JavascriptInterface
+        fun retryChapterLoad() {
+            activity.runOnUiThread { activity.viewModel.reloadChapter(fromSource = false) }
+        }
+
+        @JavascriptInterface
         fun requestNextChapter() {
             loadNextChapter()
         }
 
         @JavascriptInterface
         fun requestPrevChapter() {
-            activity.runOnUiThread { activity.loadPreviousChapter() }
+            activity.runOnUiThread {
+                if (isPagedModeActive()) {
+                    // See loadNextChapter()'s matching comment: check the ViewModel's viewerChapters,
+                    // not this viewer's own currentChapters, so this gate can't diverge from what
+                    // activity.loadPreviousChapter() below actually acts on.
+                    val hasPrev = activity.viewModel.state.value.viewerChapters?.prevChapter != null
+                    if (!beginPagedEdgeCrossing(hasPrev)) return@runOnUiThread
+                }
+                activity.loadPreviousChapter()
+            }
         }
 
         @JavascriptInterface
@@ -2177,6 +2385,52 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         )
     }
 
+    // Releases paged-reader.js's edgeTransitionPending latch and hides its chevron when an edge
+    // crossing found no adjacent chapter - no document reload is coming to clear them on its own.
+    private fun releasePagedEdgeTransition() {
+        evaluateJavascriptSafe(
+            "(function(){ if (window.__tdPagedReleaseEdgeTransition) window.__tdPagedReleaseEdgeTransition(); })();",
+            null,
+        )
+    }
+
+    private fun releasePagedChapterSwitchIfPending() {
+        if (pagedChapterSwitchPending) {
+            pagedChapterSwitchPending = false
+            releasePagedEdgeTransition()
+        }
+    }
+
+    // Shared by loadNextChapter()/requestPrevChapter(): latches pagedChapterSwitchPending and
+    // arms the watchdog, or releases the edge transition when there's no adjacent chapter to
+    // switch to. Returns false when the caller should not proceed with the switch.
+    private fun beginPagedEdgeCrossing(hasAdjacentChapter: Boolean): Boolean {
+        if (pagedChapterSwitchPending) return false
+        if (!hasAdjacentChapter) {
+            releasePagedEdgeTransition()
+            return false
+        }
+        pagedChapterSwitchPending = true
+        schedulePagedChapterSwitchWatchdog()
+        return true
+    }
+
+    // Safety net for pagedChapterSwitchPending: normally cleared by onPageFinished (success) or
+    // displayError (failure), but a switch that silently no-ops before reaching either of those -
+    // e.g. ReaderViewModel.loadAdjacent's own early-return paths - would otherwise leave the latch
+    // stuck true forever, permanently blocking every later paged edge-crossing in both directions.
+    private fun schedulePagedChapterSwitchWatchdog() {
+        webView.postDelayed({
+            if (pagedChapterSwitchPending) {
+                logcat(LogPriority.WARN) {
+                    "NovelWebViewViewer: paged chapter switch watchdog released a stuck latch"
+                }
+                pagedChapterSwitchPending = false
+                releasePagedEdgeTransition()
+            }
+        }, PAGED_CHAPTER_SWITCH_WATCHDOG_MS)
+    }
+
     // Lift the scroll-restore guard for [token] only if it's still the latest restore, and tell the
     // page to re-emit onChapterScrollUpdate so a chapter switch dropped while the guard was up isn't
     // lost (the JS callback is edge-triggered and won't re-fire for the same idx on its own).
@@ -2192,21 +2446,24 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
     private suspend fun awaitPageText(page: ReaderPage, loader: PageLoader, timeoutMs: Long): Boolean =
         NovelPageLoader.awaitPageText("NovelWebViewViewer", page, loader, timeoutMs, scope)
 
+    /** @return false if content was rejected (empty/unusable); caller shows its own error for that. */
     private suspend fun displayContentImmediate(
         chapter: ReaderChapter,
         page: ReaderPage,
         isAppendOrPrepend: Boolean,
         isPrepend: Boolean,
-    ) {
-        if (isDestroyed) return
+    ): Boolean {
+        if (isDestroyed) return false
 
         val rawContent = page.text
         if (rawContent.isNullOrBlank()) {
-            displayError(Exception(activity.stringResource(TDMR.strings.novel_error_empty_chapter)))
-            return
+            if (!isAppendOrPrepend) {
+                displayError(Exception(activity.stringResource(TDMR.strings.novel_error_empty_chapter)))
+            }
+            return false
         }
 
-        val chapterId = chapter.chapter.id ?: return
+        val chapterId = chapter.chapter.id ?: return false
 
         val cfg = ContentConfig.from(
             preferences,
@@ -2218,6 +2475,13 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             if (activity.isTranslationEnabled()) { c -> activity.translateContentIfEnabled(c, chapterId) } else null
         val processed = withContext(Dispatchers.Default) {
             contentPipeline.process(rawContent, cfg, translator)
+        }
+        // Raw HTML wasn't blank, but the pipeline's selectors can still extract it to nothing.
+        if (!NovelProgress.isUsableChapterText(processed.text)) {
+            if (!isAppendOrPrepend) {
+                displayError(Exception(activity.stringResource(TDMR.strings.novel_error_empty_chapter)))
+            }
+            return false
         }
         imageCache.schedulePrefetch(processed.text, chapterId, page.chapter.pageLoader)
 
@@ -2246,6 +2510,7 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 chapterQueue.reset(chapter)
             }
         }
+        return true
     }
 
     /**
@@ -2305,14 +2570,22 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                 logcat(LogPriority.DEBUG) {
                     "NovelWebViewViewer: using pre-fetched chapter $nextId (${preparedChapter.chapter.name})"
                 }
-                try {
+                val displayed = try {
                     displayContentImmediate(preparedChapter, page, isAppendOrPrepend = true, isPrepend = false)
-                    logcat(LogPriority.INFO) {
-                        "NovelWebViewViewer: Successfully appended pre-fetched chapter ${preparedChapter.chapter.name}"
-                    }
                 } finally {
                     if (!silent) inlineFeedback.hideInlineLoading(isPrepend = false)
                     setJsLoadingNext()
+                }
+                if (!displayed) {
+                    inlineFeedback.showInlineError(
+                        activity.stringResource(TDMR.strings.novel_error_couldnt_load_next_chapter),
+                        isPrepend = false,
+                        onRetry = ::retryAppendNextChapter,
+                    )
+                    return false
+                }
+                logcat(LogPriority.INFO) {
+                    "NovelWebViewViewer: Successfully appended pre-fetched chapter ${preparedChapter.chapter.name}"
                 }
             }
             // Already loaded counts as success; the caller still advances TTS onto it.
@@ -2339,7 +2612,11 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             logcat(LogPriority.ERROR) {
                 "NovelWebViewViewer: appendNext failed, no anchor chapter (loadedCount=${loadedChapters.size})"
             }
-            inlineFeedback.showInlineError("No anchor chapter for infinite scroll", isPrepend = false)
+            inlineFeedback.showInlineError(
+                activity.stringResource(TDMR.strings.novel_error_no_anchor_chapter),
+                isPrepend = false,
+                onRetry = ::retryAppendNextChapter,
+            )
             return false
         }
         logcat(LogPriority.DEBUG) {
@@ -2349,14 +2626,23 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         val preparedChapter = activity.viewModel.prepareNextChapterForInfiniteScroll(anchor) ?: run {
             logcat(LogPriority.WARN) { "NovelWebViewViewer: No next chapter available after ${anchor.chapter.name}" }
             // Surface once, then latch so the scroll handler stops re-triggering at the last chapter.
-            if (!reachedNovelEnd) inlineFeedback.showInlineError("No next chapter available", isPrepend = false)
+            if (!reachedNovelEnd) {
+                inlineFeedback.showInlineError(
+                    activity.stringResource(TDMR.strings.novel_error_no_next_chapter_available),
+                    isPrepend = false,
+                )
+            }
             reachedNovelEnd = true
             setJsNoMoreChapters(true)
             return false
         }
         val nextId = preparedChapter.chapter.id ?: run {
             logcat(LogPriority.ERROR) { "NovelWebViewViewer: prepared next chapter has null id" }
-            inlineFeedback.showInlineError("Chapter has no id", isPrepend = false)
+            inlineFeedback.showInlineError(
+                activity.stringResource(TDMR.strings.novel_error_chapter_no_id),
+                isPrepend = false,
+                onRetry = ::retryAppendNextChapter,
+            )
             return false
         }
         logcat(LogPriority.DEBUG) { "NovelWebViewViewer: prepared next=$nextId/${preparedChapter.chapter.name}" }
@@ -2367,13 +2653,26 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         }
 
         val page = preparedChapter.pages?.firstOrNull() ?: run {
-            logcat(LogPriority.ERROR) { "NovelWebViewViewer: No page in prepared next chapter" }
-            inlineFeedback.showInlineError("No page in next chapter", isPrepend = false)
+            val prepareError = (preparedChapter.state as? ReaderChapter.State.Error)?.error
+            logcat(LogPriority.ERROR) { "NovelWebViewViewer: No page in prepared next chapter, prepareError=$prepareError" }
+            if (prepareError != null) {
+                inlineFeedback.showInlineError(prepareError, isPrepend = false, onRetry = ::retryAppendNextChapter)
+            } else {
+                inlineFeedback.showInlineError(
+                    activity.stringResource(TDMR.strings.novel_error_no_page_in_next_chapter),
+                    isPrepend = false,
+                    onRetry = ::retryAppendNextChapter,
+                )
+            }
             return false
         }
         val loader = page.chapter.pageLoader ?: run {
             logcat(LogPriority.ERROR) { "NovelWebViewViewer: No page loader for next chapter" }
-            inlineFeedback.showInlineError("No loader for next chapter", isPrepend = false)
+            inlineFeedback.showInlineError(
+                activity.stringResource(TDMR.strings.novel_error_no_loader_next_chapter),
+                isPrepend = false,
+                onRetry = ::retryAppendNextChapter,
+            )
             return false
         }
 
@@ -2382,27 +2681,48 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
             logcat(LogPriority.DEBUG) {
                 "NovelWebViewViewer: loading page for next chapter $nextId, state=${page.status}"
             }
-            val loaded = try {
-                awaitPageText(page = page, loader = loader, timeoutMs = 30_000)
+            val loadError: Throwable? = try {
+                val loaded = awaitPageText(page = page, loader = loader, timeoutMs = 30_000)
+                if (loaded) {
+                    null
+                } else {
+                    (page.status as? Page.State.Error)?.error
+                        ?: Exception(activity.stringResource(TDMR.strings.novel_error_couldnt_load_next_chapter))
+                }
             } catch (_: TimeoutCancellationException) {
                 logcat(LogPriority.ERROR) { "NovelWebViewViewer: Timed out loading next chapter page after 30s" }
-                inlineFeedback.showInlineError("Timeout loading next chapter", isPrepend = false)
-                false
+                java.util.concurrent.TimeoutException(
+                    activity.stringResource(TDMR.strings.novel_error_timeout_next_chapter),
+                )
             } catch (_: CancellationException) {
                 logcat(LogPriority.DEBUG) { "NovelWebViewViewer: appendNext cancelled" }
-                false
+                return false
             } catch (e: Exception) {
                 logcat(LogPriority.ERROR) { "NovelWebViewViewer: Error loading next chapter page: ${e.message}" }
-                inlineFeedback.showInlineError("Error: ${e.message ?: "Unknown error"}", isPrepend = false)
-                false
+                e
             }
 
-            if (!loaded) return false
+            if (loadError != null) {
+                inlineFeedback.showInlineError(
+                    loadError,
+                    isPrepend = false,
+                    onRetry = ::retryAppendNextChapter,
+                )
+                return false
+            }
 
             logcat(LogPriority.DEBUG) {
                 "NovelWebViewViewer: appending content for chapter $nextId ts=${System.currentTimeMillis()} ttsCurrentChunkIndex=${ttsController.ttsCurrentChunkIndex} ttsResumeChunkIndex=${ttsController.ttsResumeChunkIndex} ttsPlaybackChapterIndex=${ttsController.ttsPlaybackChapterIndex} ttsPlaybackChapterId=${ttsController.ttsPlaybackChapterId}"
             }
-            displayContentImmediate(preparedChapter, page, isAppendOrPrepend = true, isPrepend = false)
+            val displayed = displayContentImmediate(preparedChapter, page, isAppendOrPrepend = true, isPrepend = false)
+            if (!displayed) {
+                inlineFeedback.showInlineError(
+                    activity.stringResource(TDMR.strings.novel_error_couldnt_load_next_chapter),
+                    isPrepend = false,
+                    onRetry = ::retryAppendNextChapter,
+                )
+                return false
+            }
             logcat(LogPriority.INFO) {
                 "NovelWebViewViewer: Successfully appended next chapter ${preparedChapter.chapter.name}"
             }
@@ -2410,6 +2730,22 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         } finally {
             if (!silent) inlineFeedback.hideInlineLoading(isPrepend = false)
             setJsLoadingNext()
+        }
+    }
+
+    /** Retries a failed infinite-scroll append; only invoked from the inline error banner's tap. */
+    private fun retryAppendNextChapter() {
+        if (isLoadingNext) return
+        nextLoadRequiresManualRetry = false
+        isLoadingNext = true
+        appendJob = scope.launch {
+            try {
+                val ok = appendNextChapterIfAvailable()
+                nextLoadRequiresManualRetry = !ok
+            } finally {
+                isLoadingNext = false
+                setJsLoadingNext()
+            }
         }
     }
 
@@ -2421,13 +2757,89 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
     }
 
     /**
-     * Scroll by [fraction] of the viewport in [direction] (+1 down, -1 up). Uses window.innerHeight
-     * (CSS pixels) rather than container.height (device pixels): window.scrollBy expects CSS pixels,
-     * so passing device pixels overshoots by devicePixelRatio and skips content between taps.
+     * Scroll by [fraction] of the viewport in [direction] (+1 down/forward, -1 up/back). Uses
+     * window.innerHeight (CSS pixels) rather than container.height (device pixels): window.scrollBy
+     * expects CSS pixels, so passing device pixels overshoots by devicePixelRatio and skips content
+     * between taps.
+     *
+     * In paged mode this instead turns exactly one page via the paged-reader.js engine, which
+     * handles overflow past the first/last page as a chapter switch itself - same single call site
+     * for tap zones, volume keys, and the bottom-bar prev/next arrows.
      */
     private fun pageScrollBy(direction: Int, fraction: Double = 0.9) {
+        if (isPagedModeActive()) {
+            val action = if (direction < 0) "prevPage" else "nextPage"
+            evaluateJavascriptSafe(
+                "if (window.$TSUNDOKU_OBJECT_NAME && window.$TSUNDOKU_OBJECT_NAME.actions && " +
+                    "window.$TSUNDOKU_OBJECT_NAME.actions.$action) " +
+                    "window.$TSUNDOKU_OBJECT_NAME.actions.$action();",
+            )
+            return
+        }
         val sign = if (direction < 0) "-" else ""
         evaluateJavascriptSafe("window.scrollBy(0, $sign(window.innerHeight * $fraction));")
+    }
+
+    /** True when this viewer's page-turn calls (tap zones, volume keys, bottom-bar arrows) should
+     * turn a page instead of scrolling/changing chapter. Used by ReaderActivity to route the
+     * bottom-bar prev/next chapter arrows through the same page-turn call when active. */
+    fun isPagedModeActive(): Boolean = preferences.novelPagedMode.get()
+
+    /** Turns one page forward/back; called by the bottom-bar prev/next arrows when paged mode is
+     * active. Overflow past the first/last page is handled inside paged-reader.js as a chapter
+     * switch, same as tap zones/volume keys. */
+    fun turnPage(forward: Boolean) = pageScrollBy(if (forward) 1 else -1)
+
+    private var lastPreloadRequestedNextChapterId: Long? = null
+    private var lastPreloadRequestedPrevChapterId: Long? = null
+
+    private var pagedDragStartX = 0f
+    private var pagedDragStartY = 0f
+    private var pagedDragDetermined = false
+    private var pagedDragActive = false
+
+    // Live finger-follow for paged mode: forwards each touch move as a fraction of the WebView's
+    // own width to paged-reader.js's __tdPagedDragTo, which drives the transform in real time
+    // (LNReader-style, instead of only reacting after a completed fling).
+    private fun handlePagedDragTouch(event: MotionEvent, viewWidthPx: Int) {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                pagedDragStartX = event.x
+                pagedDragStartY = event.y
+                pagedDragDetermined = false
+                pagedDragActive = false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.x - pagedDragStartX
+                val dy = event.y - pagedDragStartY
+                if (!pagedDragDetermined) {
+                    val slop = android.view.ViewConfiguration.get(activity).scaledTouchSlop
+                    if (kotlin.math.abs(dx) > slop || kotlin.math.abs(dy) > slop) {
+                        pagedDragDetermined = true
+                        pagedDragActive = kotlin.math.abs(dx) > kotlin.math.abs(dy)
+                    }
+                }
+                if (pagedDragActive && viewWidthPx > 0) {
+                    val fraction = dx / viewWidthPx.toFloat()
+                    evaluateJavascriptSafe("if (window.__tdPagedDragTo) window.__tdPagedDragTo($fraction);")
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (pagedDragActive && viewWidthPx > 0) {
+                    // A cancelled gesture (parent intercept, multi-touch conflict, system gesture)
+                    // isn't a real release - always snap back to the current page instead of
+                    // committing whatever fraction the finger happened to be at.
+                    val fraction = if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        0f
+                    } else {
+                        (event.x - pagedDragStartX) / viewWidthPx.toFloat()
+                    }
+                    evaluateJavascriptSafe("if (window.__tdPagedDragRelease) window.__tdPagedDragRelease($fraction);")
+                }
+                pagedDragDetermined = false
+                pagedDragActive = false
+            }
+        }
     }
 
     fun toggleAutoScroll() {
@@ -2534,6 +2946,16 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
         // Suppress the scroll->slider echo so the async, throttled onScrollUpdate from this
         // programmatic scroll can't fight the user's finger.
         lastUserSeekAt = System.currentTimeMillis()
+
+        if (isPagedModeActive()) {
+            // Dragging the slider is the paged-mode jump-to-page mechanism: convert the percent
+            // to a page via the same ratio math restoreScrollPosition uses, against the CURRENT
+            // pageCount (not a raw saved page index), so it's correct regardless of font size etc.
+            evaluateJavascriptSafe(
+                "if (window.__tdPagedRepaginate) window.__tdPagedRepaginate($progress / 100);",
+            )
+            return
+        }
 
         evaluateJavascriptSafe(
             """
@@ -2738,11 +3160,21 @@ class NovelWebViewViewer(val activity: ReaderActivity) : Viewer {
                     });
                 }
                 var viewportHeight = window.innerHeight || document.documentElement.clientHeight;
-                for (var i = 0; i < elements.length; i++) {
-                    var rect = elements[i].getBoundingClientRect();
-                    if (rect.bottom > 0 && rect.top < viewportHeight) {
-                        return i;
+                var viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+                function onCurrentPage(el) {
+                    // getClientRects (per fragment), not getBoundingClientRect: a paragraph split
+                    // across a page break has a bounding box spanning both pages.
+                    var rects = el.getClientRects();
+                    for (var j = 0; j < rects.length; j++) {
+                        var r = rects[j];
+                        if (r.bottom > 0 && r.top < viewportHeight && r.right > 0 && r.left < viewportWidth) {
+                            return true;
+                        }
                     }
+                    return false;
+                }
+                for (var i = 0; i < elements.length; i++) {
+                    if (onCurrentPage(elements[i])) return i;
                 }
                 return 0;
             })();

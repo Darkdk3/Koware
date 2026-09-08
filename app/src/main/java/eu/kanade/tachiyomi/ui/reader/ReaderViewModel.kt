@@ -409,7 +409,17 @@ class ReaderViewModel @JvmOverloads constructor(
         chapter: ReaderChapter,
         forceFromSource: Boolean = false,
     ): ViewerChapters {
-        loader.loadChapter(chapter, forceFromSource)
+        // Capture instead of letting this propagate immediately, so viewerChapters below still
+        // updates to the errored chapter (chapter.state is already Error(e), set by loader) and the
+        // viewer gets a chance to show it via setChapters.
+        val loadError = try {
+            loader.loadChapter(chapter, forceFromSource)
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            e
+        }
 
         val chapterPos = chapterList.indexOf(chapter)
         val newChapters = ViewerChapters(
@@ -431,6 +441,8 @@ class ReaderViewModel @JvmOverloads constructor(
                 )
             }
         }
+
+        if (loadError != null) throw loadError
 
         // Prioritize this chapter for translation if it's a novel and translation is enabled
         enqueueTranslationIfNeeded(chapter)
@@ -464,12 +476,17 @@ class ReaderViewModel @JvmOverloads constructor(
     /**
      * Called when the user is going to load the prev/next chapter through the toolbar buttons.
      */
-    private suspend fun loadAdjacent(chapter: ReaderChapter) {
-        val loader = loader ?: return
+    private suspend fun loadAdjacent(chapter: ReaderChapter): Boolean {
+        val loader = loader ?: return false
+        if (state.value.isLoadingAdjacentChapter) return false
 
         logcat { "Loading adjacent ${chapter.chapter.url}" }
 
         mutableState.update { it.copy(isLoadingAdjacentChapter = true) }
+        // loadChapter already surfaces a failure to the viewer (chapter.state = Error triggers
+        // displayError() via setChapters), so this catch only needs to stop the caller from
+        // treating the switch as successful - see the false return below.
+        var success = true
         try {
             withIOContext {
                 loadChapter(loader, chapter)
@@ -479,9 +496,11 @@ class ReaderViewModel @JvmOverloads constructor(
                 throw e
             }
             logcat(LogPriority.ERROR, e)
+            success = false
         } finally {
             mutableState.update { it.copy(isLoadingAdjacentChapter = false) }
         }
+        return success
     }
 
     /**
@@ -767,7 +786,7 @@ class ReaderViewModel @JvmOverloads constructor(
      * Saves reading progress for novel chapters using percentage (0-100).
      * Used by NovelViewer to save scroll position.
      */
-    fun saveNovelProgress(page: ReaderPage, progressPercentage: Int) {
+    fun saveNovelProgress(page: ReaderPage, progressPercentage: Int, backwardJumpAllowancePercent: Int = 10) {
         val selectedChapter = page.chapter
 
         if (incognitoMode) return
@@ -782,10 +801,13 @@ class ReaderViewModel @JvmOverloads constructor(
                 // Skip save if progress hasn't changed at all
                 if (clampedProgress == currentProgress) return@withLock
 
-                // Reject large backward jumps (>10%), including spurious 0% reports that
-                // fire during relayout/recreation (e.g. orientation lock). A 0 used to be
-                // exempted here, which let a transient 0 wipe real progress on reopen.
-                if (clampedProgress < currentProgress - 10) {
+                // Reject large backward jumps, including spurious 0% reports that fire during
+                // relayout/recreation (e.g. orientation lock). A 0 used to be exempted here,
+                // which let a transient 0 wipe real progress on reopen. The allowance is normally
+                // 10%; paged mode passes ceil(100/pageCount)% instead (see
+                // NovelWebViewViewer.saveProgress), since one page of a short chapter can
+                // legitimately be a >10% jump - but only that much, not an unconditional bypass.
+                if (clampedProgress < currentProgress - backwardJumpAllowancePercent) {
                     logcat(LogPriority.DEBUG) {
                         "NovelProgress: Skipping save - new progress $clampedProgress% is much less than current $currentProgress%"
                     }
@@ -839,6 +861,10 @@ class ReaderViewModel @JvmOverloads constructor(
         val clamped = progress.coerceIn(0, 100)
         mutableState.update { it.copy(novelProgressPercent = clamped) }
         novelScrollProgress = clamped
+    }
+
+    fun updateNovelPageInfo(pageIndex: Int, pageCount: Int) {
+        mutableState.update { it.copy(novelPageIndex = pageIndex, novelPageCount = pageCount) }
     }
 
     private fun downloadNextChapters() {
@@ -1056,17 +1082,17 @@ class ReaderViewModel @JvmOverloads constructor(
     /**
      * Called from the activity to load and set the next chapter as active.
      */
-    suspend fun loadNextChapter() {
-        val nextChapter = state.value.viewerChapters?.nextChapter ?: return
-        loadAdjacent(nextChapter)
+    suspend fun loadNextChapter(): Boolean {
+        val nextChapter = state.value.viewerChapters?.nextChapter ?: return false
+        return loadAdjacent(nextChapter)
     }
 
     /**
      * Called from the activity to load and set the previous chapter as active.
      */
-    suspend fun loadPreviousChapter() {
-        val prevChapter = state.value.viewerChapters?.prevChapter ?: return
-        loadAdjacent(prevChapter)
+    suspend fun loadPreviousChapter(): Boolean {
+        val prevChapter = state.value.viewerChapters?.prevChapter ?: return false
+        return loadAdjacent(prevChapter)
     }
 
     /**
@@ -1588,6 +1614,11 @@ class ReaderViewModel @JvmOverloads constructor(
          * Current reading progress for novel viewer (0-100 percentage).
          */
         val novelProgressPercent: Int = 0,
+        /**
+         * Current/total page in the novel webview paged reader (0/0 when paged mode is off).
+         */
+        val novelPageIndex: Int = 0,
+        val novelPageCount: Int = 0,
 
         /**
          * Whether translation is enabled for the current chapter.

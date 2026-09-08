@@ -202,6 +202,7 @@ class ReaderActivity : BaseActivity() {
     private val windowInsetsController by lazy { WindowInsetsControllerCompat(window, window.decorView) }
 
     private var loadingIndicator: ReaderProgressIndicator? = null
+    private var adjacentChapterProgressIndicator: ReaderProgressIndicator? = null
     private var ttsNotificationSyncJob: Job? = null
 
     private val ttsNotificationControlReceiver = object : BroadcastReceiver() {
@@ -311,15 +312,31 @@ class ReaderActivity : BaseActivity() {
             .map { it.isLoadingAdjacentChapter }
             .distinctUntilChanged()
             .onEach { isLoading ->
-                // Skip loading dialog for infinite scroll - the viewer handles inline indicators
                 val isNovelViewer = viewModel.state.value.viewer is NovelViewer ||
                     viewModel.state.value.viewer is NovelWebViewViewer
+                if (!isNovelViewer) {
+                    return@onEach
+                }
+                // Paged mode always does a full loadAdjacent switch, never an inline append, so
+                // it needs this indicator even with infinite scroll on.
                 val infiniteScrollEnabled = readerPreferences.novelInfiniteScroll.get()
-                if (isNovelViewer && infiniteScrollEnabled) {
-                    // Don't show popup for infinite scroll - viewer shows inline indicators
+                val isPagedMode = readerPreferences.novelPagedMode.get() &&
+                    viewModel.state.value.viewer is NovelWebViewViewer
+                if (infiniteScrollEnabled && !isPagedMode) {
                     return@onEach
                 }
                 setProgressDialog(isLoading)
+            }
+            .launchIn(lifecycleScope)
+
+        viewModel.state
+            .map { it.isLoadingAdjacentChapter }
+            .distinctUntilChanged()
+            .onEach { isLoading ->
+                if (isLoading || pendingAdjacentNavDirection == 0) return@onEach
+                val direction = pendingAdjacentNavDirection
+                pendingAdjacentNavDirection = 0
+                if (direction > 0) loadNextChapterInternal() else loadPreviousChapterInternal()
             }
             .launchIn(lifecycleScope)
 
@@ -532,6 +549,8 @@ class ReaderActivity : BaseActivity() {
                 NovelStatusBar(
                     chapterText = chapterText,
                     progressPercent = state.novelProgressPercent,
+                    pagedPageIndex = effectivePagedPageIndex(state),
+                    pagedPageCount = effectivePagedPageCount(state),
                     order = statusBarOrder,
                     showTime = novelStatusBarShowTime,
                     showChapter = showChapterSegment,
@@ -853,6 +872,7 @@ class ReaderActivity : BaseActivity() {
 
         if (isNovelViewer) {
             var isAutoScrolling by remember { mutableStateOf(false) }
+            val novelPagedModeState by readerPreferences.novelPagedMode.collectAsState()
 
             // Get common callbacks that work for both viewer types
             val onScrollToTop: () -> Unit = {
@@ -984,6 +1004,8 @@ class ReaderActivity : BaseActivity() {
                 progressSliderMode = progressSliderMode,
                 verticalProgressSliderSize = verticalProgressSliderSize,
                 currentProgress = novelProgressFromState,
+                pagedPageIndex = effectivePagedPageIndex(state),
+                pagedPageCount = effectivePagedPageCount(state),
                 onProgressChange = { newProgress ->
                     viewModel.updateNovelProgressPercent(newProgress)
                     // A seek is an explicit position choice; a running autoscroll would immediately
@@ -1007,35 +1029,75 @@ class ReaderActivity : BaseActivity() {
                 },
 
                 onNextChapter = {
-                    loadNextChapter()
-                    // Sync slider after navigation
-                    lifecycleScope.launch {
-                        delay(100)
-                        val viewer = viewModel.state.value.viewer
-                        val progress = when (viewer) {
-                            is NovelViewer -> viewer.getProgressPercent()
-                            is NovelWebViewViewer -> viewer.getProgressPercent()
-                            else -> 0
+                    val viewer = viewModel.state.value.viewer
+                    when {
+                        viewer is NovelWebViewViewer && viewer.isPagedModeActive() -> {
+                            // Paged mode: the bottom-bar arrows turn a page, same as tap zones/volume
+                            // keys; paged-reader.js itself handles overflow past the last page as a
+                            // chapter switch, so this never needs to fall through to loadNextChapter().
+                            viewer.turnPage(forward = true)
                         }
-                        viewModel.updateNovelProgressPercent(progress)
+                        viewer is NovelWebViewViewer -> {
+                            // No poll-after-delay needed here: restoreScrollPosition() already pushes
+                            // the new chapter's progress via onNovelProgressChanged the moment its
+                            // document finishes loading, regardless of how long that takes - a fixed
+                            // delay here could only either duplicate that (harmless) or fire first and
+                            // re-apply a stale value from the outgoing chapter (a real, if brief, wrong
+                            // slider read).
+                            loadNextChapter()
+                        }
+                        else -> {
+                            loadNextChapter()
+                            // Sync slider after navigation
+                            lifecycleScope.launch {
+                                delay(100)
+                                val progress = (viewModel.state.value.viewer as? NovelViewer)?.getProgressPercent() ?: 0
+                                viewModel.updateNovelProgressPercent(progress)
+                            }
+                        }
                     }
                 },
-                enabledNext = state.viewerChapters?.nextChapter != null,
+                // In paged mode the arrows turn a page first, only falling through to a chapter
+                // change once the current chapter's last/first page is reached - so they must stay
+                // enabled while pages remain, even with no next/previous chapter to fall through to.
+                // effectivePagedPageCount(state) == 0 means onPageInfoChanged hasn't reported yet
+                // (right after a chapter switch) - assume enabled rather than flashing disabled on
+                // a true last/first chapter for the moment before the real page count arrives.
+                enabledNext = state.viewerChapters?.nextChapter != null ||
+                    (
+                        isPagedActive(state) &&
+                            (
+                                effectivePagedPageCount(state) == 0 ||
+                                    effectivePagedPageIndex(state) < effectivePagedPageCount(state) - 1
+                                )
+                        ),
                 onPreviousChapter = {
-                    loadPreviousChapter()
-                    // Sync slider after navigation
-                    lifecycleScope.launch {
-                        delay(100)
-                        val viewer = viewModel.state.value.viewer
-                        val progress = when (viewer) {
-                            is NovelViewer -> viewer.getProgressPercent()
-                            is NovelWebViewViewer -> viewer.getProgressPercent()
-                            else -> 0
+                    val viewer = viewModel.state.value.viewer
+                    when {
+                        viewer is NovelWebViewViewer && viewer.isPagedModeActive() -> {
+                            viewer.turnPage(forward = false)
                         }
-                        viewModel.updateNovelProgressPercent(progress)
+                        viewer is NovelWebViewViewer -> {
+                            // See onNextChapter above: restoreScrollPosition() already syncs the
+                            // slider eagerly, no delay-then-poll needed.
+                            loadPreviousChapter()
+                        }
+                        else -> {
+                            loadPreviousChapter()
+                            // Sync slider after navigation
+                            lifecycleScope.launch {
+                                delay(100)
+                                val progress = (viewModel.state.value.viewer as? NovelViewer)?.getProgressPercent() ?: 0
+                                viewModel.updateNovelProgressPercent(progress)
+                            }
+                        }
                     }
                 },
-                enabledPrevious = state.viewerChapters?.prevChapter != null,
+                enabledPrevious = state.viewerChapters?.prevChapter != null ||
+                    (
+                        isPagedActive(state) &&
+                            (effectivePagedPageCount(state) == 0 || effectivePagedPageIndex(state) > 0)
+                        ),
 
                 orientation = ReaderOrientation.fromPreference(
                     viewModel.getMangaOrientation(resolveDefault = false),
@@ -1045,6 +1107,7 @@ class ReaderActivity : BaseActivity() {
                 onScrollToTop = onScrollToTop,
                 isAutoScrolling = isAutoScrolling,
                 onToggleAutoScroll = onToggleAutoScroll,
+                hideAutoScroll = state.viewer is NovelWebViewViewer && novelPagedModeState,
                 isTranslating = state.isTranslating,
                 onToggleTranslation = viewModel::toggleTranslation,
                 onLongPressTranslation = viewModel::openTranslationLanguageDialog,
@@ -1653,13 +1716,20 @@ class ReaderActivity : BaseActivity() {
     }
 
     /**
-     * Called from the presenter whenever it's loading the next or previous chapter. It shows or
-     * dismisses a non-cancellable dialog to prevent user interaction according to the value of
-     * [show]. This is only used when the next/previous buttons on the toolbar are clicked; the
-     * other cases are handled with chapter transitions on the viewers and chapter preloading.
+     * Called from the presenter whenever it's loading the next or previous chapter. Only used for
+     * the toolbar next/prev buttons and paged-mode edge crossings; other cases show their own
+     * inline indicators.
      */
-    @Suppress("UNUSED_PARAMETER")
     private fun setProgressDialog(show: Boolean) {
+        if (show) {
+            if (adjacentChapterProgressIndicator == null) {
+                adjacentChapterProgressIndicator = ReaderProgressIndicator(this)
+                binding.readerContainer.addView(adjacentChapterProgressIndicator)
+            }
+        } else {
+            adjacentChapterProgressIndicator?.let { binding.readerContainer.removeView(it) }
+            adjacentChapterProgressIndicator = null
+        }
     }
 
     /**
@@ -1693,7 +1763,16 @@ class ReaderActivity : BaseActivity() {
 
     private fun loadNextChapterInternal() {
         lifecycleScope.launch {
-            viewModel.loadNextChapter()
+            if (viewModel.state.value.isLoadingAdjacentChapter) {
+                // Don't drop this navigation silently - a paged-mode edge-crossing swipe (or the
+                // toolbar button) racing an in-flight adjacent-chapter load (e.g. TTS auto-play's
+                // own handoff) would otherwise be swallowed with no feedback and leave a paged
+                // edge-crossing latch pending on the unrelated load's completion.
+                pendingAdjacentNavDirection = 1
+                return@launch
+            }
+            resetNovelPageInfoIfPaged()
+            if (!viewModel.loadNextChapter()) return@launch
             (viewModel.state.value.viewer as? NovelWebViewViewer)?.onChapterNavigate("next")
             // Only reset to page 0 if NOT using infinite scroll for novel viewers
             val isNovelViewer = viewModel.state.value.viewer is NovelViewer ||
@@ -1711,8 +1790,22 @@ class ReaderActivity : BaseActivity() {
      */
     internal fun loadPreviousChapter() {
         stopNovelTtsForManualNav()
+        loadPreviousChapterInternal()
+    }
+
+    // Tracks a nav request dropped because isLoadingAdjacentChapter was already true: 1 = next,
+    // -1 = previous, 0 = none pending. Replayed once that in-flight load finishes (see the
+    // isLoadingAdjacentChapter collector in onCreate).
+    private var pendingAdjacentNavDirection = 0
+
+    private fun loadPreviousChapterInternal() {
         lifecycleScope.launch {
-            viewModel.loadPreviousChapter()
+            if (viewModel.state.value.isLoadingAdjacentChapter) {
+                pendingAdjacentNavDirection = -1
+                return@launch
+            }
+            resetNovelPageInfoIfPaged()
+            if (!viewModel.loadPreviousChapter()) return@launch
             (viewModel.state.value.viewer as? NovelWebViewViewer)?.onChapterNavigate("prev")
             // Only reset to page 0 if NOT using infinite scroll for novel viewers
             val isNovelViewer = viewModel.state.value.viewer is NovelViewer ||
@@ -1750,8 +1843,8 @@ class ReaderActivity : BaseActivity() {
      * Called from the novel viewer to save reading progress with a percentage.
      * Progress is stored as percentage (0-100) in last_page_read.
      */
-    fun saveNovelProgress(page: ReaderPage, progressPercentage: Int) {
-        viewModel.saveNovelProgress(page, progressPercentage)
+    fun saveNovelProgress(page: ReaderPage, progressPercentage: Int, backwardJumpAllowancePercent: Int = 10) {
+        viewModel.saveNovelProgress(page, progressPercentage, backwardJumpAllowancePercent)
     }
 
     /**
@@ -1761,6 +1854,30 @@ class ReaderActivity : BaseActivity() {
     fun onNovelProgressChanged(progress: Float) {
         val percentage = (progress * 100).roundToInt().coerceIn(0, 100)
         viewModel.updateNovelProgressPercent(percentage)
+    }
+
+    fun onNovelPageInfoChanged(pageIndex: Int, pageCount: Int) {
+        viewModel.updateNovelPageInfo(pageIndex, pageCount)
+    }
+
+    // Guards against novelPageIndex/novelPageCount left over from a previous webview+paged
+    // session - the viewer never resets that state on its own (paged-reader.js just stops
+    // calling onPageInfoChanged when disabled/torn down), so it's only trustworthy while the
+    // ACTIVE viewer is actually paged.
+    private fun isPagedActive(state: ReaderViewModel.State) =
+        (state.viewer as? NovelWebViewViewer)?.isPagedModeActive() == true
+    private fun effectivePagedPageIndex(state: ReaderViewModel.State) =
+        if (isPagedActive(state)) state.novelPageIndex else 0
+    private fun effectivePagedPageCount(state: ReaderViewModel.State) =
+        if (isPagedActive(state)) state.novelPageCount else 0
+
+    // Called right before a paged-mode chapter switch starts: the new chapter's page info only
+    // arrives later (async, once __tdPagedRestoreRatio finishes), so without this the status bar
+    // would keep showing the outgoing chapter's page index/count in the meantime.
+    private fun resetNovelPageInfoIfPaged() {
+        if (isPagedActive(viewModel.state.value)) {
+            viewModel.updateNovelPageInfo(0, 0)
+        }
     }
 
     /**
