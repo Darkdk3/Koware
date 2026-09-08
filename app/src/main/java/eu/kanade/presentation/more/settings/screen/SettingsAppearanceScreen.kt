@@ -28,7 +28,6 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toLocalDateTime
-import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -49,24 +48,25 @@ object SettingsAppearanceScreen : SearchableSettings {
     @Composable
     override fun getPreferences(): List<Preference> {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
-        val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+        val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
             getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
-            getSheetsAndDialogsGroup(libraryPreferences = libraryPreferences),
             getMangaDetailsGroup(libraryPreferences = libraryPreferences, uiPreferences = uiPreferences),
         )
     }
 
     @Composable
     private fun getMangaDetailsGroup(
-        libraryPreferences: LibraryPreferences,
+        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
         uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
+        val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
         val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
         val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
         val coverTheme by libraryPreferences.mangaDetailsCoverTheme.collectAsState()
+
         return Preference.PreferenceGroup(
             title = "Manga details screen",
             preferenceItems = listOf(
@@ -74,6 +74,12 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.mangaDetailsHideBackdrop,
                     title = "Hide backdrop image",
                     subtitle = "Remove the blurred cover image behind the title area",
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.mangaDetailsBlueBackdrop,
+                    title = "Blue backdrop",
+                    subtitle = "Tint the backdrop image blue",
+                    enabled = !hideBackdrop,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = libraryPreferences.mangaDetailsCenterCover,
@@ -136,6 +142,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         val appTheme by appThemePref.collectAsState()
         val amoledPref = uiPreferences.themeDarkAmoled
         val amoled by amoledPref.collectAsState()
+
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_theme),
             preferenceItems = listOf(
@@ -181,6 +188,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         val formattedNow = remember(dateFormat) {
             UiPreferences.dateFormat(dateFormat).format(now)
         }
+
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_display),
             preferenceItems = listOf(
@@ -226,15 +234,12 @@ object SettingsAppearanceScreen : SearchableSettings {
 
     @Composable
     private fun getLibraryLayoutGroup(
-        libraryPreferences: LibraryPreferences,
+        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
-        val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
-        val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
-        val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
-        val navBarBackgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
-        val navBarOpacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
+        val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
+
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
@@ -262,147 +267,21 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = "When off, bottom bar labels only show under the selected tab",
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.navBarPillShape,
-                    title = "Pill-shaped nav bar",
-                    subtitle = "When off, the floating nav bar uses softer rounded corners instead of a full pill",
+                    preference = libraryPreferences.showAuthorArtistSubtitle,
+                    title = "Show author/artist under title",
+                    subtitle = "In library grid view, shows the author (or author + artist) below the title when it fits",
                 ),
-                Preference.PreferenceItem.ListPreference(
-                    preference = libraryPreferences.navBarBackgroundStyle,
-                    entries = mapOf(
-                        LibraryPreferences.NavBarBackgroundStyle.Solid to "Solid",
-                        LibraryPreferences.NavBarBackgroundStyle.Transparent to "Transparent",
-                        LibraryPreferences.NavBarBackgroundStyle.Frosted to "Frosted (blur)",
-                    ),
-                    title = "Nav bar background",
-                    subtitle = "Frosted blurs the content scrolling behind the bar",
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGrid,
+                    title = "Freeform cover grid",
+                    subtitle = "Size grid cells to each cover's real aspect ratio instead of a fixed shape",
                 ),
-                Preference.PreferenceItem.CustomPreference(
-                    title = "Nav bar opacity",
-                ) {
-                    val enabled = navBarBackgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Opacity: $navBarOpacityPercent%",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (enabled) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            },
-                        )
-                        androidx.compose.material3.Slider(
-                            value = navBarOpacityPercent.toFloat(),
-                            valueRange = 20f..100f,
-                            steps = 7,
-                            enabled = enabled,
-                            onValueChange = {
-                                libraryPreferences.navBarOpacityPercent.set(it.roundToInt())
-                            },
-                        )
-                    }
-                },
-                Preference.PreferenceItem.CustomPreference(
-                    title = "Nav bar width",
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Nav bar width: $navBarWidthPercent%",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        androidx.compose.material3.Slider(
-                            value = navBarWidthPercent.toFloat(),
-                            valueRange = 50f..100f,
-                            steps = 9,
-                            onValueChange = {
-                                libraryPreferences.navBarWidthPercent.set(it.roundToInt())
-                            },
-                        )
-                    }
-                },
-                Preference.PreferenceItem.CustomPreference(
-                    title = "Nav bar height",
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Nav bar height: ${navBarHeightDp}dp",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        androidx.compose.material3.Slider(
-                            value = navBarHeightDp.toFloat(),
-                            valueRange = 56f..100f,
-                            steps = 10,
-                            onValueChange = {
-                                libraryPreferences.navBarHeightDp.set(it.roundToInt())
-                            },
-                        )
-                    }
-                },
-                Preference.PreferenceItem.CustomPreference(
-                    title = "Nav bar icon spacing",
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Icon spacing: ${navBarItemSpacingDp}dp",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        androidx.compose.material3.Slider(
-                            value = navBarItemSpacingDp.toFloat(),
-                            valueRange = 0f..32f,
-                            steps = 15,
-                            onValueChange = {
-                                libraryPreferences.navBarItemSpacingDp.set(it.roundToInt())
-                            },
-                        )
-                    }
-                },
-            ),
-        )
-    }
-
-    @Composable
-    private fun getSheetsAndDialogsGroup(
-        libraryPreferences: LibraryPreferences,
-    ): Preference.PreferenceGroup {
-        val sheetBackgroundStyle by libraryPreferences.sheetBackgroundStyle.collectAsState()
-        val sheetOpacityPercent by libraryPreferences.sheetOpacityPercent.collectAsState()
-        return Preference.PreferenceGroup(
-            title = "Sheets & dialogs",
-            preferenceItems = listOf(
-                Preference.PreferenceItem.ListPreference(
-                    preference = libraryPreferences.sheetBackgroundStyle,
-                    entries = mapOf(
-                        LibraryPreferences.NavBarBackgroundStyle.Solid to "Solid",
-                        LibraryPreferences.NavBarBackgroundStyle.Transparent to "Transparent",
-                        LibraryPreferences.NavBarBackgroundStyle.Frosted to "Frosted (blur)",
-                    ),
-                    title = "Sheet background",
-                    subtitle = "Applies to bottom sheets and dialogs. Frosted only blurs while a Home tab is behind it.",
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.freeformCoverGridStaggered,
+                    title = "Staggered layout for freeform covers",
+                    subtitle = "Pack covers tightly with a masonry layout instead of leaving gaps under shorter ones. Disables fast-scroll.",
+                    enabled = freeformCoverGrid,
                 ),
-                Preference.PreferenceItem.CustomPreference(
-                    title = "Sheet opacity",
-                ) {
-                    val enabled = sheetBackgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Opacity: $sheetOpacityPercent%",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (enabled) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            },
-                        )
-                        androidx.compose.material3.Slider(
-                            value = sheetOpacityPercent.toFloat(),
-                            valueRange = 40f..100f,
-                            steps = 5,
-                            enabled = enabled,
-                            onValueChange = {
-                                libraryPreferences.sheetOpacityPercent.set(it.roundToInt())
-                            },
-                        )
-                    }
-                },
             ),
         )
     }
