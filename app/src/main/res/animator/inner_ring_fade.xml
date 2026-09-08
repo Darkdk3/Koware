@@ -1,3 +1,3 @@
 <set xmlns:android="http://schemas.android.com/apk/res/android">
-    <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0" android:valueTo="0.90" android:valueType="floatType" android:startOffset="250" android:duration="350" android:interpolator="@android:interpolator/linear" />
+    <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0" android:valueTo="0.18" android:valueType="floatType" android:startOffset="250" android:duration="350" android:interpolator="@android:interpolator/linear" />
 </set>
