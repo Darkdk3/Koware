@@ -336,13 +336,21 @@ class LibraryPreferences(
     )
 
     /**
-     * When true (the default, matching the existing look), the backdrop image is blurred.
-     * When false, it's shown sharp/unblurred. Has no visible effect when
-     * [mangaDetailsHideBackdrop] is on, since there's no backdrop shown to blur.
+     * Blur radius (in dp) applied to the manga details backdrop image. 0 means no blur at all.
+     * Default of 4 matches the original hardcoded look.
      */
-    val mangaDetailsBlurBackdrop: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_manga_details_blur_backdrop",
-        true,
+    val mangaDetailsBackdropBlurRadius: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_blur_radius",
+        4,
+    )
+
+    /**
+     * Brightness (0-100) of the manga details backdrop image, applied as an alpha over the
+     * image. Default of 20 matches the original hardcoded alpha(0.2f) look.
+     */
+    val mangaDetailsBackdropBrightness: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_brightness",
+        20,
     )
 
     val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
