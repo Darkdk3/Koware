@@ -69,6 +69,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
@@ -135,11 +137,19 @@ fun MangaInfoBox(
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
-    val backdropBlurRadius by libraryPreferences.mangaDetailsBackdropBlurRadius.collectAsState()
-    val backdropBrightness by libraryPreferences.mangaDetailsBackdropBrightness.collectAsState()
     val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
     val freeformCover by libraryPreferences.mangaDetailsFreeformCover.collectAsState()
     val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
+    val backdropBlurDp by libraryPreferences.mangaDetailsBackdropBlurDp.collectAsState()
+    val backdropOpacityPercent by libraryPreferences.mangaDetailsBackdropOpacityPercent.collectAsState()
+    val backdropBrightnessPercent by libraryPreferences.mangaDetailsBackdropBrightnessPercent.collectAsState()
+
+    val backdropColorFilter = remember(backdropBrightnessPercent) {
+        val scale = backdropBrightnessPercent / 100f
+        ColorFilter.colorMatrix(
+            ColorMatrix().apply { setToScale(scale, scale, scale, 1f) },
+        )
+    }
 
     Box(modifier = modifier) {
         // Backdrop image is always loaded (needed for palette extraction below, which is
@@ -158,6 +168,7 @@ fun MangaInfoBox(
                 .build(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            colorFilter = backdropColorFilter,
             onSuccess = { state ->
                 // Feeds the "cover-based theme" appearance option. Runs regardless of the
                 // hideBackdrop toggle since the two are independent settings.
@@ -183,8 +194,8 @@ fun MangaInfoBox(
                             brush = Brush.verticalGradient(colors = backdropGradientColors),
                         )
                     }
-                    .let { m -> if (backdropBlurRadius > 0) m.blur(backdropBlurRadius.dp) else m }
-                    .alpha(backdropBrightness / 100f)
+                    .blur(backdropBlurDp.dp)
+                    .alpha(backdropOpacityPercent / 100f)
             } else {
                 // Still needs to load for palette extraction, but shouldn't be visible.
                 Modifier.size(1.dp).alpha(0f)
@@ -259,7 +270,6 @@ fun MangaActionRow(
             onClick = onAddToLibraryClicked,
             onLongClick = onEditCategory,
         )
-
         MangaActionButton(
             title = when (nextUpdateDays) {
                 null -> stringResource(MR.strings.not_applicable)
@@ -274,7 +284,6 @@ fun MangaActionRow(
             color = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
             onClick = { onEditIntervalClicked?.invoke() },
         )
-
         MangaActionButton(
             title = if (trackingCount == 0) {
                 stringResource(MR.strings.manga_tracking_tab)
@@ -285,7 +294,6 @@ fun MangaActionRow(
             color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
             onClick = onTrackingClicked,
         )
-
         if (onWebViewClicked != null) {
             MangaActionButton(
                 title = stringResource(MR.strings.action_web_view),
@@ -325,7 +333,6 @@ fun ExpandableMangaDescription(
                 .padding(horizontal = 16.dp)
                 .clickableNoIndication { onExpanded(!expanded) },
         )
-
         val tags = tagsProvider()
         if (!tags.isNullOrEmpty()) {
             Box(
@@ -356,7 +363,6 @@ fun ExpandableMangaDescription(
                         },
                     )
                 }
-
                 if (expanded) {
                     FlowRow(
                         modifier = Modifier.padding(horizontal = 16.dp),
@@ -427,9 +433,7 @@ private fun MangaAndSourceTitlesLarge(
             contentDescription = stringResource(MR.strings.manga_cover),
             onClick = onCoverClick,
         )
-
         Spacer(modifier = Modifier.height(16.dp))
-
         MangaContentInfo(
             title = manga.title,
             alternativeTitles = manga.alternativeTitles,
@@ -476,7 +480,6 @@ private fun MangaAndSourceTitlesSmall(
             contentDescription = stringResource(MR.strings.manga_cover),
             onClick = onCoverClick,
         )
-
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -526,7 +529,6 @@ private fun ColumnScope.MangaContentInfo(
         ),
         textAlign = textAlign,
     )
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -564,9 +566,7 @@ private fun ColumnScope.MangaContentInfo(
             )
         }
     }
-
     Spacer(modifier = Modifier.height(2.dp))
-
     Row(
         modifier = Modifier.secondaryItemAlpha(),
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
@@ -596,7 +596,6 @@ private fun ColumnScope.MangaContentInfo(
             textAlign = textAlign,
         )
     }
-
     if (!artist.isNullOrBlank() && author != artist) {
         Row(
             modifier = Modifier.secondaryItemAlpha(),
@@ -620,9 +619,7 @@ private fun ColumnScope.MangaContentInfo(
             )
         }
     }
-
     Spacer(modifier = Modifier.height(2.dp))
-
     Row(
         modifier = Modifier.secondaryItemAlpha(),
         verticalAlignment = Alignment.CenterVertically,
@@ -642,7 +639,6 @@ private fun ColumnScope.MangaContentInfo(
                 .padding(end = 4.dp)
                 .size(16.dp),
         )
-
         ProvideTextStyle(MaterialTheme.typography.bodyMedium) {
             Text(
                 text = when (status) {
@@ -657,9 +653,7 @@ private fun ColumnScope.MangaContentInfo(
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1,
             )
-
             DotSeparatorText()
-
             if (isStubSource) {
                 Icon(
                     imageVector = Icons.Filled.Warning,
@@ -670,7 +664,6 @@ private fun ColumnScope.MangaContentInfo(
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
-
             Text(
                 text = sourceName,
                 modifier = Modifier.clickableNoIndication {
@@ -684,7 +677,6 @@ private fun ColumnScope.MangaContentInfo(
             )
         }
     }
-
     if (categories.isNotEmpty()) {
         Row(
             modifier = Modifier.secondaryItemAlpha(),
@@ -759,7 +751,6 @@ private fun MangaSummary(
         label = "summary",
     )
     var infoHeight by remember { mutableIntStateOf(0) }
-
     Layout(
         modifier = modifier.clipToBounds(),
         contents = listOf(
