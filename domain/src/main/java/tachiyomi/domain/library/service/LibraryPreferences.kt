@@ -351,6 +351,18 @@ class LibraryPreferences(
     /** Opacity of the nav bar background, as a percentage. Only applies when the style isn't Solid. */
     val navBarOpacityPercent: Preference<Int> = preferenceStore.getInt("pref_nav_bar_opacity_percent", 100)
 
+    // --- AdaptiveSheet (bottom sheet / dialog) background customization ---
+    // Reuses NavBarBackgroundStyle since sheets support the same Solid/Transparent/Frosted styles.
+
+    /** Background rendering style for AdaptiveSheet. See [NavBarBackgroundStyle]. */
+    val sheetBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(
+        "pref_sheet_background_style",
+        NavBarBackgroundStyle.Solid,
+    )
+
+    /** Opacity of the sheet background, as a percentage. Only applies when the style isn't Solid. */
+    val sheetOpacityPercent: Preference<Int> = preferenceStore.getInt("pref_sheet_opacity_percent", 100)
+
     /**
      * Manga details screen appearance - both default false, preserving the existing look
      * unless explicitly turned on.
@@ -358,6 +370,27 @@ class LibraryPreferences(
     val mangaDetailsHideBackdrop: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_manga_details_hide_backdrop",
         false,
+    )
+
+    /** Blur radius applied to the manga details backdrop image, in dp. Slider range 0-20. */
+    val mangaDetailsBackdropBlurDp: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_blur_dp",
+        4,
+    )
+
+    /** Opacity of the manga details backdrop image, as a percentage. Slider range 0-100. */
+    val mangaDetailsBackdropOpacityPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_opacity_percent",
+        20,
+    )
+
+    /**
+     * Brightness of the manga details backdrop image, as a percentage (100 = unchanged).
+     * Slider range 50-150.
+     */
+    val mangaDetailsBackdropBrightnessPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_brightness_percent",
+        100,
     )
 
     val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
