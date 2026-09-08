@@ -4,11 +4,11 @@
     android:viewportWidth="432"
     android:viewportHeight="432">
 
-    <!-- Main cyan circular border -->
+    <!-- Main white circular border -->
     <path
         android:name="outer_ring"
         android:fillColor="@android:color/transparent"
-        android:strokeColor="#67E8F9"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="5"
         android:strokeAlpha="0.90"
         android:trimPathStart="0"
@@ -23,7 +23,7 @@
     <path
         android:name="inner_ring"
         android:fillColor="@android:color/transparent"
-        android:strokeColor="#67E8F9"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="1.5"
         android:strokeAlpha="0"
         android:pathData="
@@ -41,7 +41,7 @@
         android:scaleY="0.5">
         <path
             android:name="symbol_path"
-            android:fillColor="#A970FF"
+            android:fillColor="#FFFFFF"
             android:fillAlpha="0"
             android:pathData="
                 M262,94
