@@ -339,8 +339,11 @@ class LibraryPreferences(
     /** Spacing between items in the floating bottom nav bar, in dp. */
     val navBarItemSpacingDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_item_spacing_dp", 0)
 
-    /** When true, the nav bar uses a fully rounded (pill) shape instead of rounded corners. */
-    val navBarPillShape: Preference<Boolean> = preferenceStore.getBoolean("pref_nav_bar_pill_shape", false)
+    /**
+     * Corner radius for the navigation bar in dp.
+     * 0 means pill shape (fully rounded), >0 means custom rounded corners.
+     */
+    val navBarCornerRadiusDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_corner_radius_dp", 0)
 
     /** Background rendering style for the floating nav bar. See [NavBarBackgroundStyle]. */
     val navBarBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(

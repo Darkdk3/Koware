@@ -150,6 +150,14 @@ object AboutScreen : Screen() {
 
                 item {
                     TextPreferenceWidget(
+                        title = "GitHub Repository",
+                        subtitle = "View source code, report issues, contribute",
+                        onPreferenceClick = { uriHandler.openUri("https://github.com/Darkdk3/Koware") },
+                    )
+                }
+
+                item {
+                    TextPreferenceWidget(
                         title = stringResource(MR.strings.licenses),
                         onPreferenceClick = { navigator.push(OpenSourceLicensesScreen()) },
                     )
@@ -197,7 +205,7 @@ object AboutScreen : Screen() {
                         LinkIcon(
                             label = "GitHub",
                             icon = CustomIcons.Github,
-                            url = "https://github.com/tsundoku-otaku",
+                            url = "https://github.com/Darkdk3/Koware",
                         )
                     }
                 }

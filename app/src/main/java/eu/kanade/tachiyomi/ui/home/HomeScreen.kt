@@ -155,7 +155,7 @@ object HomeScreen : Screen() {
                                     val navBarWidthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
                                     val navBarHeightDp by libraryPreferences.navBarHeightDp.collectAsState()
                                     val navBarItemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
-                                    val navBarPillShape by libraryPreferences.navBarPillShape.collectAsState()
+                                    val navBarCornerRadiusDp by libraryPreferences.navBarCornerRadiusDp.collectAsState()
                                     val navBarBackgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
                                     val navBarOpacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
                                     Box(
@@ -164,10 +164,11 @@ object HomeScreen : Screen() {
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        val barShape = if (navBarPillShape) {
+                                        // 0 = pill shape (fully rounded), >0 = custom corner radius
+                                        val barShape = if (navBarCornerRadiusDp == 0) {
                                             RoundedCornerShape(percent = 50)
                                         } else {
-                                            RoundedCornerShape(16.dp)
+                                            RoundedCornerShape(navBarCornerRadiusDp.dp)
                                         }
                                         val barColor = MaterialTheme.colorScheme.surfaceContainer
                                         val barAlpha = when (navBarBackgroundStyle) {
