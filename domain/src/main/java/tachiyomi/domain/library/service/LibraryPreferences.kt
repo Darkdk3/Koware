@@ -336,12 +336,13 @@ class LibraryPreferences(
     )
 
     /**
-     * When true, tints the manga details backdrop image blue instead of its natural colors.
-     * Has no visible effect when [mangaDetailsHideBackdrop] is on, since there's nothing to tint.
+     * When true (the default, matching the existing look), the backdrop image is blurred.
+     * When false, it's shown sharp/unblurred. Has no visible effect when
+     * [mangaDetailsHideBackdrop] is on, since there's no backdrop shown to blur.
      */
-    val mangaDetailsBlueBackdrop: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_manga_details_blue_backdrop",
-        false,
+    val mangaDetailsBlurBackdrop: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_blur_backdrop",
+        true,
     )
 
     val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
