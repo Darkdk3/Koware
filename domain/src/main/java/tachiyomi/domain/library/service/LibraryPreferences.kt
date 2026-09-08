@@ -63,58 +63,36 @@ class LibraryPreferences(
         ),
     )
 
-    val skipUpdateTime: Preference<Int> = preferenceStore.getInt(
-        "pref_skip_update_time",
-        SKIP_UPDATE_NONE,
-    )
+    val skipUpdateTime: Preference<Int> = preferenceStore.getInt("pref_skip_update_time", SKIP_UPDATE_NONE)
 
-    val autoUpdateMetadata: Preference<Boolean> = preferenceStore.getBoolean(
-        "auto_update_metadata",
-        false,
-    )
+    val autoUpdateMetadata: Preference<Boolean> = preferenceStore.getBoolean("auto_update_metadata", false)
 
     val experimentalLibraryPagination: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_experimental_library_pagination",
-            false,
-        )
+        preferenceStore.getBoolean("pref_experimental_library_pagination", false)
 
     val experimentalLibraryPageSize: Preference<Int> =
-        preferenceStore.getInt(
-            "pref_experimental_library_page_size",
-            300,
-        )
+        preferenceStore.getInt("pref_experimental_library_page_size", 300)
 
-    val autoUpdateThrottle: Preference<Int> = preferenceStore.getInt(
-        "pref_library_update_throttle_ms",
-        3000,
-    )
+    val autoUpdateThrottle: Preference<Int> = preferenceStore.getInt("pref_library_update_throttle_ms", 3000)
 
-    val joinedLibrary: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_joined_library",
-        true,
-    )
+    val joinedLibrary: Preference<Boolean> = preferenceStore.getBoolean("pref_joined_library", true)
 
     val showContinueReadingButton: Preference<Boolean> = preferenceStore.getBoolean(
         "display_continue_reading_button",
         false,
     )
 
-    val markDuplicateReadChapterAsRead: Preference<Set<String>> =
-        preferenceStore.getStringSet(
-            "mark_duplicate_read_chapter_read",
-            emptySet(),
-        )
+    val markDuplicateReadChapterAsRead: Preference<Set<String>> = preferenceStore.getStringSet(
+        "mark_duplicate_read_chapter_read",
+        emptySet(),
+    )
 
     val filterDownloaded: Preference<TriState> = preferenceStore.getEnum(
         "pref_filter_library_downloaded_v2",
         TriState.DISABLED,
     )
 
-    val filterUnread: Preference<TriState> = preferenceStore.getEnum(
-        "pref_filter_library_unread_v2",
-        TriState.DISABLED,
-    )
+    val filterUnread: Preference<TriState> = preferenceStore.getEnum("pref_filter_library_unread_v2", TriState.DISABLED)
 
     val filterStarted: Preference<TriState> = preferenceStore.getEnum(
         "pref_filter_library_started_v2",
@@ -171,10 +149,7 @@ class LibraryPreferences(
         emptySet(),
     )
 
-    fun filterNoTags() = preferenceStore.getEnum(
-        "pref_filter_library_no_tags",
-        TriState.DISABLED,
-    )
+    fun filterNoTags() = preferenceStore.getEnum("pref_filter_library_no_tags", TriState.DISABLED)
 
     val tagIncludeMode: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_include_mode_and",
@@ -186,187 +161,111 @@ class LibraryPreferences(
         false,
     )
 
-    val tagSortByName: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_tag_sort_by_name",
-        false,
-    )
+    val tagSortByName: Preference<Boolean> = preferenceStore.getBoolean("pref_tag_sort_by_name", false)
 
     val tagSortAscending: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_sort_ascending",
         false,
     )
 
-    val tagCaseSensitive: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_tag_case_sensitive",
-        false,
-    )
+    val tagCaseSensitive: Preference<Boolean> = preferenceStore.getBoolean("pref_tag_case_sensitive", false)
 
     val normalizeTagsOnUpdate: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_normalize_tags_on_update",
-            false,
-        )
+        preferenceStore.getBoolean("pref_normalize_tags_on_update", false)
 
-    val sortMangaTags: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_sort_manga_tags",
-        false,
-    )
+    val sortMangaTags: Preference<Boolean> = preferenceStore.getBoolean("pref_sort_manga_tags", false)
 
-    val searchChapterNames: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_search_chapter_names",
-        false,
-    )
+    val searchChapterNames: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_names", false)
 
-    val searchChapterContent: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_search_chapter_content",
-        false,
-    )
+    val searchChapterContent: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_content", false)
 
-    val searchByUrl: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_search_by_url",
-        false,
-    )
+    val searchByUrl: Preference<Boolean> = preferenceStore.getBoolean("pref_search_by_url", false)
 
     val searchAlternativeTitles: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_search_alternative_titles",
-            true,
-        )
+        preferenceStore.getBoolean("pref_search_alternative_titles", true)
 
-    val useRegexSearch: Preference<Boolean> = preferenceStore.getBoolean(
-        "pref_use_regex_search",
-        false,
-    )
+    val useRegexSearch: Preference<Boolean> = preferenceStore.getBoolean("pref_use_regex_search", false)
 
     fun filterChapterCount() = preferenceStore.getEnum(
         "pref_filter_library_chapter_count",
         TriState.DISABLED,
     )
 
-    val filterChapterCountThreshold: Preference<Int> =
-        preferenceStore.getInt(
-            "pref_filter_library_chapter_count_threshold",
-            10,
-        )
-
-    val downloadBadge: Preference<Boolean> = preferenceStore.getBoolean(
-        "display_download_badge",
-        false,
+    val filterChapterCountThreshold: Preference<Int> = preferenceStore.getInt(
+        "pref_filter_library_chapter_count_threshold",
+        10,
     )
 
-    val unreadBadge: Preference<Boolean> = preferenceStore.getBoolean(
-        "display_unread_badge",
-        true,
-    )
+    val downloadBadge: Preference<Boolean> = preferenceStore.getBoolean("display_download_badge", false)
 
-    val localBadge: Preference<Boolean> = preferenceStore.getBoolean(
-        "display_local_badge",
-        true,
-    )
+    val unreadBadge: Preference<Boolean> = preferenceStore.getBoolean("display_unread_badge", true)
 
-    val languageBadge: Preference<Boolean> = preferenceStore.getBoolean(
-        "display_language_badge",
-        false,
-    )
+    val localBadge: Preference<Boolean> = preferenceStore.getBoolean("display_local_badge", true)
 
-    val showUrlInList: Preference<Boolean> = preferenceStore.getBoolean(
-        "display_url_in_list",
-        false,
-    )
+    val languageBadge: Preference<Boolean> = preferenceStore.getBoolean("display_language_badge", false)
 
-    val newShowUpdatesCount: Preference<Boolean> = preferenceStore.getBoolean(
-        "library_show_updates_count",
-        true,
-    )
+    val showUrlInList: Preference<Boolean> = preferenceStore.getBoolean("display_url_in_list", false)
+
+    val newShowUpdatesCount: Preference<Boolean> = preferenceStore.getBoolean("library_show_updates_count", true)
 
     val newUpdatesCount: Preference<Int> = preferenceStore.getInt(
         Preference.appStateKey("library_unseen_updates_count"),
         0,
     )
 
-    val historyGroupByNovel: Preference<Boolean> = preferenceStore.getBoolean(
-        "history_group_by_novel",
-        true,
+    val historyGroupByNovel: Preference<Boolean> = preferenceStore.getBoolean("history_group_by_novel", true)
+
+    val updatesGroupByNovel: Preference<Boolean> = preferenceStore.getBoolean("updates_group_by_novel", true)
+
+    val defaultCategory: Preference<Int> = preferenceStore.getInt(DEFAULT_CATEGORY_PREF_KEY, -1)
+
+    val lastUsedCategory: Preference<Int> = preferenceStore.getInt(Preference.appStateKey("last_used_category"), 0)
+
+    val categoryTabs: Preference<Boolean> = preferenceStore.getBoolean("display_category_tabs", true)
+
+    val categoryNumberOfItems: Preference<Boolean> = preferenceStore.getBoolean("display_number_of_items", false)
+
+    val categorizedDisplaySettings: Preference<Boolean> = preferenceStore.getBoolean("categorized_display", false)
+
+    val updateCategories: Preference<Set<String>> = preferenceStore.getStringSet(
+        LIBRARY_UPDATE_CATEGORIES_PREF_KEY,
+        emptySet(),
     )
 
-    val updatesGroupByNovel: Preference<Boolean> = preferenceStore.getBoolean(
-        "updates_group_by_novel",
-        true,
+    val updateCategoriesExclude: Preference<Set<String>> = preferenceStore.getStringSet(
+        LIBRARY_UPDATE_CATEGORIES_EXCLUDE_PREF_KEY,
+        emptySet(),
     )
-
-    val defaultCategory: Preference<Int> = preferenceStore.getInt(
-        DEFAULT_CATEGORY_PREF_KEY,
-        -1,
-    )
-
-    val lastUsedCategory: Preference<Int> = preferenceStore.getInt(
-        Preference.appStateKey("last_used_category"),
-        0,
-    )
-
-    val categoryTabs: Preference<Boolean> = preferenceStore.getBoolean(
-        "display_category_tabs",
-        true,
-    )
-
-    val categoryNumberOfItems: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "display_number_of_items",
-            false,
-        )
-
-    val categorizedDisplaySettings: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "categorized_display",
-            false,
-        )
-
-    val updateCategories: Preference<Set<String>> =
-        preferenceStore.getStringSet(
-            LIBRARY_UPDATE_CATEGORIES_PREF_KEY,
-            emptySet(),
-        )
-
-    val updateCategoriesExclude: Preference<Set<String>> =
-        preferenceStore.getStringSet(
-            LIBRARY_UPDATE_CATEGORIES_EXCLUDE_PREF_KEY,
-            emptySet(),
-        )
 
     val filterChapterByRead: Preference<Long> = preferenceStore.getLong(
         "default_chapter_filter_by_read",
         Manga.SHOW_ALL,
     )
 
-    val filterChapterByDownloaded: Preference<Long> =
-        preferenceStore.getLong(
-            "default_chapter_filter_by_downloaded",
-            Manga.SHOW_ALL,
-        )
+    val filterChapterByDownloaded: Preference<Long> = preferenceStore.getLong(
+        "default_chapter_filter_by_downloaded",
+        Manga.SHOW_ALL,
+    )
 
-    val filterChapterByBookmarked: Preference<Long> =
-        preferenceStore.getLong(
-            "default_chapter_filter_by_bookmarked",
-            Manga.SHOW_ALL,
-        )
+    val filterChapterByBookmarked: Preference<Long> = preferenceStore.getLong(
+        "default_chapter_filter_by_bookmarked",
+        Manga.SHOW_ALL,
+    )
 
-    val sortChapterBySourceOrNumber: Preference<Long> =
-        preferenceStore.getLong(
-            "default_chapter_sort_by_source_or_number",
-            Manga.CHAPTER_SORTING_SOURCE,
-        )
+    val sortChapterBySourceOrNumber: Preference<Long> = preferenceStore.getLong(
+        "default_chapter_sort_by_source_or_number",
+        Manga.CHAPTER_SORTING_SOURCE,
+    )
 
-    val displayChapterByNameOrNumber: Preference<Long> =
-        preferenceStore.getLong(
-            "default_chapter_display_by_name_or_number",
-            Manga.CHAPTER_DISPLAY_BOTH,
-        )
+    val displayChapterByNameOrNumber: Preference<Long> = preferenceStore.getLong(
+        "default_chapter_display_by_name_or_number",
+        Manga.CHAPTER_DISPLAY_BOTH,
+    )
 
-    val sortChapterByAscendingOrDescending: Preference<Long> =
-        preferenceStore.getLong(
-            "default_chapter_sort_by_ascending_or_descending",
-            Manga.CHAPTER_SORT_DESC,
-        )
+    val sortChapterByAscendingOrDescending: Preference<Long> = preferenceStore.getLong(
+        "default_chapter_sort_by_ascending_or_descending",
+        Manga.CHAPTER_SORT_DESC,
+    )
 
     fun setChapterSettingsDefault(manga: Manga) {
         filterChapterByRead.set(manga.unreadFilterRaw)
@@ -375,220 +274,164 @@ class LibraryPreferences(
         sortChapterBySourceOrNumber.set(manga.sorting)
         displayChapterByNameOrNumber.set(manga.displayMode)
         sortChapterByAscendingOrDescending.set(
-            if (manga.sortDescending()) {
-                Manga.CHAPTER_SORT_DESC
-            } else {
-                Manga.CHAPTER_SORT_ASC
-            },
+            if (manga.sortDescending()) Manga.CHAPTER_SORT_DESC else Manga.CHAPTER_SORT_ASC,
         )
     }
 
-    val autoClearChapterCache: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "auto_clear_chapter_cache",
-            false,
-        )
+    val autoClearChapterCache: Preference<Boolean> = preferenceStore.getBoolean("auto_clear_chapter_cache", false)
 
-    val hideMissingChapters: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_hide_missing_chapter_indicators",
-            false,
-        )
+    val hideMissingChapters: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_hide_missing_chapter_indicators",
+        false,
+    )
 
-    val showMangaSourceName: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_show_manga_source_name",
-            true,
-        )
+    val showMangaSourceName: Preference<Boolean> = preferenceStore.getBoolean("pref_show_manga_source_name", true)
 
     /**
-     * When true, the library grid shows the author (or author + artist)
-     * below the title, as long as the title fits on one line (or the active
-     * filter matches the author/artist).
+     * When true, the library grid shows the author (or author + artist) below the title,
+     * as long as the title fits on one line (or the active filter matches the author/artist).
      */
-    val showAuthorArtistSubtitle: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_show_author_artist_subtitle",
-            false,
-        )
+    val showAuthorArtistSubtitle: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_show_author_artist_subtitle",
+        false,
+    )
 
     /**
-     * When true, grid cells use each manga's real cover aspect ratio
-     * instead of forcing every cover into the standard 2:3 book shape.
+     * When true, grid cells use each manga's real cover aspect ratio (measured once and cached
+     * in MangaCoverMetadata) instead of forcing every cover into the standard 2:3 book shape.
      */
-    val freeformCoverGrid: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_freeform_cover_grid",
-            false,
-        )
+    val freeformCoverGrid: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_freeform_cover_grid",
+        false,
+    )
 
     /**
-     * When enabled together with [freeformCoverGrid], uses a masonry-style
-     * staggered grid that packs each column independently.
+     * Only meaningful when [freeformCoverGrid] is on. Switches the comfortable grid from the
+     * standard row-major LazyVerticalGrid (uniform row heights, gaps under shorter covers) to a
+     * masonry-style staggered grid that packs each column independently. Off by default since it
+     * drops fast-scroll support, which the staggered grid scope doesn't share with the standard
+     * one.
      */
-    val freeformCoverGridStaggered: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_freeform_cover_grid_staggered",
-            false,
-        )
+    val freeformCoverGridStaggered: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_freeform_cover_grid_staggered",
+        false,
+    )
 
     /**
-     * When false, bottom navigation bar labels only show under the
-     * currently selected tab.
+     * When false, bottom navigation bar labels only show under the currently selected tab,
+     * instead of under every tab all the time. Default true preserves existing behavior.
      */
-    val alwaysShowNavigationLabels: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_always_show_nav_labels",
-            true,
-        )
+    val alwaysShowNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_always_show_nav_labels",
+        true,
+    )
+
+    // --- Floating nav bar customization ---
+    // NOTE: these were restored after being accidentally dropped in a previous rewrite of this
+    // file. HomeScreen.kt and AdaptiveSheet.kt depend on them directly.
+
+    /** Width of the floating bottom nav bar as a percentage of the available width. */
+    val navBarWidthPercent: Preference<Int> = preferenceStore.getInt("pref_nav_bar_width_percent", 100)
+
+    /** Height of the floating bottom nav bar, in dp. */
+    val navBarHeightDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_height_dp", 80)
+
+    /** Spacing between items in the floating bottom nav bar, in dp. */
+    val navBarItemSpacingDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_item_spacing_dp", 0)
+
+    /** When true, the nav bar uses a fully rounded (pill) shape instead of rounded corners. */
+    val navBarPillShape: Preference<Boolean> = preferenceStore.getBoolean("pref_nav_bar_pill_shape", false)
+
+    /** Background rendering style for the floating nav bar. See [NavBarBackgroundStyle]. */
+    val navBarBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(
+        "pref_nav_bar_background_style",
+        NavBarBackgroundStyle.Solid,
+    )
+
+    /** Opacity of the nav bar background, as a percentage. Only applies when the style isn't Solid. */
+    val navBarOpacityPercent: Preference<Int> = preferenceStore.getInt("pref_nav_bar_opacity_percent", 100)
 
     /**
-     * Manga details screen appearance.
+     * Manga details screen appearance - both default false, preserving the existing look
+     * unless explicitly turned on.
      */
-    val mangaDetailsHideBackdrop: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_manga_details_hide_backdrop",
-            false,
-        )
+    val mangaDetailsHideBackdrop: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_hide_backdrop",
+        false,
+    )
+
+    val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_center_cover",
+        false,
+    )
 
     /**
-     * Blur radius in dp applied to the manga details backdrop image.
+     * When true, the manga details screen shows each cover at its real aspect ratio instead of
+     * forcing it into MangaCover.Book's default shape. Applies to both the large (centered) and
+     * small (side-by-side) cover layouts.
      */
-    val mangaDetailsBackdropBlurDp: Preference<Int> =
-        preferenceStore.getInt(
-            "pref_manga_details_backdrop_blur_dp",
-            4,
-        )
+    val mangaDetailsFreeformCover: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_freeform_cover",
+        false,
+    )
 
     /**
-     * Opacity of the manga details backdrop image.
-     * Value is expressed as a percentage from 0 to 100.
+     * Width of the large centered cover (see [mangaDetailsCenterCover]) as a percentage of the
+     * available width. Only meaningful - and only exposed in settings - when centerCover is on.
      */
-    val mangaDetailsBackdropOpacityPercent: Preference<Int> =
-        preferenceStore.getInt(
-            "pref_manga_details_backdrop_opacity_percent",
-            20,
-        )
+    val mangaDetailsCenterCoverSizePercent: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_center_cover_size_percent",
+        65,
+    )
 
     /**
-     * Brightness of the manga details backdrop image.
-     * Value is expressed as a percentage from 0 to 100.
+     * When true, the manga details screen's whole color scheme (not just one element) is
+     * regenerated from a dominant color extracted from the cover, via the existing
+     * TachiyomiTheme(seedColor) overload + materialkolor infra already present but unused.
      */
-    val mangaDetailsBackdropBrightnessPercent: Preference<Int> =
-        preferenceStore.getInt(
-            "pref_manga_details_backdrop_brightness_percent",
-            100,
-        )
+    val mangaDetailsCoverTheme: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_cover_theme",
+        false,
+    )
 
-    val mangaDetailsCenterCover: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_manga_details_center_cover",
-            false,
-        )
+    val autoRefreshLibrary: Preference<Boolean> = preferenceStore.getBoolean("pref_auto_refresh_library", true)
 
-    /**
-     * When true, the manga details screen shows each cover at its real
-     * aspect ratio instead of forcing it into MangaCover.Book's default
-     * shape. Applies to both the large centered and small side-by-side
-     * cover layouts.
-     */
-    val mangaDetailsFreeformCover: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_manga_details_freeform_cover",
-            false,
-        )
+    val swipeToStartAction: Preference<ChapterSwipeAction> = preferenceStore.getEnum(
+        "pref_chapter_swipe_end_action",
+        ChapterSwipeAction.ToggleBookmark,
+    )
 
-    /**
-     * Width of the large centered cover as a percentage of the
-     * available width.
-     */
-    val mangaDetailsCenterCoverSizePercent: Preference<Int> =
-        preferenceStore.getInt(
-            "pref_manga_details_center_cover_size_percent",
-            65,
-        )
+    val swipeToEndAction: Preference<ChapterSwipeAction> = preferenceStore.getEnum(
+        "pref_chapter_swipe_start_action",
+        ChapterSwipeAction.ToggleRead,
+    )
 
-    /**
-     * When true, the manga details screen's whole color scheme is
-     * regenerated from a dominant color extracted from the cover.
-     */
-    val mangaDetailsCoverTheme: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_manga_details_cover_theme",
-            false,
-        )
+    val updateMangaTitles: Preference<Boolean> = preferenceStore.getBoolean("pref_update_library_manga_titles", false)
 
-    val autoRefreshLibrary: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_auto_refresh_library",
-            true,
-        )
+    val updateMangaMetadata: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_update_library_manga_metadata",
+        true,
+    )
 
-    val swipeToStartAction: Preference<ChapterSwipeAction> =
-        preferenceStore.getEnum(
-            "pref_chapter_swipe_end_action",
-            ChapterSwipeAction.ToggleBookmark,
-        )
+    val disallowNonAsciiFilenames: Preference<Boolean> = preferenceStore.getBoolean(
+        "disallow_non_ascii_filenames",
+        false,
+    )
 
-    val swipeToEndAction: Preference<ChapterSwipeAction> =
-        preferenceStore.getEnum(
-            "pref_chapter_swipe_start_action",
-            ChapterSwipeAction.ToggleRead,
-        )
+    val mangaReadProgress100: Preference<Boolean> = preferenceStore.getBoolean("pref_manga_read_progress_100", true)
 
-    val updateMangaTitles: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_update_library_manga_titles",
-            false,
-        )
+    val novelReadProgress100: Preference<Boolean> = preferenceStore.getBoolean("pref_novel_read_progress_100", true)
 
-    val updateMangaMetadata: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_update_library_manga_metadata",
-            true,
-        )
+    val duplicateSortMode: Preference<DuplicateSortMode> = preferenceStore.getEnum(
+        "pref_duplicate_sort_mode",
+        DuplicateSortMode.Alphabetical,
+    )
 
-    val disallowNonAsciiFilenames: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "disallow_non_ascii_filenames",
-            false,
-        )
+    val checkDuplicateEntryOnAdd: Preference<Boolean> = preferenceStore.getBoolean("pref_check_duplicate_on_add", true)
 
-    val mangaReadProgress100: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_manga_read_progress_100",
-            true,
-        )
+    val sourceTypePriorities: Preference<String> = preferenceStore.getString("source_type_priorities", "")
 
-    val novelReadProgress100: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_novel_read_progress_100",
-            true,
-        )
-
-    val duplicateSortMode: Preference<DuplicateSortMode> =
-        preferenceStore.getEnum(
-            "pref_duplicate_sort_mode",
-            DuplicateSortMode.Alphabetical,
-        )
-
-    val checkDuplicateEntryOnAdd: Preference<Boolean> =
-        preferenceStore.getBoolean(
-            "pref_check_duplicate_on_add",
-            true,
-        )
-
-    val sourceTypePriorities: Preference<String> =
-        preferenceStore.getString(
-            "source_type_priorities",
-            "",
-        )
-
-    val specificSourcePriorities: Preference<String> =
-        preferenceStore.getString(
-            "specific_source_priorities",
-            "",
-        )
+    val specificSourcePriorities: Preference<String> = preferenceStore.getString("specific_source_priorities", "")
 
     enum class DuplicateSortMode {
         Alphabetical,
@@ -600,6 +443,18 @@ class LibraryPreferences(
         ToggleBookmark,
         Download,
         Disabled,
+    }
+
+    /**
+     * Background rendering style shared by the floating nav bar and (where applicable) sheets.
+     * - Solid: fully opaque background, uses [navBarOpacityPercent]/opacity is ignored.
+     * - Transparent: flat color at [navBarOpacityPercent] opacity, no blur.
+     * - Frosted: blurred backdrop (via Haze) at [navBarOpacityPercent] opacity.
+     */
+    enum class NavBarBackgroundStyle {
+        Solid,
+        Transparent,
+        Frosted,
     }
 
     companion object {
@@ -625,12 +480,8 @@ class LibraryPreferences(
         const val MARK_DUPLICATE_CHAPTER_READ_EXISTING = "existing"
 
         const val DEFAULT_CATEGORY_PREF_KEY = "default_category"
-
-        private const val LIBRARY_UPDATE_CATEGORIES_PREF_KEY =
-            "library_update_categories"
-
-        private const val LIBRARY_UPDATE_CATEGORIES_EXCLUDE_PREF_KEY =
-            "library_update_categories_exclude"
+        private const val LIBRARY_UPDATE_CATEGORIES_PREF_KEY = "library_update_categories"
+        private const val LIBRARY_UPDATE_CATEGORIES_EXCLUDE_PREF_KEY = "library_update_categories_exclude"
 
         val categoryPreferenceKeys = setOf(
             DEFAULT_CATEGORY_PREF_KEY,
