@@ -28,6 +28,7 @@ import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toLocalDateTime
+import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -53,6 +54,8 @@ object SettingsAppearanceScreen : SearchableSettings {
             getThemeGroup(uiPreferences = uiPreferences),
             getDisplayGroup(uiPreferences = uiPreferences),
             getLibraryLayoutGroup(libraryPreferences = libraryPreferences),
+            getNavBarAppearanceGroup(libraryPreferences = libraryPreferences),
+            getSheetAppearanceGroup(libraryPreferences = libraryPreferences),
             getMangaDetailsGroup(libraryPreferences = libraryPreferences, uiPreferences = uiPreferences),
         )
     }
@@ -196,6 +199,166 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = "How the cover's color is turned into a full theme",
                     enabled = coverTheme,
                 ),
+            ),
+        )
+    }
+
+    /**
+     * Bottom-sheet / dialog (AdaptiveSheet) background style and opacity. Reuses
+     * LibraryPreferences.NavBarBackgroundStyle since sheets support the same
+     * Solid/Transparent/Frosted styles as the floating nav bar.
+     */
+    @Composable
+    private fun getSheetAppearanceGroup(
+        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+    ): Preference.PreferenceGroup {
+        val backgroundStyle by libraryPreferences.sheetBackgroundStyle.collectAsState()
+        val opacityPercent by libraryPreferences.sheetOpacityPercent.collectAsState()
+        val opacityEnabled = backgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
+
+        return Preference.PreferenceGroup(
+            title = "Sheet appearance",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.ListPreference(
+                    preference = libraryPreferences.sheetBackgroundStyle,
+                    entries = LibraryPreferences.NavBarBackgroundStyle.entries.associateWith { it.name },
+                    title = "Sheet background style",
+                    subtitle = "Solid, transparent, or frosted (blurred) background for sheets and dialogs",
+                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Sheet opacity",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Sheet opacity: $opacityPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (opacityEnabled) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = opacityPercent.toFloat(),
+                            valueRange = 0f..100f,
+                            steps = 19,
+                            enabled = opacityEnabled,
+                            onValueChange = {
+                                libraryPreferences.sheetOpacityPercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+            ),
+        )
+    }
+
+    /**
+     * Floating bottom navigation bar customization - size, spacing, shape, and background style.
+     */
+    @Composable
+    private fun getNavBarAppearanceGroup(
+        libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
+    ): Preference.PreferenceGroup {
+        val widthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
+        val heightDp by libraryPreferences.navBarHeightDp.collectAsState()
+        val itemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
+        val backgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
+        val opacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
+        val opacityEnabled = backgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
+
+        return Preference.PreferenceGroup(
+            title = "Navigation bar appearance",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar width",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Nav bar width: $widthPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = widthPercent.toFloat(),
+                            valueRange = 50f..100f,
+                            steps = 9,
+                            onValueChange = {
+                                libraryPreferences.navBarWidthPercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar height",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Nav bar height: ${heightDp}dp",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = heightDp.toFloat(),
+                            valueRange = 56f..120f,
+                            steps = 15,
+                            onValueChange = {
+                                libraryPreferences.navBarHeightDp.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar item spacing",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Item spacing: ${itemSpacingDp}dp",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = itemSpacingDp.toFloat(),
+                            valueRange = 0f..24f,
+                            steps = 23,
+                            onValueChange = {
+                                libraryPreferences.navBarItemSpacingDp.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = libraryPreferences.navBarPillShape,
+                    title = "Pill shape",
+                    subtitle = "Use a fully rounded pill shape instead of rounded corners",
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    preference = libraryPreferences.navBarBackgroundStyle,
+                    entries = LibraryPreferences.NavBarBackgroundStyle.entries.associateWith { it.name },
+                    title = "Nav bar background style",
+                    subtitle = "Solid, transparent, or frosted (blurred) background",
+                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar opacity",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Nav bar opacity: $opacityPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (opacityEnabled) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = opacityPercent.toFloat(),
+                            valueRange = 0f..100f,
+                            steps = 19,
+                            enabled = opacityEnabled,
+                            onValueChange = {
+                                libraryPreferences.navBarOpacityPercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
             ),
         )
     }
