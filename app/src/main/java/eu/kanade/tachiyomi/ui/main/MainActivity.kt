@@ -84,6 +84,7 @@ import eu.kanade.tachiyomi.ui.deeplink.DeepLinkScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.library.ImportEpubScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
@@ -114,6 +115,7 @@ class MainActivity : BaseActivity() {
 
     private val libraryPreferences: LibraryPreferences by injectLazy()
     private val preferences: BasePreferences by injectLazy()
+    private val uiPreferences: UiPreferences by injectLazy()
     private val downloadCache: DownloadCache by injectLazy()
     private val chapterCache: ChapterCache by injectLazy()
     private val getIncognitoState: GetIncognitoState by injectLazy()
@@ -123,6 +125,15 @@ class MainActivity : BaseActivity() {
     var ready = false
 
     private var navigator: Navigator? = null
+
+    private suspend fun showUpdateChangelogIfNeeded(context: Context) {
+        val currentVersionCode = BuildConfig.VERSION_CODE
+        val lastVersionCode = uiPreferences.lastVersionCode.get()
+        if (currentVersionCode > lastVersionCode) {
+            uiPreferences.lastVersionCode.set(currentVersionCode)
+            context.toast("App updated to v${BuildConfig.VERSION_NAME}! Check What's New in Settings > About")
+        }
+    }
 
     init {
         registerSecureActivity(this)
@@ -188,6 +199,9 @@ class MainActivity : BaseActivity() {
 
                         // Reset Incognito Mode on relaunch
                         preferences.incognitoMode.set(false)
+
+                        // Show changelog popup if app was updated
+                        showUpdateChangelogIfNeeded(context)
                     }
                 }
 

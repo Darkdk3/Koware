@@ -263,9 +263,11 @@ object SettingsAppearanceScreen : SearchableSettings {
         val widthPercent by libraryPreferences.navBarWidthPercent.collectAsState()
         val heightDp by libraryPreferences.navBarHeightDp.collectAsState()
         val itemSpacingDp by libraryPreferences.navBarItemSpacingDp.collectAsState()
+        val cornerRadiusDp by libraryPreferences.navBarCornerRadiusDp.collectAsState()
         val backgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
         val opacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
         val opacityEnabled = backgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
+        val frostEnabled = backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
 
         return Preference.PreferenceGroup(
             title = "Navigation bar appearance",
@@ -324,11 +326,30 @@ object SettingsAppearanceScreen : SearchableSettings {
                         )
                     }
                 },
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.navBarPillShape,
-                    title = "Pill shape",
-                    subtitle = "Use a fully rounded pill shape instead of rounded corners",
-                ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Nav bar corner radius",
+                ) {
+                    val cornerRadiusDp by libraryPreferences.navBarCornerRadiusDp.collectAsState()
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Corner radius: ${cornerRadiusDp}dp",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "0 = pill shape, higher values = rounded corners",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = cornerRadiusDp.toFloat(),
+                            valueRange = 0f..56f,
+                            steps = 11,
+                            onValueChange = {
+                                libraryPreferences.navBarCornerRadiusDp.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
                 Preference.PreferenceItem.ListPreference(
                     preference = libraryPreferences.navBarBackgroundStyle,
                     entries = LibraryPreferences.NavBarBackgroundStyle.entries.associateWith { it.name },

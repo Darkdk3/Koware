@@ -46,6 +46,9 @@ class UiPreferences(
 
     val showNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean("pref_show_navigation_labels", true)
 
+    /** Last version for which changelog was shown. Used to display whats new popup after update. */
+    val lastVersionCode: Preference<Int> = preferenceStore.getInt("pref_last_version_code", 0)
+
     companion object {
         fun dateFormat(format: String): DateTimeFormatter = when (format) {
             "" -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
