@@ -67,10 +67,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
@@ -137,7 +135,7 @@ fun MangaInfoBox(
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
-    val blueBackdrop by libraryPreferences.mangaDetailsBlueBackdrop.collectAsState()
+    val blurBackdrop by libraryPreferences.mangaDetailsBlurBackdrop.collectAsState()
     val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
     val freeformCover by libraryPreferences.mangaDetailsFreeformCover.collectAsState()
     val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
@@ -159,15 +157,6 @@ fun MangaInfoBox(
                 .build(),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            // "Blue backdrop" appearance setting: tints the backdrop image blue via a
-            // Multiply blend, which keeps the image's light/dark detail instead of flattening
-            // it out the way Modulate/SrcIn would. No visible effect when hideBackdrop is on,
-            // since the image isn't shown in that case anyway.
-            colorFilter = if (blueBackdrop) {
-                ColorFilter.tint(Color(0xFF2196F3), BlendMode.Multiply)
-            } else {
-                null
-            },
             onSuccess = { state ->
                 // Feeds the "cover-based theme" appearance option. Runs regardless of the
                 // hideBackdrop toggle since the two are independent settings.
@@ -193,7 +182,7 @@ fun MangaInfoBox(
                             brush = Brush.verticalGradient(colors = backdropGradientColors),
                         )
                     }
-                    .blur(4.dp)
+                    .let { m -> if (blurBackdrop) m.blur(4.dp) else m }
                     .alpha(0.2f)
             } else {
                 // Still needs to load for palette extraction, but shouldn't be visible.
