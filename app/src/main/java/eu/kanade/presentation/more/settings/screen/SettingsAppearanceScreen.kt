@@ -468,7 +468,6 @@ object SettingsAppearanceScreen : SearchableSettings {
     ): Preference.PreferenceGroup {
         val context = LocalContext.current
         val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
-        val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
@@ -499,17 +498,6 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.showAuthorArtistSubtitle,
                     title = "Show author/artist under title",
                     subtitle = "In library grid view, shows the author (or author + artist) below the title when it fits",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.freeformCoverGrid,
-                    title = "Freeform cover grid",
-                    subtitle = "Size grid cells to each cover's real aspect ratio instead of a fixed shape",
-                ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.freeformCoverGridStaggered,
-                    title = "Staggered layout for freeform covers",
-                    subtitle = "Pack covers tightly with a masonry layout instead of leaving gaps under shorter ones. Disables fast-scroll.",
-                    enabled = freeformCoverGrid,
                 ),
             ),
         )
