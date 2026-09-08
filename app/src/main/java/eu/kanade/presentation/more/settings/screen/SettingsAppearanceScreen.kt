@@ -76,9 +76,9 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = "Remove the blurred cover image behind the title area",
                 ),
                 Preference.PreferenceItem.SwitchPreference(
-                    preference = libraryPreferences.mangaDetailsBlueBackdrop,
-                    title = "Blue backdrop",
-                    subtitle = "Tint the backdrop image blue",
+                    preference = libraryPreferences.mangaDetailsBlurBackdrop,
+                    title = "Blur backdrop image",
+                    subtitle = "Turn off to show the backdrop image sharp instead of blurred",
                     enabled = !hideBackdrop,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
