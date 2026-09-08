@@ -135,7 +135,8 @@ fun MangaInfoBox(
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
-    val blurBackdrop by libraryPreferences.mangaDetailsBlurBackdrop.collectAsState()
+    val backdropBlurRadius by libraryPreferences.mangaDetailsBackdropBlurRadius.collectAsState()
+    val backdropBrightness by libraryPreferences.mangaDetailsBackdropBrightness.collectAsState()
     val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
     val freeformCover by libraryPreferences.mangaDetailsFreeformCover.collectAsState()
     val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
@@ -182,8 +183,8 @@ fun MangaInfoBox(
                             brush = Brush.verticalGradient(colors = backdropGradientColors),
                         )
                     }
-                    .let { m -> if (blurBackdrop) m.blur(4.dp) else m }
-                    .alpha(0.2f)
+                    .let { m -> if (backdropBlurRadius > 0) m.blur(backdropBlurRadius.dp) else m }
+                    .alpha(backdropBrightness / 100f)
             } else {
                 // Still needs to load for palette extraction, but shouldn't be visible.
                 Modifier.size(1.dp).alpha(0f)
