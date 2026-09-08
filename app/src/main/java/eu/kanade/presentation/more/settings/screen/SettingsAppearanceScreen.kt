@@ -62,12 +62,13 @@ object SettingsAppearanceScreen : SearchableSettings {
         libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences,
         uiPreferences: UiPreferences,
     ): Preference.PreferenceGroup {
-        val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
-        val backdropBlurRadius by libraryPreferences.mangaDetailsBackdropBlurRadius.collectAsState()
-        val backdropBrightness by libraryPreferences.mangaDetailsBackdropBrightness.collectAsState()
         val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
         val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
         val coverTheme by libraryPreferences.mangaDetailsCoverTheme.collectAsState()
+        val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
+        val backdropBlurDp by libraryPreferences.mangaDetailsBackdropBlurDp.collectAsState()
+        val backdropOpacityPercent by libraryPreferences.mangaDetailsBackdropOpacityPercent.collectAsState()
+        val backdropBrightnessPercent by libraryPreferences.mangaDetailsBackdropBrightnessPercent.collectAsState()
 
         return Preference.PreferenceGroup(
             title = "Manga details screen",
@@ -82,11 +83,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                         Text(
-                            text = if (backdropBlurRadius == 0) {
-                                "Backdrop blur: off"
-                            } else {
-                                "Backdrop blur: ${backdropBlurRadius}dp"
-                            },
+                            text = "Backdrop blur: ${backdropBlurDp}dp",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (!hideBackdrop) {
                                 MaterialTheme.colorScheme.onSurface
@@ -95,12 +92,36 @@ object SettingsAppearanceScreen : SearchableSettings {
                             },
                         )
                         androidx.compose.material3.Slider(
-                            value = backdropBlurRadius.toFloat(),
+                            value = backdropBlurDp.toFloat(),
                             valueRange = 0f..20f,
                             steps = 19,
                             enabled = !hideBackdrop,
                             onValueChange = {
-                                libraryPreferences.mangaDetailsBackdropBlurRadius.set(it.roundToInt())
+                                libraryPreferences.mangaDetailsBackdropBlurDp.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Backdrop opacity",
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Backdrop opacity: $backdropOpacityPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (!hideBackdrop) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                        androidx.compose.material3.Slider(
+                            value = backdropOpacityPercent.toFloat(),
+                            valueRange = 0f..100f,
+                            steps = 19,
+                            enabled = !hideBackdrop,
+                            onValueChange = {
+                                libraryPreferences.mangaDetailsBackdropOpacityPercent.set(it.roundToInt())
                             },
                         )
                     }
@@ -110,7 +131,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                         Text(
-                            text = "Backdrop brightness: $backdropBrightness%",
+                            text = "Backdrop brightness: $backdropBrightnessPercent%",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (!hideBackdrop) {
                                 MaterialTheme.colorScheme.onSurface
@@ -119,12 +140,12 @@ object SettingsAppearanceScreen : SearchableSettings {
                             },
                         )
                         androidx.compose.material3.Slider(
-                            value = backdropBrightness.toFloat(),
-                            valueRange = 0f..100f,
+                            value = backdropBrightnessPercent.toFloat(),
+                            valueRange = 50f..150f,
                             steps = 19,
                             enabled = !hideBackdrop,
                             onValueChange = {
-                                libraryPreferences.mangaDetailsBackdropBrightness.set(it.roundToInt())
+                                libraryPreferences.mangaDetailsBackdropBrightnessPercent.set(it.roundToInt())
                             },
                         )
                     }
@@ -190,7 +211,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         val appTheme by appThemePref.collectAsState()
         val amoledPref = uiPreferences.themeDarkAmoled
         val amoled by amoledPref.collectAsState()
-
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_theme),
             preferenceItems = listOf(
@@ -236,7 +256,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         val formattedNow = remember(dateFormat) {
             UiPreferences.dateFormat(dateFormat).format(now)
         }
-
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_display),
             preferenceItems = listOf(
@@ -287,7 +306,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         val context = LocalContext.current
         val basePreferences = remember { Injekt.get<eu.kanade.domain.base.BasePreferences>() }
         val freeformCoverGrid by libraryPreferences.freeformCoverGrid.collectAsState()
-
         return Preference.PreferenceGroup(
             title = "Library layout",
             preferenceItems = listOf(
