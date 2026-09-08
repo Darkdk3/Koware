@@ -256,9 +256,15 @@ class ReaderActivity : BaseActivity() {
         }
 
         enableEdgeToEdge()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-        }
+        // NOTE: previously this unconditionally set
+        //   window.isNavigationBarContrastEnforced = false
+        // for the whole Activity lifetime, which suppressed the system's blur-behind/
+        // contrast scrim behind AdaptiveSheet dialogs (ReadingModeSelectDialog,
+        // ReaderPageActionsDialog, ReaderSettingsDialog, etc.), making them render flat
+        // instead of frosted like the rest of the app (e.g. the Library filter sheet).
+        // It's now toggled dynamically in setComposeOverlay() based on whether a dialog
+        // is currently showing, so the reader viewer keeps edge-to-edge immersion while
+        // dialogs get the same frosted look as everywhere else.
         windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         super.onCreate(savedInstanceState)
@@ -396,6 +402,17 @@ class ReaderActivity : BaseActivity() {
         },
     ) {
         val state by viewModel.state.collectAsState()
+
+        // Re-enable system nav bar contrast (and therefore the OS blur-behind/frosted
+        // scrim) only while a dialog/AdaptiveSheet is showing, matching how sheets look
+        // everywhere else in the app (e.g. the Library filter sheet). Disabled again once
+        // dismissed so the reader viewer keeps its normal edge-to-edge immersive look.
+        LaunchedEffect(state.dialog) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = state.dialog != null
+            }
+        }
+
         val showPageNumber by readerPreferences.showPageNumber.collectAsState()
         val autoTranslateEnabled by readerPreferences.autoTranslate.collectAsState()
         val novelStatusBarEnabled by readerPreferences.novelStatusBarEnabled.collectAsState()
