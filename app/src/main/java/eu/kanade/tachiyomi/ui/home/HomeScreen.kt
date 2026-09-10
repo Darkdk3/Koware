@@ -164,8 +164,9 @@ object HomeScreen : Screen() {
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        // 0 = pill shape (fully rounded), >0 = custom corner radius
-                                        val barShape = if (navBarCornerRadiusDp == 0) {
+                                        // -1 = pill shape (fully rounded), 0 (default) = plain rectangle,
+                                        // >0 = custom corner radius
+                                        val barShape = if (navBarCornerRadiusDp < 0) {
                                             RoundedCornerShape(percent = 50)
                                         } else {
                                             RoundedCornerShape(navBarCornerRadiusDp.dp)
