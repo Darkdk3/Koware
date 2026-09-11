@@ -39,4 +39,23 @@ Translation:"""
         if (text != null) result = result.replace("{TEXT}", text)
         return result
     }
+
+    const val DEFAULT_AI_RECOMMENDATION_PROMPT = """You are a manga and novel recommendation assistant. Analyze the reader's reading history and the candidate list below.
+
+Reader's most-read genres: {TOP_GENRES}
+Reader's most-read authors: {TOP_AUTHORS}
+
+From this candidate list, pick up to 8 titles this reader would most enjoy.
+Return ONLY a JSON array of the candidate index numbers, best match first.
+No explanation, no other text.
+
+Candidates:
+{CANDIDATES}"""
+
+    fun applyAiPrompt(template: String, topGenres: String, topAuthors: String, candidates: String): String {
+        return template
+            .replace("{TOP_GENRES}", topGenres)
+            .replace("{TOP_AUTHORS}", topAuthors)
+            .replace("{CANDIDATES}", candidates)
+    }
 }

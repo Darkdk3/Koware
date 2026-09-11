@@ -457,4 +457,24 @@ class TranslationPreferences(
         "ai_feature_api_key",
         "",
     )
+
+    /**
+     * Custom system prompt for AI features (recommendations, etc.).
+     * Blank means use [TranslationPromptDefaults.DEFAULT_AI_RECOMMENDATION_PROMPT].
+     * Supports {TOP_GENRES}, {TOP_AUTHORS}, and {CANDIDATES} placeholders.
+     */
+    fun aiFeatureSystemPrompt() = preferenceStore.getString(
+        "ai_feature_system_prompt",
+        "",
+    )
+
+    /**
+     * Custom user prompt template for AI features (recommendations, etc.).
+     * Blank means the prompt is built from the system prompt template alone.
+     * Supports {TOP_GENRES}, {TOP_AUTHORS}, and {CANDIDATES} placeholders.
+     */
+    fun aiFeatureUserPrompt() = preferenceStore.getString(
+        "ai_feature_user_prompt",
+        "",
+    )
 }
