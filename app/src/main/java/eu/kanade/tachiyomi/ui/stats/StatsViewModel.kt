@@ -19,6 +19,7 @@ import tachiyomi.domain.library.service.LibraryPreferences.Companion.MANGA_HAS_U
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.MANGA_NON_COMPLETED
 import tachiyomi.domain.library.service.LibraryPreferences.Companion.MANGA_NON_READ
 import tachiyomi.domain.manga.interactor.GetLibraryManga
+import tachiyomi.domain.manga.interactor.ReadingProfile
 import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.model.Track
 import tachiyomi.source.local.isLocal
@@ -39,12 +40,9 @@ class StatsViewModel(
     init {
         viewModelScope.launchIO {
             val libraryManga = getLibraryManga.await()
-
             val distinctLibraryManga = libraryManga.fastDistinctBy { it.id }
-
             val mangaTrackMap = getMangaTrackMap(distinctLibraryManga)
             val scoredMangaTrackerMap = getScoredMangaTrackMap(mangaTrackMap)
-
             val meanScore = getTrackMeanScore(scoredMangaTrackerMap)
 
             val overviewStatData = StatsData.Overview(
@@ -73,22 +71,44 @@ class StatsViewModel(
                 trackerCount = loggedInTrackers.size,
             )
 
+            val readingProfile = buildReadingProfile(distinctLibraryManga)
+
             mutableState.update {
                 StatsScreenState.Success(
                     overview = overviewStatData,
                     titles = titlesStatData,
                     chapters = chaptersStatData,
                     trackers = trackersStatData,
+                    readingProfile = readingProfile,
                 )
             }
         }
+    }
+
+    private fun buildReadingProfile(libraryManga: List<LibraryManga>): ReadingProfile {
+        val genreWeights = mutableMapOf<String, Int>()
+        val authorWeights = mutableMapOf<String, Int>()
+
+        libraryManga.forEach { entry ->
+            val weight = entry.readCount.coerceAtLeast(1).toInt()
+            entry.manga.genre.orEmpty().forEach { genre ->
+                genreWeights[genre] = (genreWeights[genre] ?: 0) + weight
+            }
+            entry.manga.author?.let { author ->
+                authorWeights[author] = (authorWeights[author] ?: 0) + weight
+            }
+        }
+
+        return ReadingProfile(
+            topGenres = genreWeights.entries.sortedByDescending { it.value }.take(8).map { it.key },
+            topAuthors = authorWeights.entries.sortedByDescending { it.value }.take(5).map { it.key },
+        )
     }
 
     private fun getGlobalUpdateItemCount(libraryManga: List<LibraryManga>): Int {
         val includedCategories = preferences.updateCategories.get().map { it.toLong() }
         val excludedCategories = preferences.updateCategoriesExclude.get().map { it.toLong() }
         val updateRestrictions = preferences.autoUpdateMangaRestrictions.get()
-
         return libraryManga.filter {
             val included = includedCategories.isEmpty() || it.categories.intersect(includedCategories).isNotEmpty()
             val excluded = it.categories.intersect(excludedCategories).isNotEmpty()
