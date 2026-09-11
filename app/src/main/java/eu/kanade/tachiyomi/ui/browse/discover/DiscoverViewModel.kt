@@ -1,5 +1,3 @@
-// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverViewModel.kt
-
 package eu.kanade.tachiyomi.ui.browse.discover
 
 import androidx.lifecycle.viewModelScope
@@ -19,12 +17,6 @@ import uy.kohesive.injekt.api.get
 
 enum class DiscoverBrowseMode { LATEST, POPULAR }
 
-/**
- * The manga here is already a real local database entry (converted via NetworkToLocalManga
- * as soon as it's fetched, not only when tapped) - same as how BrowseSourceScreen already
- * handles source listings. This gives Discover a real id for cover caching/consistent card
- * rendering, and makes tap-to-navigate trivial since the id is already known.
- */
 data class DiscoverEntry(
     val source: CatalogueSource,
     val manga: Manga,
@@ -32,6 +24,7 @@ data class DiscoverEntry(
 
 data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),
+    val recommendations: List<DiscoverEntry> = emptyList(),
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -45,9 +38,11 @@ class DiscoverViewModel(
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val jsPluginManager: JsPluginManager = Injekt.get(),
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
+    private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations(),
 ) : StateViewModel<DiscoverScreenState>(DiscoverScreenState()) {
 
     private data class SourcePageCursor(val nextPage: Int, val hasNextPage: Boolean)
+
     private val pageCursors = mutableMapOf<Long, SourcePageCursor>()
 
     init {
@@ -89,11 +84,20 @@ class DiscoverViewModel(
                     DiscoverEntry(source, localManga)
                 }
             }
-            val merged = interleave(perSourceLists)
 
+            val merged = interleave(perSourceLists)
             mutableState.update {
                 it.copy(items = merged, isLoading = false, hasPinnedNovelSources = sources.isNotEmpty())
             }
+
+            loadAiRecommendations()
+        }
+    }
+
+    private fun loadAiRecommendations() {
+        viewModelScope.launchIO {
+            val recs = runCatching { getAiRecommendations.await(state.value.items) }.getOrDefault(emptyList())
+            mutableState.update { it.copy(recommendations = recs) }
         }
     }
 
@@ -118,8 +122,8 @@ class DiscoverViewModel(
                     DiscoverEntry(source, localManga)
                 }
             }
-            val appended = interleave(newLists)
 
+            val appended = interleave(newLists)
             mutableState.update { it.copy(items = it.items + appended, isLoadingMore = false) }
         }
     }
@@ -133,7 +137,6 @@ class DiscoverViewModel(
         DiscoverBrowseMode.POPULAR -> source.getPopularManga(page)
     }
 
-    /** Trivial now - the manga is already a real local entry with a known id by fetch time. */
     fun openEntry(entry: DiscoverEntry) {
         mutableState.update { it.copy(pendingMangaId = entry.manga.id) }
     }
