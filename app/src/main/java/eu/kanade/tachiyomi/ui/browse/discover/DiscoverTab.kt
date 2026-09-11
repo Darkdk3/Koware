@@ -1,5 +1,3 @@
-// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverTab.kt
-
 package eu.kanade.tachiyomi.ui.browse.discover
 
 import androidx.compose.animation.core.LinearEasing
@@ -15,21 +13,28 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,11 +63,6 @@ import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-/**
- * "Discover" tab, next to Sources/Extensions. Feed is driven by whichever novel
- * sources you've pinned in the Sources tab — long-press a source there to pin it.
- * Register by adding `discoverTab(discoverViewModel)` to BrowseTab's `tabs` list.
- */
 @Composable
 fun discoverTab(
     viewModel: DiscoverViewModel,
@@ -91,6 +91,7 @@ fun discoverTab(
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
+                recommendations = state.recommendations,
                 isLoading = state.isLoading,
                 isLoadingMore = state.isLoadingMore,
                 browseMode = state.browseMode,
@@ -106,6 +107,7 @@ fun discoverTab(
 @Composable
 private fun DiscoverScreenContent(
     items: List<DiscoverEntry>,
+    recommendations: List<DiscoverEntry>,
     isLoading: Boolean,
     isLoadingMore: Boolean,
     browseMode: DiscoverBrowseMode,
@@ -124,6 +126,7 @@ private fun DiscoverScreenContent(
             items.isNotEmpty() && lastVisible >= items.size - 6
         }
     }
+
     LaunchedEffect(shouldLoadMore, isLoading, isLoadingMore) {
         if (shouldLoadMore && !isLoading && !isLoadingMore) {
             onLoadMore()
@@ -136,14 +139,11 @@ private fun DiscoverScreenContent(
         GridCells.Adaptive(minSize = 130.dp)
     }
 
-    // Toggle stays visible in every state - loading, empty, or populated - so switching
-    // modes is always available rather than disappearing while content loads.
     Column(modifier = Modifier.fillMaxSize()) {
+        AiRecommendationsShelf(recommendations = recommendations, onMangaClick = onMangaClick)
         BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
-
         when {
             isLoading -> DiscoverLoadingGrid(columns = columns, contentPadding = contentPadding)
-
             items.isEmpty() -> Box(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 contentAlignment = Alignment.Center,
@@ -153,7 +153,6 @@ private fun DiscoverScreenContent(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
-
             else -> LazyVerticalGrid(
                 state = gridState,
                 columns = columns,
@@ -189,7 +188,6 @@ private fun DiscoverScreenContent(
                         )
                     }
                 }
-
                 if (isLoadingMore) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(
@@ -199,6 +197,61 @@ private fun DiscoverScreenContent(
                             CircularProgressIndicator()
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AiRecommendationsShelf(
+    recommendations: List<DiscoverEntry>,
+    onMangaClick: (DiscoverEntry) -> Unit,
+) {
+    if (recommendations.isEmpty()) return
+
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "AI recommendations",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            items(recommendations, key = { "rec_${it.manga.id}" }) { entry ->
+                Column(modifier = Modifier.width(92.dp)) {
+                    MangaComfortableGridItem(
+                        isSelected = false,
+                        title = entry.manga.title,
+                        coverData = MangaCover(
+                            mangaId = entry.manga.id,
+                            sourceId = entry.manga.source,
+                            isMangaFavorite = entry.manga.favorite,
+                            url = entry.manga.thumbnailUrl,
+                            lastModified = entry.manga.coverLastModified,
+                        ),
+                        coverBadgeStart = {},
+                        coverBadgeEnd = {},
+                        onLongClick = {},
+                        onClick = { onMangaClick(entry) },
+                        onClickContinueReading = null,
+                        titleMaxLines = 2,
+                    )
                 }
             }
         }
@@ -229,10 +282,6 @@ private fun BrowseModeToggle(
     }
 }
 
-/**
- * Animated shimmer brush - a soft highlight band that sweeps diagonally across
- * placeholder shapes on a loop, the standard "skeleton loading" effect.
- */
 @Composable
 private fun shimmerBrush(): Brush {
     val transition = rememberInfiniteTransition(label = "shimmer")
@@ -260,7 +309,6 @@ private fun DiscoverLoadingGrid(
     contentPadding: PaddingValues,
 ) {
     val brush = shimmerBrush()
-
     LazyVerticalGrid(
         columns = columns,
         contentPadding = contentPadding,
