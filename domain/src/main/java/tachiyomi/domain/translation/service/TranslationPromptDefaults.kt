@@ -46,7 +46,8 @@ Reader's most-read genres: {TOP_GENRES}
 Reader's most-read authors: {TOP_AUTHORS}
 
 From this candidate list, pick up to 8 titles this reader would most enjoy.
-Return ONLY a JSON array of the candidate index numbers, best match first.
+Return ONLY a JSON array of objects with the candidate index and a match score out of 100, best match first.
+Example: [{"index": 0, "score": 92}]
 No explanation, no other text.
 
 Candidates:

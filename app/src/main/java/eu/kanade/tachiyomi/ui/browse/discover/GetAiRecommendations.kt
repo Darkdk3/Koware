@@ -21,17 +21,50 @@ interface RecommendableItem {
     val mangaAuthor: String?
 }
 
+@kotlinx.serialization.Serializable
+private data class AiPick(
+    val index: Int,
+    val score: Int? = null,
+)
+
+/**
+ * Result of asking the AI engine for recommendations. The UI keeps the recommendations
+ * shelf visible and uses this to explain why there are no picks yet.
+ */
+sealed interface AiRecommendationResult<out T : RecommendableItem> {
+    data class Success<T : RecommendableItem>(
+        val recommendations: List<T>,
+        val topGenres: List<String>,
+        val scores: List<Int?>,
+    ) : AiRecommendationResult<T>
+
+    /** No AI engine is configured (or it doesn't support general prompts). */
+    data object NoEngine : AiRecommendationResult<Nothing>
+
+    /** The reader's library has no genre data to base picks on yet. */
+    data object NoReadingHistory : AiRecommendationResult<Nothing>
+
+    /** The Discover feed is empty, so there is nothing to recommend from. */
+    data object NoCandidates : AiRecommendationResult<Nothing>
+
+    /** The AI engine answered, but no valid picks could be parsed. */
+    data object NoMatches : AiRecommendationResult<Nothing>
+
+    /** The AI engine returned an error. */
+    data class Failed(val message: String) : AiRecommendationResult<Nothing>
+}
+
 class GetAiRecommendations(
     private val buildReadingProfile: BuildReadingProfile = BuildReadingProfile(),
     private val aiEngineResolver: AiEngineResolver = AiEngineResolver(),
     private val preferences: TranslationPreferences = Injekt.get(),
 ) {
-    suspend fun <T : RecommendableItem> await(pool: List<T>): List<T> {
-        if (pool.isEmpty()) return emptyList()
-        val resolved = aiEngineResolver.resolve() ?: return emptyList()
+    suspend fun <T : RecommendableItem> await(pool: List<T>): AiRecommendationResult<T> {
+        if (pool.isEmpty()) return AiRecommendationResult.NoCandidates
+        val resolved = aiEngineResolver.resolve() ?: return AiRecommendationResult.NoEngine
 
         val profile = buildReadingProfile.await()
-        if (profile.topGenres.isEmpty()) return emptyList()
+        if (profile.topGenres.isEmpty()) return AiRecommendationResult.NoReadingHistory
 
         val candidateList = pool.mapIndexed { index, item ->
             "$index: \"${item.mangaTitle}\" — genres: ${item.mangaGenre.orEmpty().joinToString()}, " +
@@ -59,9 +92,13 @@ class GetAiRecommendations(
             )
         }
 
-        val result = resolved.engine.complete(prompt, resolved.apiKeyOverride)
+        val result = runCatching { resolved.engine.complete(prompt, resolved.apiKeyOverride) }
+            .getOrElse { return AiRecommendationResult.Failed(it.message ?: "AI request failed") }
         val text = (result as? TranslationResult.Success)?.translatedTexts?.firstOrNull()
-            ?: return emptyList()
+        if (text == null) {
+            val error = result as? TranslationResult.Error
+            return AiRecommendationResult.Failed(error?.message ?: "AI request failed")
+        }
 
         val cleaned = text.trim()
             .removePrefix("```json")
@@ -69,9 +106,17 @@ class GetAiRecommendations(
             .removeSuffix("```")
             .trim()
 
-        val indices = runCatching { Json.decodeFromString<List<Int>>(cleaned) }.getOrNull()
-            ?: return emptyList()
+        val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-        return indices.mapNotNull { pool.getOrNull(it) }
+        val picks = runCatching { json.decodeFromString<List<AiPick>>(cleaned) }.getOrNull()
+        val indices = picks?.map { it.index }
+            ?: runCatching { Json.decodeFromString<List<Int>>(cleaned) }.getOrNull()
+            ?: return AiRecommendationResult.NoMatches
+
+        val recommendations = indices.mapNotNull { pool.getOrNull(it) }
+        if (recommendations.isEmpty()) return AiRecommendationResult.NoMatches
+
+        val scores = picks?.map { it.score } ?: List(indices.size) { null }
+        return AiRecommendationResult.Success(recommendations, profile.topGenres, scores)
     }
 }
