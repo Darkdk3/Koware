@@ -136,7 +136,6 @@ private fun ColumnScope.FilterPage(
     val filterDownloaded by viewModel.libraryPreferences.filterDownloaded.collectAsState()
     val downloadedOnly by viewModel.preferences.downloadedOnly.collectAsState()
     val autoUpdateMangaRestrictions by viewModel.libraryPreferences.autoUpdateMangaRestrictions.collectAsState()
-
     TriStateItem(
         label = stringResource(MR.strings.label_downloaded),
         state = if (downloadedOnly) {
@@ -177,7 +176,6 @@ private fun ColumnScope.FilterPage(
         state = filterNovel,
         onClick = { viewModel.toggleFilter(LibraryPreferences::filterNovel) },
     )
-
     val filterChapterCount by viewModel.libraryPreferences.filterChapterCount().collectAsState()
     val chapterCountThreshold by viewModel.libraryPreferences.filterChapterCountThreshold.collectAsState()
     var thresholdText by remember { mutableStateOf(chapterCountThreshold.toString()) }
@@ -207,7 +205,6 @@ private fun ColumnScope.FilterPage(
             keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
         )
     }
-
     // TODO: re-enable when custom intervals are ready for stable
     if ((!isReleaseBuildType) && LibraryPreferences.MANGA_OUTSIDE_RELEASE_PERIOD in autoUpdateMangaRestrictions) {
         val filterIntervalCustom by viewModel.libraryPreferences.filterIntervalCustom().collectAsState()
@@ -217,7 +214,6 @@ private fun ColumnScope.FilterPage(
             onClick = { viewModel.toggleFilter(LibraryPreferences::filterIntervalCustom) },
         )
     }
-
     val trackers by viewModel.trackersFlow.collectAsState()
     when (trackers.size) {
         0 -> {
@@ -244,7 +240,6 @@ private fun ColumnScope.FilterPage(
             }
         }
     }
-
     // Search options section
     HeadingItem("Search Options")
     CheckboxItem(
@@ -277,7 +272,6 @@ private fun ColumnScope.SortPage(
     val trackers by viewModel.trackersFlow.collectAsState()
     val sortingMode = category.sort.type
     val sortDescending = !category.sort.isAscending
-
     val options = remember(trackers.isEmpty()) {
         val trackerMeanPair = if (trackers.isNotEmpty()) {
             MR.strings.action_sort_tracker_score to LibrarySort.Type.TrackerMean
@@ -299,7 +293,6 @@ private fun ColumnScope.SortPage(
             MR.strings.action_sort_random to LibrarySort.Type.Random,
         )
     }
-
     options.map { (titleRes, mode) ->
         if (mode == LibrarySort.Type.Random) {
             BaseSortItem(
@@ -356,7 +349,6 @@ private fun ColumnScope.DisplayPage(
             )
         }
     }
-
     if (displayMode != LibraryDisplayMode.List) {
         val configuration = LocalConfiguration.current
         val columnPreference = remember {
@@ -366,7 +358,6 @@ private fun ColumnScope.DisplayPage(
                 viewModel.libraryPreferences.portraitColumns
             }
         }
-
         val columns by columnPreference.collectAsState()
         SliderItem(
             value = columns,
@@ -379,6 +370,26 @@ private fun ColumnScope.DisplayPage(
             },
             onChange = columnPreference::set,
             pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        )
+    }
+
+    // Freeform cover grid options - only meaningful for the Comfortable Grid display mode.
+    if (displayMode == LibraryDisplayMode.ComfortableGrid) {
+        val freeformCoverGrid by viewModel.libraryPreferences.freeformCoverGrid.collectAsState()
+        HeadingItem("Comfortable grid")
+        CheckboxItem(
+            label = "Freeform cover grid",
+            pref = viewModel.libraryPreferences.freeformCoverGrid,
+        )
+        if (freeformCoverGrid) {
+            CheckboxItem(
+                label = "Staggered layout",
+                pref = viewModel.libraryPreferences.freeformCoverGridStaggered,
+            )
+        }
+        CheckboxItem(
+            label = "Show author/artist under title",
+            pref = viewModel.libraryPreferences.showAuthorArtistSubtitle,
         )
     }
 
@@ -407,7 +418,6 @@ private fun ColumnScope.DisplayPage(
         label = "Show URL in list view",
         pref = viewModel.libraryPreferences.showUrlInList,
     )
-
     val titleMaxLines by viewModel.libraryPreferences.titleMaxLines.collectAsState()
     SliderItem(
         value = titleMaxLines,
@@ -417,7 +427,6 @@ private fun ColumnScope.DisplayPage(
         onChange = viewModel.libraryPreferences.titleMaxLines::set,
         pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
-
     HeadingItem(MR.strings.tabs_header)
     CheckboxItem(
         label = stringResource(MR.strings.action_display_show_tabs),
@@ -440,30 +449,25 @@ private fun ColumnScope.TagsPage(
     val filterNoTags by viewModel.libraryPreferences.filterNoTags().collectAsState()
     val noTagsCount by viewModel.noTagsCountFlow.collectAsState()
     val isLoading by viewModel.tagsLoading.collectAsState()
-
     // Tag options
     val tagIncludeModeAnd by viewModel.libraryPreferences.tagIncludeMode.collectAsState()
     val tagExcludeModeAnd by viewModel.libraryPreferences.tagExcludeMode.collectAsState()
     val tagSortByName by viewModel.libraryPreferences.tagSortByName.collectAsState()
     val tagSortAscending by viewModel.libraryPreferences.tagSortAscending.collectAsState()
     val tagCaseSensitive by viewModel.libraryPreferences.tagCaseSensitive.collectAsState()
-
     // Tag search state
     val tagSearchQuery by viewModel.tagSearchQuery.collectAsState()
     val committedTagQuery by viewModel.committedTagQuery.collectAsState()
-
     // Options expanded state
     val optionsExpanded by viewModel.tagOptionsExpanded.collectAsState()
     var showRefreshCompleted by remember { mutableStateOf(false) }
     var wasLoading by remember { mutableStateOf(false) }
-
     // Load data when first entering this page (only if empty)
     LaunchedEffect(Unit) {
         if (tags.isEmpty()) {
             viewModel.refreshTags()
         }
     }
-
     LaunchedEffect(isLoading) {
         if (isLoading) {
             wasLoading = true
@@ -475,7 +479,6 @@ private fun ColumnScope.TagsPage(
             showRefreshCompleted = false
         }
     }
-
     // Header row with refresh and options toggle
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -511,7 +514,6 @@ private fun ColumnScope.TagsPage(
             Text(if (showRefreshCompleted) "Refreshed" else "Refresh")
         }
     }
-
     // Collapsible options section
     if (optionsExpanded) {
         Column(
@@ -540,9 +542,7 @@ private fun ColumnScope.TagsPage(
                     )
                 }
             }
-
             Spacer(Modifier.height(8.dp))
-
             // Exclude mode toggle
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -564,9 +564,7 @@ private fun ColumnScope.TagsPage(
                     )
                 }
             }
-
             Spacer(Modifier.height(8.dp))
-
             // Sort options
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -588,9 +586,7 @@ private fun ColumnScope.TagsPage(
                     )
                 }
             }
-
             Spacer(Modifier.height(8.dp))
-
             // Sort direction
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -612,9 +608,7 @@ private fun ColumnScope.TagsPage(
                     )
                 }
             }
-
             Spacer(Modifier.height(8.dp))
-
             // Case sensitivity toggle
             CheckboxItem(
                 label = "Case sensitive matching",
@@ -622,7 +616,6 @@ private fun ColumnScope.TagsPage(
             )
         }
     }
-
     // Clear All button
     if (includedTags.isNotEmpty() || excludedTags.isNotEmpty() || filterNoTags != TriState.DISABLED) {
         TextButton(
@@ -634,14 +627,12 @@ private fun ColumnScope.TagsPage(
             Text("Clear All Filters")
         }
     }
-
     // No tags filter
     TriStateItem(
         label = "No tags ($noTagsCount)",
         state = filterNoTags,
         onClick = { viewModel.toggleNoTagsFilter() },
     )
-
     // Tag search input
     val keyboardController = LocalSoftwareKeyboardController.current
     OutlinedTextField(
@@ -670,7 +661,6 @@ private fun ColumnScope.TagsPage(
             },
         ),
     )
-
     // Sort and filter tags. Active (included/excluded) tags missing from the library's loaded tags
     // are surfaced as count-0 entries so cross-type or stale filters stay visible and clearable;
     // these prefs are shared across the manga/novel/all libraries, so a tag included on one type
@@ -697,7 +687,6 @@ private fun ColumnScope.TagsPage(
                 .filterNot { isLoaded(it) }
                 .map { it to 0 }
             val allTags = phantomActive + tags
-
             val filtered = if (committedTagQuery.isBlank()) {
                 allTags
             } else {
@@ -707,11 +696,9 @@ private fun ColumnScope.TagsPage(
                     tagToMatch.contains(query)
                 }
             }
-
             val (activeTags, inactiveTags) = filtered.partition { (tag, _) ->
                 tag in includedTags || tag in excludedTags
             }
-
             val sortComparator: Comparator<Pair<String, Int>> = if (tagSortByName) {
                 if (tagSortAscending) {
                     compareBy { it.first.lowercase() }
@@ -725,10 +712,8 @@ private fun ColumnScope.TagsPage(
                     compareByDescending { it.second }
                 }
             }
-
             activeTags.sortedWith(sortComparator) + inactiveTags.sortedWith(sortComparator)
         }
-
     if (sortedTags.isEmpty() && !isLoading) {
         Text(
             text = "No tags found in library",
@@ -751,14 +736,12 @@ private fun ColumnScope.TagsPage(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = TabbedDialogPaddings.Horizontal, vertical = 4.dp),
         )
-
         Text(
             text = "${sortedTags.size} tags",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = TabbedDialogPaddings.Horizontal, vertical = 2.dp),
         )
-
         LazyVerticalStaggeredGrid(
             columns = StaggeredGridCells.Adaptive(minSize = 100.dp),
             modifier = Modifier
@@ -772,7 +755,6 @@ private fun ColumnScope.TagsPage(
                 val (tag, count) = sortedTags[index]
                 val isIncluded = tag in includedTags
                 val isExcluded = tag in excludedTags
-
                 FilterChip(
                     selected = isIncluded || isExcluded,
                     onClick = { viewModel.toggleTagIncluded(tag) },
@@ -784,7 +766,6 @@ private fun ColumnScope.TagsPage(
                                 contentDescription = null,
                                 modifier = Modifier.size(FilterChipDefaults.IconSize),
                             )
-
                             isExcluded -> Icon(
                                 imageVector = Icons.Filled.Clear,
                                 contentDescription = null,
@@ -819,7 +800,6 @@ private fun ColumnScope.ExtensionsPage(
     val isLoading by viewModel.extensionsLoading.collectAsState()
     var showRefreshCompleted by remember { mutableStateOf(false) }
     var wasLoading by remember { mutableStateOf(false) }
-
     LaunchedEffect(isLoading) {
         if (isLoading) {
             wasLoading = true
@@ -831,12 +811,9 @@ private fun ColumnScope.ExtensionsPage(
             showRefreshCompleted = false
         }
     }
-
     // Extensions are now auto-loaded in the ViewModel's init block
     // No need for LaunchedEffect here
-
     HeadingItem(MR.strings.label_extensions)
-
     // Compact action row: refresh/check/uncheck
     Row(
         modifier = Modifier
@@ -872,7 +849,6 @@ private fun ColumnScope.ExtensionsPage(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-
         TextButton(
             onClick = { viewModel.checkAllExtensions() },
             modifier = Modifier.weight(1f),
@@ -886,7 +862,6 @@ private fun ColumnScope.ExtensionsPage(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-
         TextButton(
             onClick = { viewModel.uncheckAllExtensions() },
             modifier = Modifier.weight(1f),
@@ -901,7 +876,6 @@ private fun ColumnScope.ExtensionsPage(
             )
         }
     }
-
     if (availableExtensions.isEmpty() && !isLoading) {
         Text(
             text = "No extensions with library entries",
@@ -941,7 +915,6 @@ private fun ColumnScope.ExtensionsPage(
                 )
             }
         }
-
         // Separate manga and novel sources when showing "All" type
         val mangaSources = if (viewModel.type == eu.kanade.tachiyomi.ui.library.LibraryViewModel.LibraryType.All) {
             availableExtensions.filter { !it.isNovel }
@@ -955,13 +928,11 @@ private fun ColumnScope.ExtensionsPage(
         }
         val showSeparator = viewModel.type == eu.kanade.tachiyomi.ui.library.LibraryViewModel.LibraryType.All &&
             mangaSources.isNotEmpty() && novelSources.isNotEmpty()
-
         val sourcesToShow = if (viewModel.type == eu.kanade.tachiyomi.ui.library.LibraryViewModel.LibraryType.All) {
             mangaSources + novelSources
         } else {
             availableExtensions
         }
-
         sourcesToShow.forEachIndexed { index, extensionInfo ->
             // Add divider between manga and novel sections
             if (showSeparator && index == mangaSources.size) {
@@ -978,7 +949,6 @@ private fun ColumnScope.ExtensionsPage(
                     modifier = Modifier.padding(horizontal = TabbedDialogPaddings.Horizontal, vertical = 4.dp),
                 )
             }
-
             // Extension is checked if it's NOT in the excluded set
             val isChecked = extensionInfo.sourceId.toString() !in excludedExtensions
             Row(

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,8 +37,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.animation.doOnEnd
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen
@@ -50,7 +53,13 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.NavigatorDisposeBehavior
 import cafe.adriel.voyager.navigator.currentOrThrow
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
 import eu.kanade.domain.base.BasePreferences
+import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.presentation.components.AppStateBanners
 import eu.kanade.presentation.components.DownloadedOnlyBannerBackgroundColor
@@ -76,6 +85,7 @@ import eu.kanade.tachiyomi.ui.deeplink.DeepLinkScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.library.ImportEpubScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
+import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
@@ -97,6 +107,7 @@ import tachiyomi.core.common.Constants
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.library.service.LibraryPreferences
+import eu.kanade.tachiyomi.util.system.toast
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.util.collectAsState
@@ -106,10 +117,9 @@ class MainActivity : BaseActivity() {
 
     private val libraryPreferences: LibraryPreferences by injectLazy()
     private val preferences: BasePreferences by injectLazy()
-
+    private val uiPreferences: UiPreferences by injectLazy()
     private val downloadCache: DownloadCache by injectLazy()
     private val chapterCache: ChapterCache by injectLazy()
-
     private val getIncognitoState: GetIncognitoState by injectLazy()
     private val extensionManager: ExtensionManager by injectLazy()
 
@@ -118,16 +128,23 @@ class MainActivity : BaseActivity() {
 
     private var navigator: Navigator? = null
 
+    private suspend fun showUpdateChangelogIfNeeded(context: Context) {
+        val currentVersionCode = BuildConfig.VERSION_CODE
+        val lastVersionCode = uiPreferences.lastVersionCode.get()
+        if (currentVersionCode > lastVersionCode) {
+            uiPreferences.lastVersionCode.set(currentVersionCode)
+            context.toast("App updated to v${BuildConfig.VERSION_NAME}! Check What's New in Settings > About")
+        }
+    }
+
     init {
         registerSecureActivity(this)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val isLaunch = savedInstanceState == null
-
         // Prevent splash screen showing up on configuration changes
         val splashScreen = if (isLaunch) installSplashScreen() else null
-
         super.onCreate(savedInstanceState)
 
         Migrator.awaitAndRelease()
@@ -141,11 +158,9 @@ class MainActivity : BaseActivity() {
 
         setComposeContent {
             val context = LocalContext.current
-
             var incognito by remember { mutableStateOf(getIncognitoState.await(null)) }
             val downloadOnly by preferences.downloadedOnly.collectAsState()
             val indexing by downloadCache.isInitializing.collectAsState()
-
             val isSystemInDarkTheme = isSystemInDarkTheme()
             val statusBarBackgroundColor = when {
                 indexing -> IndexingBannerBackgroundColor
@@ -153,6 +168,12 @@ class MainActivity : BaseActivity() {
                 incognito -> IncognitoModeBannerBackgroundColor
                 else -> MaterialTheme.colorScheme.surface
             }
+
+            val hazeState = remember { HazeState() }
+            val navBarStyle by preferences.navigationBarStyle.collectAsState()
+            val navBarOpacityPercent by preferences.navigationBarOpacity.collectAsState()
+            val navBarCornerRadius by preferences.navigationBarCornerRadius.collectAsState()
+
             LaunchedEffect(isSystemInDarkTheme, statusBarBackgroundColor) {
                 // Draw edge-to-edge and set system bars color to transparent
                 val lightStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.BLACK)
@@ -169,19 +190,23 @@ class MainActivity : BaseActivity() {
             ) { navigator ->
                 LaunchedEffect(navigator) {
                     this@MainActivity.navigator = navigator
-
                     if (isLaunch) {
                         // Mass-import restore/auto-resume deliberately NOT run here: starting its
                         // foreground workers during cold start jammed the splash window (the
                         // activity could fail to start). It now runs lazily when the mass-import
                         // dialog is opened instead.
+
                         // Set start screen
                         handleIntentAction(intent, navigator, closeImportScreenOnDone = true)
 
                         // Reset Incognito Mode on relaunch
                         preferences.incognitoMode.set(false)
+
+                        // Show changelog popup if app was updated
+                        showUpdateChangelogIfNeeded(context)
                     }
                 }
+
                 LaunchedEffect(navigator.lastItem) {
                     (navigator.lastItem as? BrowseSourceScreen)?.sourceId
                         .let(getIncognitoState::subscribe)
@@ -207,19 +232,53 @@ class MainActivity : BaseActivity() {
                             navigator = navigator,
                             modifier = Modifier
                                 .padding(contentPadding)
-                                .consumeWindowInsets(contentPadding),
+                                .consumeWindowInsets(contentPadding)
+                                .hazeSource(hazeState),
                         )
 
                         // Draw navigation bar scrim when needed
                         if (remember { isNavigationBarNeedsScrim() }) {
-                            Spacer(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                                    .alpha(0.8f)
-                                    .background(MaterialTheme.colorScheme.surfaceContainer),
-                            )
+                            val navBarShape = remember(navBarCornerRadius) {
+                                RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
+                            }
+                            val navBarAlpha = navBarOpacityPercent / 100f
+                            val navBarSurfaceColor = MaterialTheme.colorScheme.surface
+                            val navBarSurfaceContainerColor = MaterialTheme.colorScheme.surfaceContainer
+
+                            when (navBarStyle) {
+                                BasePreferences.NavigationBarStyle.GLASS -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                                            .clip(navBarShape)
+                                            .hazeEffect(state = hazeState) {
+                                                style = HazeStyle(
+                                                    backgroundColor = navBarSurfaceColor,
+                                                    tint = HazeTint(
+                                                        navBarSurfaceContainerColor.copy(
+                                                            alpha = navBarAlpha * 0.6f,
+                                                        ),
+                                                    ),
+                                                    blurRadius = 20.dp,
+                                                    noiseFactor = 0f,
+                                                )
+                                            },
+                                    )
+                                }
+                                BasePreferences.NavigationBarStyle.SOLID -> {
+                                    Spacer(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                                            .clip(navBarShape)
+                                            .alpha(navBarAlpha)
+                                            .background(navBarSurfaceContainerColor),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -241,7 +300,6 @@ class MainActivity : BaseActivity() {
                 }
 
                 HandleOnNewIntent(context = context, navigator = navigator)
-
                 CheckForUpdates()
                 ShowOnboarding()
                 // ShowDonationCampaign()
@@ -322,135 +380,12 @@ class MainActivity : BaseActivity() {
     @Composable
     private fun ShowOnboarding() {
         val navigator = LocalNavigator.currentOrThrow
-
         LaunchedEffect(Unit) {
             if (!preferences.shownOnboardingFlow.get() && navigator.lastItem !is OnboardingScreen) {
                 navigator.push(OnboardingScreen())
             }
         }
     }
-
-    // @Composable
-    // private fun ShowDonationCampaign() {
-    //     val navigator = LocalNavigator.currentOrThrow
-
-    //     var showCampaign by remember { mutableStateOf(false) }
-    //     if (showCampaign) {
-    //         val uriHandler = LocalUriHandler.current
-    //         val dismissSupportMessage = {
-    //             preferences.donationCampaignShown.set(true)
-    //             @Suppress("AssignedValueIsNeverRead")
-    //             showCampaign = false
-    //         }
-    //         AdaptiveSheet(
-    //             onDismissRequest = dismissSupportMessage,
-    //             enableImplicitDismiss = false,
-    //         ) {
-    //             Column {
-    //                 Spacer(modifier = Modifier.height(16.dp))
-    //                 Column(
-    //                     modifier = Modifier
-    //                         .verticalScroll(rememberScrollState())
-    //                         .padding(16.dp)
-    //                         .weight(1f, fill = false)
-    //                         .fillMaxWidth(),
-    //                     verticalArrangement = Arrangement.spacedBy(8.dp),
-    //                 ) {
-    //                     Text(
-    //                         text = stringResource(MR.strings.donationCampaign_title),
-    //                         color = MaterialTheme.colorScheme.primary,
-    //                         style = MaterialTheme.typography.headlineSmall,
-    //                     )
-    //                     Text(
-    //                         text = stringResource(MR.strings.donationCampaign_paragraph1),
-    //                         style = MaterialTheme.typography.bodyMedium,
-    //                     )
-    //                     Text(
-    //                         text = stringResource(MR.strings.donationCampaign_paragraph2),
-    //                         style = MaterialTheme.typography.bodyMedium,
-    //                     )
-    //                     Text(
-    //                         text = stringResource(MR.strings.donationCampaign_paragraph3),
-    //                         style = MaterialTheme.typography.bodyMedium,
-    //                     )
-    //                 }
-
-    //                 HorizontalDivider()
-
-    //                 Button(
-    //                     modifier = Modifier
-    //                         .padding(top = MaterialTheme.padding.small)
-    //                         .padding(horizontal = MaterialTheme.padding.medium)
-    //                         .fillMaxWidth(),
-    //                     onClick = {
-    //                         navigator.push(SupportUsScreen())
-    //                         dismissSupportMessage()
-    //                     },
-    //                 ) {
-    //                     Row(
-    //                         verticalAlignment = Alignment.CenterVertically,
-    //                         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-    //                     ) {
-    //                         Icon(
-    //                             imageVector = Icons.Default.VolunteerActivism,
-    //                             contentDescription = null,
-    //                         )
-    //                         Text(
-    //                             text = stringResource(MR.strings.label_support_us),
-    //                             color = MaterialTheme.colorScheme.onPrimary,
-    //                         )
-    //                     }
-    //                 }
-    //                 Row(
-    //                     horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-    //                     modifier = Modifier
-    //                         .padding(bottom = MaterialTheme.padding.small)
-    //                         .padding(horizontal = MaterialTheme.padding.medium),
-    //                 ) {
-    //                     OutlinedButton(
-    //                         modifier = Modifier
-    //                             .fillMaxWidth()
-    //                             .weight(1f),
-    //                         onClick = { uriHandler.openUri(Constants.URL_DISCORD) },
-    //                     ) {
-    //                         Row(
-    //                             verticalAlignment = Alignment.CenterVertically,
-    //                             horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-    //                         ) {
-    //                             Text(
-    //                                 text = stringResource(MR.strings.donationCampaign_contactPlatform),
-    //                             )
-    //                             Icon(
-    //                                 imageVector = Icons.AutoMirrored.Default.OpenInNew,
-    //                                 contentDescription = null,
-    //                             )
-    //                         }
-    //                     }
-    //                     OutlinedButton(
-    //                         modifier = Modifier
-    //                             .fillMaxWidth()
-    //                             .weight(1f),
-    //                         onClick = dismissSupportMessage,
-    //                     ) {
-    //                         Text(
-    //                             text = stringResource(MR.strings.donationCampaign_dismiss),
-    //                         )
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-
-    //     LaunchedEffect(Unit) {
-    //         try {
-    //             val firstInstallTime = packageManager.getPackageInfo(packageName, 0).firstInstallTime
-    //             val eligibleTime = Instant.fromEpochMilliseconds(firstInstallTime).plus(6 * 30.days)
-    //             @Suppress("AssignedValueIsNeverRead")
-    //             showCampaign = (Clock.System.now() >= eligibleTime && !preferences.donationCampaignShown.get())
-    //         } catch (_: PackageManager.NameNotFoundException) {
-    //         }
-    //     }
-    // }
 
     /**
      * Sets custom splash screen exit animation on devices prior to Android 12.
@@ -552,7 +487,6 @@ class MainActivity : BaseActivity() {
             Intent.ACTION_SEARCH, Intent.ACTION_SEND, "com.google.android.gms.actions.SEARCH_ACTION" -> {
                 // If the intent match the "standard" Android search intent
                 // or the Google-specific search intent (triggered by saying or typing "search *query* on *Tachiyomi*" in Google Search/Google Assistant)
-
                 // Get the search query provided in extras, and if not null, perform a global search with it.
                 val query = intent.getStringExtra(SearchManager.QUERY) ?: intent.getStringExtra(Intent.EXTRA_TEXT)
                 if (!query.isNullOrEmpty()) {
@@ -598,11 +532,9 @@ class MainActivity : BaseActivity() {
             }
             else -> return false
         }
-
         if (tabToOpen != null) {
             lifecycleScope.launch { HomeScreen.openTab(tabToOpen) }
         }
-
         ready = true
         return true
     }
@@ -619,12 +551,12 @@ class MainActivity : BaseActivity() {
      * when the intent isn't an EPUB open/share request.
      *
      * Handles three shapes:
-     *  - `ACTION_VIEW` with a single URI in [Intent.getData]. Triggered by the
-     *    file-manager "open with…" flow.
-     *  - `ACTION_SEND` with one URI under [Intent.EXTRA_STREAM]. Triggered by
-     *    apps that share a single EPUB via the Android share sheet.
-     *  - `ACTION_SEND_MULTIPLE` with a list of URIs under
-     *    [Intent.EXTRA_STREAM]. Same share sheet, multiple files selected.
+     * - `ACTION_VIEW` with a single URI in [Intent.getData]. Triggered by the
+     *   file-manager "open with…" flow.
+     * - `ACTION_SEND` with one URI under [Intent.EXTRA_STREAM]. Triggered by
+     *   apps that share a single EPUB via the Android share sheet.
+     * - `ACTION_SEND_MULTIPLE` with a list of URIs under
+     *   [Intent.EXTRA_STREAM]. Same share sheet, multiple files selected.
      *
      * The MIME-type check is loose (any type containing `"epub"`) because
      * different senders report `application/epub+zip`, `application/epub`, or
@@ -633,6 +565,7 @@ class MainActivity : BaseActivity() {
      */
     private fun extractIncomingEpubUris(intent: Intent): List<android.net.Uri> {
         fun isEpubMime(type: String?): Boolean = type?.contains("epub", ignoreCase = true) == true
+
         fun looksLikeEpub(uri: android.net.Uri?): Boolean {
             if (uri == null) return false
             val path = (uri.lastPathSegment ?: uri.path ?: uri.toString()).lowercase()

@@ -2,6 +2,7 @@ package eu.kanade.presentation.more.stats
 
 import androidx.compose.runtime.Immutable
 import eu.kanade.presentation.more.stats.data.StatsData
+import tachiyomi.domain.manga.interactor.ReadingProfile
 
 sealed interface StatsScreenState {
     @Immutable
@@ -13,5 +14,6 @@ sealed interface StatsScreenState {
         val titles: StatsData.Titles,
         val chapters: StatsData.Chapters,
         val trackers: StatsData.Trackers,
+        val readingProfile: ReadingProfile,
     ) : StatsScreenState
 }

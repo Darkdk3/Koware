@@ -41,6 +41,8 @@ import eu.kanade.presentation.manga.components.MangaCoverDialog
 import eu.kanade.presentation.manga.components.RemoveChaptersFromDbDialog
 import eu.kanade.presentation.manga.components.ScanlatorFilterDialog
 import eu.kanade.presentation.manga.components.SetIntervalDialog
+import eu.kanade.presentation.manga.rememberCoverSeedColor
+import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.presentation.util.AssistContentScreen
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
@@ -70,12 +72,15 @@ import mihon.feature.migration.dialog.MigrateMangaDialog
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.model.Chapter
+import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.CustomMangaInfo
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 class MangaScreen(
     private val mangaId: Long,
@@ -127,316 +132,329 @@ class MangaScreen(
             }
         }
 
-        MangaScreen(
-            state = successState,
-            snackbarHostState = viewModel.snackbarHostState,
-            nextUpdate = successState.manga.expectedNextUpdate,
-            isTabletUi = isTabletUi(),
-            chapterSwipeStartAction = viewModel.chapterSwipeStartAction,
-            chapterSwipeEndAction = viewModel.chapterSwipeEndAction,
-            navigateUp = navigator::pop,
-            onChapterClicked = { openChapter(context, it) },
-            onDownloadChapter = viewModel::runChapterDownloadActions.takeIf { !successState.source.isLocalOrStub() },
-            onAddToLibraryClicked = {
-                viewModel.toggleFavorite()
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            },
-            onWebViewClicked = {
-                openMangaInWebView(
-                    navigator,
-                    viewModel.manga,
-                    viewModel.source,
-                )
-            }.takeIf { hasWebViewSupport },
-            onWebViewLongClicked = {
-                copyMangaUrl(
-                    context,
-                    viewModel.manga,
-                    viewModel.source,
-                )
-            }.takeIf { hasWebViewSupport },
-            onTrackingClicked = {
-                if (!successState.hasLoggedInTrackers) {
-                    navigator.push(SettingsScreen(SettingsScreen.Destination.Tracking))
-                } else {
-                    viewModel.showTrackDialog()
-                }
-            },
-            onTagSearch = { scope.launch { performGenreSearch(navigator, it, viewModel.source!!) } },
-            onFilterButtonClicked = viewModel::showSettingsDialog,
-            onRefresh = viewModel::fetchAllFromSource,
-            onForceRefresh = { viewModel.fetchAllFromSource(forceRefresh = true) },
-            onContinueReading = { continueReading(context, viewModel.getNextUnreadChapter()) },
-            onSearch = { query, global ->
-                scope.launch {
-                    val source = viewModel.source
-                    // If clicking the source name, navigate directly to BrowseSourceScreen
-                    if (!global && source != null && query == source.getNameForMangaInfo()) {
-                        navigator.push(BrowseSourceScreen(source.id, null))
-                    } else {
-                        performSearch(navigator, query, global, successState.isNovel)
-                    }
-                }
-            },
-            onCoverClicked = viewModel::showCoverDialog,
-            onShareClicked = {
-                shareManga(context, viewModel.manga, viewModel.source)
-            }.takeIf { hasWebViewSupport },
-            onDownloadActionClicked = viewModel::runDownloadAction.takeIf { !successState.source.isLocalOrStub() },
-            onEditCategoryClicked = viewModel::showChangeCategoryDialog.takeIf { successState.manga.favorite },
-            onEditFetchIntervalClicked = viewModel::showSetFetchIntervalDialog.takeIf {
-                successState.manga.favorite
-            },
-            onMigrateClicked = {
-                navigator.push(MigrationConfigScreen(successState.manga.id))
-            }.takeIf { successState.manga.favorite },
-            onSimilarNovelsClicked = viewModel::showSimilarNovelsDialog.takeIf {
-                successState.manga.favorite && successState.similarNovels.isNotEmpty()
-            },
-            onFindDuplicatesClicked = viewModel::showFindDuplicatesDialog.takeIf {
-                successState.manga.favorite
-            },
-            onEditNotesClicked = { navigator.push(MangaNotesScreen(manga = successState.manga)) },
-            onEditClicked = viewModel::showEditDialog,
-            onClearCustomInfoClicked = if (
-                successState.manga.favorite && CustomMangaInfo.from(successState.manga.memo) != null
-            ) {
-                viewModel::showClearCustomInfoDialog
-            } else {
-                null
-            },
-            onTranslateClicked = viewModel::translateMangaDetails,
-            onTranslateDownloadedClicked = viewModel::translateDownloadedChapters,
-            onExportEpubClicked = viewModel::showExportEpubDialog.takeIf { successState.isNovel },
-            showSourceName = successState.showSourceName,
-            onToggleSourceNameVisibility = viewModel::toggleSourceNameVisibility,
-            onSourceSuggestionClicked = { manga ->
-                navigator.push(MangaScreen(manga.id))
-            },
-            onMultiBookmarkClicked = viewModel::bookmarkChapters,
-            onMultiMarkAsReadClicked = viewModel::markChaptersRead,
-            onMarkPreviousAsReadClicked = viewModel::markPreviousChapterRead,
-            onMultiDeleteClicked = viewModel::showDeleteChapterDialog,
-            onMultiRemoveFromDbClicked = viewModel::showRemoveChaptersFromDbDialog,
-            onMultiDeleteTranslationClicked = viewModel::deleteTranslations,
-            onTranslateSelectedClicked = { chapters ->
-                viewModel.translateSelectedChapters(chapters, forceRetranslate = false)
-            },
-            onRetranslateSelectedClicked = { chapters ->
-                viewModel.translateSelectedChapters(chapters, forceRetranslate = true)
-            },
-            onChapterSwipe = viewModel::chapterSwipe,
-            onChapterSelected = viewModel::toggleSelection,
-            onAllChapterSelected = viewModel::toggleAllSelection,
-            onInvertSelection = viewModel::invertSelection,
+        // Cover-based theming: recolors this whole screen from a color extracted off the
+        // manga's cover, gated behind LibraryPreferences.mangaDetailsCoverTheme.
+        val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+        val themeCoverBased by libraryPreferences.mangaDetailsCoverTheme.changes().collectAsState(
+            initial = libraryPreferences.mangaDetailsCoverTheme.get(),
         )
+        val seedColor = rememberCoverSeedColor(manga = successState.manga, enabled = themeCoverBased)
 
-        var showScanlatorsDialog by remember { mutableStateOf(false) }
-
-        val onDismissRequest = { viewModel.dismissDialog() }
-        when (val dialog = successState.dialog) {
-            null -> {}
-            is MangaViewModel.Dialog.ChangeCategory -> {
-                ChangeCategoryDialog(
-                    initialSelection = dialog.initialSelection,
-                    onDismissRequest = onDismissRequest,
-                    onEditCategories = { navigator.push(CategoryScreen()) },
-                    onConfirm = { addCategories, removeCategories ->
-                        val currentSelected = dialog.initialSelection
-                            .filter {
-                                it is tachiyomi.core.common.preference.CheckboxState.State.Checked ||
-                                    it is tachiyomi.core.common.preference.CheckboxState.TriState.Include
-                            }
-                            .map { it.value.id }
-                            .toMutableSet()
-                        currentSelected.addAll(addCategories)
-                        currentSelected.removeAll(removeCategories.toSet())
-                        viewModel.moveMangaToCategoriesAndAddToLibrary(dialog.manga, currentSelected.toList())
-                    },
-                )
-            }
-            is MangaViewModel.Dialog.DeleteChapters -> {
-                DeleteChaptersDialog(
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = {
-                        viewModel.toggleAllSelection(false)
-                        viewModel.deleteChapters(dialog.chapters)
-                    },
-                )
-            }
-            is MangaViewModel.Dialog.RemoveChaptersFromDb -> {
-                RemoveChaptersFromDbDialog(
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = {
-                        viewModel.toggleAllSelection(false)
-                        viewModel.removeChaptersFromDb(dialog.chapters)
-                    },
-                )
-            }
-
-            is MangaViewModel.Dialog.DuplicateManga -> {
-                DuplicateMangaDialog(
-                    duplicates = dialog.duplicates,
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = { viewModel.toggleFavorite(onRemoved = {}, skipDuplicateCheck = true) },
-                    onOpenManga = { navigator.push(MangaScreen(it.id)) },
-                    onMigrate = { viewModel.showMigrateDialog(it) },
-                    canAddAnyway = dialog.canAddAnyway,
-                )
-            }
-
-            is MangaViewModel.Dialog.SimilarNovels -> {
-                SimilarNovelsDialog(
-                    similarNovels = dialog.similarNovels,
-                    categories = dialog.categories,
-                    onDismissRequest = onDismissRequest,
-                    onOpenManga = { navigator.push(MangaScreen(it.id)) },
-                    onMigrate = { viewModel.showMigrateDialog(it) },
-                )
-            }
-
-            is MangaViewModel.Dialog.Migrate -> {
-                MigrateMangaDialog(
-                    current = dialog.current,
-                    target = dialog.target,
-                    onClickTitle = {
-                        val other = if (dialog.target.id == successState.manga.id) dialog.current else dialog.target
-                        navigator.push(MangaScreen(other.id))
-                    },
-                    onDismissRequest = onDismissRequest,
-                )
-            }
-            MangaViewModel.Dialog.SettingsSheet -> ChapterSettingsDialog(
-                onDismissRequest = onDismissRequest,
-                manga = successState.manga,
-                onDownloadFilterChanged = viewModel::setDownloadedFilter,
-                onUnreadFilterChanged = viewModel::setUnreadFilter,
-                onBookmarkedFilterChanged = viewModel::setBookmarkedFilter,
-                onSortModeChanged = viewModel::setSorting,
-                onDisplayModeChanged = viewModel::setDisplayMode,
-                onSetAsDefault = viewModel::setCurrentSettingsAsDefault,
-                onResetToDefault = viewModel::resetToDefaultSettings,
-                scanlatorFilterActive = successState.scanlatorFilterActive,
-                onScanlatorFilterClicked = { showScanlatorsDialog = true },
-            )
-            MangaViewModel.Dialog.TrackSheet -> {
-                NavigatorAdaptiveSheet(
-                    screen = TrackInfoDialogHomeScreen(
-                        mangaId = successState.manga.id,
-                        mangaTitle = successState.manga.title,
-                        sourceId = successState.source.id,
-                    ),
-                    enableSwipeDismiss = { it.lastItem is TrackInfoDialogHomeScreen },
-                    onDismissRequest = onDismissRequest,
-                )
-            }
-            MangaViewModel.Dialog.FullCover -> {
-                val sm = viewModel<MangaCoverViewModel>(
-                    factory = MangaCoverViewModel.Factory,
-                    extras = CreationExtras {
-                        set(MangaCoverViewModel.MANGA_ID_KEY, successState.manga.id)
-                    },
-                )
-                val manga by sm.state.collectAsState()
-                if (manga != null) {
-                    val getContent = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {
-                        if (it == null) return@rememberLauncherForActivityResult
-                        sm.editCover(context, it)
+        TachiyomiTheme(seedColor = seedColor.takeIf { themeCoverBased }) {
+            MangaScreen(
+                state = successState,
+                snackbarHostState = viewModel.snackbarHostState,
+                nextUpdate = successState.manga.expectedNextUpdate,
+                isTabletUi = isTabletUi(),
+                chapterSwipeStartAction = viewModel.chapterSwipeStartAction,
+                chapterSwipeEndAction = viewModel.chapterSwipeEndAction,
+                navigateUp = navigator::pop,
+                onChapterClicked = { openChapter(context, it) },
+                onDownloadChapter = viewModel::runChapterDownloadActions.takeIf {
+                    !successState.source.isLocalOrStub()
+                },
+                onAddToLibraryClicked = {
+                    viewModel.toggleFavorite()
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                },
+                onWebViewClicked = {
+                    openMangaInWebView(
+                        navigator,
+                        viewModel.manga,
+                        viewModel.source,
+                    )
+                }.takeIf { hasWebViewSupport },
+                onWebViewLongClicked = {
+                    copyMangaUrl(
+                        context,
+                        viewModel.manga,
+                        viewModel.source,
+                    )
+                }.takeIf { hasWebViewSupport },
+                onTrackingClicked = {
+                    if (!successState.hasLoggedInTrackers) {
+                        navigator.push(SettingsScreen(SettingsScreen.Destination.Tracking))
+                    } else {
+                        viewModel.showTrackDialog()
                     }
-                    MangaCoverDialog(
-                        manga = manga!!,
-                        snackbarHostState = sm.snackbarHostState,
-                        isCustomCover = remember(manga) { manga!!.hasCustomCover() },
-                        onShareClick = { sm.shareCover(context) },
-                        onSaveClick = { sm.saveCover(context) },
-                        onEditClick = {
-                            when (it) {
-                                EditCoverAction.EDIT -> getContent.launch("image/*")
-                                EditCoverAction.DELETE -> sm.deleteCustomCover(context)
-                                EditCoverAction.CLEAR -> sm.clearCover(context)
-                            }
+                },
+                onTagSearch = { scope.launch { performGenreSearch(navigator, it, viewModel.source!!) } },
+                onFilterButtonClicked = viewModel::showSettingsDialog,
+                onRefresh = viewModel::fetchAllFromSource,
+                onForceRefresh = { viewModel.fetchAllFromSource(forceRefresh = true) },
+                onContinueReading = { continueReading(context, viewModel.getNextUnreadChapter()) },
+                onSearch = { query, global ->
+                    scope.launch {
+                        val source = viewModel.source
+                        // If clicking the source name, navigate directly to BrowseSourceScreen
+                        if (!global && source != null && query == source.getNameForMangaInfo()) {
+                            navigator.push(BrowseSourceScreen(source.id, null))
+                        } else {
+                            performSearch(navigator, query, global, successState.isNovel)
+                        }
+                    }
+                },
+                onCoverClicked = viewModel::showCoverDialog,
+                onShareClicked = {
+                    shareManga(context, viewModel.manga, viewModel.source)
+                }.takeIf { hasWebViewSupport },
+                onDownloadActionClicked = viewModel::runDownloadAction.takeIf { !successState.source.isLocalOrStub() },
+                onEditCategoryClicked = viewModel::showChangeCategoryDialog.takeIf { successState.manga.favorite },
+                onEditFetchIntervalClicked = viewModel::showSetFetchIntervalDialog.takeIf {
+                    successState.manga.favorite
+                },
+                onMigrateClicked = {
+                    navigator.push(MigrationConfigScreen(successState.manga.id))
+                }.takeIf { successState.manga.favorite },
+                onSimilarNovelsClicked = viewModel::showSimilarNovelsDialog.takeIf {
+                    successState.manga.favorite && successState.similarNovels.isNotEmpty()
+                },
+                onFindDuplicatesClicked = viewModel::showFindDuplicatesDialog.takeIf {
+                    successState.manga.favorite
+                },
+                onEditNotesClicked = { navigator.push(MangaNotesScreen(manga = successState.manga)) },
+                onEditClicked = viewModel::showEditDialog,
+                onClearCustomInfoClicked = if (
+                    successState.manga.favorite && CustomMangaInfo.from(successState.manga.memo) != null
+                ) {
+                    viewModel::showClearCustomInfoDialog
+                } else {
+                    null
+                },
+                onTranslateClicked = viewModel::translateMangaDetails,
+                onTranslateDownloadedClicked = viewModel::translateDownloadedChapters,
+                onExportEpubClicked = viewModel::showExportEpubDialog.takeIf { successState.isNovel },
+                showSourceName = successState.showSourceName,
+                onToggleSourceNameVisibility = viewModel::toggleSourceNameVisibility,
+                onSourceSuggestionClicked = { manga ->
+                    navigator.push(MangaScreen(manga.id))
+                },
+                onMultiBookmarkClicked = viewModel::bookmarkChapters,
+                onMultiMarkAsReadClicked = viewModel::markChaptersRead,
+                onMarkPreviousAsReadClicked = viewModel::markPreviousChapterRead,
+                onMultiDeleteClicked = viewModel::showDeleteChapterDialog,
+                onMultiRemoveFromDbClicked = viewModel::showRemoveChaptersFromDbDialog,
+                onMultiDeleteTranslationClicked = viewModel::deleteTranslations,
+                onTranslateSelectedClicked = { chapters ->
+                    viewModel.translateSelectedChapters(chapters, forceRetranslate = false)
+                },
+                onRetranslateSelectedClicked = { chapters ->
+                    viewModel.translateSelectedChapters(chapters, forceRetranslate = true)
+                },
+                onChapterSwipe = viewModel::chapterSwipe,
+                onChapterSelected = viewModel::toggleSelection,
+                onAllChapterSelected = viewModel::toggleAllSelection,
+                onInvertSelection = viewModel::invertSelection,
+            )
+
+            var showScanlatorsDialog by remember { mutableStateOf(false) }
+
+            val onDismissRequest = { viewModel.dismissDialog() }
+            when (val dialog = successState.dialog) {
+                null -> {}
+                is MangaViewModel.Dialog.ChangeCategory -> {
+                    ChangeCategoryDialog(
+                        initialSelection = dialog.initialSelection,
+                        onDismissRequest = onDismissRequest,
+                        onEditCategories = { navigator.push(CategoryScreen()) },
+                        onConfirm = { addCategories, removeCategories ->
+                            val currentSelected = dialog.initialSelection
+                                .filter {
+                                    it is tachiyomi.core.common.preference.CheckboxState.State.Checked ||
+                                        it is tachiyomi.core.common.preference.CheckboxState.TriState.Include
+                                }
+                                .map { it.value.id }
+                                .toMutableSet()
+                            currentSelected.addAll(addCategories)
+                            currentSelected.removeAll(removeCategories.toSet())
+                            viewModel.moveMangaToCategoriesAndAddToLibrary(dialog.manga, currentSelected.toList())
+                        },
+                    )
+                }
+                is MangaViewModel.Dialog.DeleteChapters -> {
+                    DeleteChaptersDialog(
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = {
+                            viewModel.toggleAllSelection(false)
+                            viewModel.deleteChapters(dialog.chapters)
+                        },
+                    )
+                }
+                is MangaViewModel.Dialog.RemoveChaptersFromDb -> {
+                    RemoveChaptersFromDbDialog(
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = {
+                            viewModel.toggleAllSelection(false)
+                            viewModel.removeChaptersFromDb(dialog.chapters)
+                        },
+                    )
+                }
+
+                is MangaViewModel.Dialog.DuplicateManga -> {
+                    DuplicateMangaDialog(
+                        duplicates = dialog.duplicates,
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = { viewModel.toggleFavorite(onRemoved = {}, skipDuplicateCheck = true) },
+                        onOpenManga = { navigator.push(MangaScreen(it.id)) },
+                        onMigrate = { viewModel.showMigrateDialog(it) },
+                        canAddAnyway = dialog.canAddAnyway,
+                    )
+                }
+
+                is MangaViewModel.Dialog.SimilarNovels -> {
+                    SimilarNovelsDialog(
+                        similarNovels = dialog.similarNovels,
+                        categories = dialog.categories,
+                        onDismissRequest = onDismissRequest,
+                        onOpenManga = { navigator.push(MangaScreen(it.id)) },
+                        onMigrate = { viewModel.showMigrateDialog(it) },
+                    )
+                }
+
+                is MangaViewModel.Dialog.Migrate -> {
+                    MigrateMangaDialog(
+                        current = dialog.current,
+                        target = dialog.target,
+                        onClickTitle = {
+                            val other =
+                                if (dialog.target.id == successState.manga.id) dialog.current else dialog.target
+                            navigator.push(MangaScreen(other.id))
                         },
                         onDismissRequest = onDismissRequest,
                     )
-                } else {
-                    LoadingScreen(Modifier.systemBarsPadding())
+                }
+                MangaViewModel.Dialog.SettingsSheet -> ChapterSettingsDialog(
+                    onDismissRequest = onDismissRequest,
+                    manga = successState.manga,
+                    onDownloadFilterChanged = viewModel::setDownloadedFilter,
+                    onUnreadFilterChanged = viewModel::setUnreadFilter,
+                    onBookmarkedFilterChanged = viewModel::setBookmarkedFilter,
+                    onSortModeChanged = viewModel::setSorting,
+                    onDisplayModeChanged = viewModel::setDisplayMode,
+                    onSetAsDefault = viewModel::setCurrentSettingsAsDefault,
+                    onResetToDefault = viewModel::resetToDefaultSettings,
+                    scanlatorFilterActive = successState.scanlatorFilterActive,
+                    onScanlatorFilterClicked = { showScanlatorsDialog = true },
+                )
+                MangaViewModel.Dialog.TrackSheet -> {
+                    NavigatorAdaptiveSheet(
+                        screen = TrackInfoDialogHomeScreen(
+                            mangaId = successState.manga.id,
+                            mangaTitle = successState.manga.title,
+                            sourceId = successState.source.id,
+                        ),
+                        enableSwipeDismiss = { it.lastItem is TrackInfoDialogHomeScreen },
+                        onDismissRequest = onDismissRequest,
+                    )
+                }
+                MangaViewModel.Dialog.FullCover -> {
+                    val sm = viewModel<MangaCoverViewModel>(
+                        factory = MangaCoverViewModel.Factory,
+                        extras = CreationExtras {
+                            set(MangaCoverViewModel.MANGA_ID_KEY, successState.manga.id)
+                        },
+                    )
+                    val manga by sm.state.collectAsState()
+                    if (manga != null) {
+                        val getContent = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) {
+                            if (it == null) return@rememberLauncherForActivityResult
+                            sm.editCover(context, it)
+                        }
+                        MangaCoverDialog(
+                            manga = manga!!,
+                            snackbarHostState = sm.snackbarHostState,
+                            isCustomCover = remember(manga) { manga!!.hasCustomCover() },
+                            onShareClick = { sm.shareCover(context) },
+                            onSaveClick = { sm.saveCover(context) },
+                            onEditClick = {
+                                when (it) {
+                                    EditCoverAction.EDIT -> getContent.launch("image/*")
+                                    EditCoverAction.DELETE -> sm.deleteCustomCover(context)
+                                    EditCoverAction.CLEAR -> sm.clearCover(context)
+                                }
+                            },
+                            onDismissRequest = onDismissRequest,
+                        )
+                    } else {
+                        LoadingScreen(Modifier.systemBarsPadding())
+                    }
+                }
+                is MangaViewModel.Dialog.SetFetchInterval -> {
+                    SetIntervalDialog(
+                        interval = dialog.manga.fetchInterval,
+                        nextUpdate = dialog.manga.expectedNextUpdate,
+                        onDismissRequest = onDismissRequest,
+                        onValueChanged = { interval: Int -> viewModel.setFetchInterval(dialog.manga, interval) }
+                            .takeIf { viewModel.isUpdateIntervalEnabled },
+                    )
+                }
+                is MangaViewModel.Dialog.Edit -> {
+                    eu.kanade.presentation.manga.components.EditMangaDialog(
+                        manga = dialog.manga,
+                        sourceInfo = CustomMangaInfo.fromSource(dialog.manga.memo),
+                        onDismissRequest = onDismissRequest,
+                        onSaveTitle = { viewModel.updateTitle(it) },
+                        onSaveUrl = { viewModel.updateUrl(it) },
+                        onSaveAltTitles = { viewModel.updateAlternativeTitles(it) },
+                        onSaveInfo = { description, tags, author, artist, status ->
+                            viewModel.updateMangaInfo(description, tags, author, artist, status)
+                        },
+                        onSwapMainTitle = { newMain, updatedAlts ->
+                            viewModel.swapMainTitle(newMain, updatedAlts)
+                        },
+                    )
+                }
+                MangaViewModel.Dialog.ClearCustomInfo -> {
+                    AlertDialog(
+                        onDismissRequest = onDismissRequest,
+                        title = { Text(stringResource(TDMR.strings.action_clear_custom_metadata)) },
+                        text = { Text(stringResource(TDMR.strings.clear_custom_metadata_confirm)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    viewModel.clearCustomInfo()
+                                    onDismissRequest()
+                                },
+                            ) {
+                                Text(stringResource(MR.strings.action_ok))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = onDismissRequest) {
+                                Text(stringResource(MR.strings.action_cancel))
+                            }
+                        },
+                    )
+                }
+                is MangaViewModel.Dialog.TranslateMangaDetails -> {
+                    eu.kanade.presentation.manga.components.TranslateMangaDetailsDialog(
+                        manga = dialog.manga,
+                        onDismissRequest = onDismissRequest,
+                        onConfirm = { details ->
+                            viewModel.applyTranslatedDetails(details)
+                        },
+                    )
+                }
+                is MangaViewModel.Dialog.ExportEpub -> {
+                    eu.kanade.presentation.manga.components.ExportEpubDialog(
+                        manga = dialog.manga,
+                        chapters = dialog.chapters,
+                        onDismissRequest = onDismissRequest,
+                        onExport = { uri, options ->
+                            viewModel.exportAsEpub(dialog.manga, dialog.chapters, uri, options)
+                        },
+                    )
                 }
             }
-            is MangaViewModel.Dialog.SetFetchInterval -> {
-                SetIntervalDialog(
-                    interval = dialog.manga.fetchInterval,
-                    nextUpdate = dialog.manga.expectedNextUpdate,
-                    onDismissRequest = onDismissRequest,
-                    onValueChanged = { interval: Int -> viewModel.setFetchInterval(dialog.manga, interval) }
-                        .takeIf { viewModel.isUpdateIntervalEnabled },
-                )
-            }
-            is MangaViewModel.Dialog.Edit -> {
-                eu.kanade.presentation.manga.components.EditMangaDialog(
-                    manga = dialog.manga,
-                    sourceInfo = CustomMangaInfo.fromSource(dialog.manga.memo),
-                    onDismissRequest = onDismissRequest,
-                    onSaveTitle = { viewModel.updateTitle(it) },
-                    onSaveUrl = { viewModel.updateUrl(it) },
-                    onSaveAltTitles = { viewModel.updateAlternativeTitles(it) },
-                    onSaveInfo = { description, tags, author, artist, status ->
-                        viewModel.updateMangaInfo(description, tags, author, artist, status)
-                    },
-                    onSwapMainTitle = { newMain, updatedAlts ->
-                        viewModel.swapMainTitle(newMain, updatedAlts)
-                    },
-                )
-            }
-            MangaViewModel.Dialog.ClearCustomInfo -> {
-                AlertDialog(
-                    onDismissRequest = onDismissRequest,
-                    title = { Text(stringResource(TDMR.strings.action_clear_custom_metadata)) },
-                    text = { Text(stringResource(TDMR.strings.clear_custom_metadata_confirm)) },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                viewModel.clearCustomInfo()
-                                onDismissRequest()
-                            },
-                        ) {
-                            Text(stringResource(MR.strings.action_ok))
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = onDismissRequest) {
-                            Text(stringResource(MR.strings.action_cancel))
-                        }
-                    },
-                )
-            }
-            is MangaViewModel.Dialog.TranslateMangaDetails -> {
-                eu.kanade.presentation.manga.components.TranslateMangaDetailsDialog(
-                    manga = dialog.manga,
-                    onDismissRequest = onDismissRequest,
-                    onConfirm = { details ->
-                        viewModel.applyTranslatedDetails(details)
-                    },
-                )
-            }
-            is MangaViewModel.Dialog.ExportEpub -> {
-                eu.kanade.presentation.manga.components.ExportEpubDialog(
-                    manga = dialog.manga,
-                    chapters = dialog.chapters,
-                    onDismissRequest = onDismissRequest,
-                    onExport = { uri, options ->
-                        viewModel.exportAsEpub(dialog.manga, dialog.chapters, uri, options)
-                    },
-                )
-            }
-        }
 
-        if (showScanlatorsDialog) {
-            ScanlatorFilterDialog(
-                availableScanlators = successState.availableScanlators,
-                excludedScanlators = successState.excludedScanlators,
-                onDismissRequest = { showScanlatorsDialog = false },
-                onConfirm = viewModel::setExcludedScanlators,
-            )
+            if (showScanlatorsDialog) {
+                ScanlatorFilterDialog(
+                    availableScanlators = successState.availableScanlators,
+                    excludedScanlators = successState.excludedScanlators,
+                    onDismissRequest = { showScanlatorsDialog = false },
+                    onConfirm = viewModel::setExcludedScanlators,
+                )
+            }
         }
     }
 

@@ -38,10 +38,12 @@ class LibraryPreferences(
         Preference.appStateKey("library_update_last_timestamp"),
         0L,
     )
+
     val lastUpdatesClearedTimestamp: Preference<Long> = preferenceStore.getLong(
         Preference.appStateKey("updates_cleared_timestamp"),
         0L,
     )
+
     val autoUpdateInterval: Preference<Int> = preferenceStore.getInt("pref_library_update_interval_key", 0)
 
     val autoUpdateDeviceRestrictions: Preference<Set<String>> = preferenceStore.getStringSet(
@@ -50,6 +52,7 @@ class LibraryPreferences(
             DEVICE_ONLY_ON_WIFI,
         ),
     )
+
     val autoUpdateMangaRestrictions: Preference<Set<String>> = preferenceStore.getStringSet(
         "library_update_manga_restriction",
         setOf(
@@ -140,22 +143,26 @@ class LibraryPreferences(
         "pref_filter_library_included_tags",
         emptySet(),
     )
+
     val excludedTags: Preference<Set<String>> = preferenceStore.getStringSet(
         "pref_filter_library_excluded_tags",
         emptySet(),
     )
+
     fun filterNoTags() = preferenceStore.getEnum("pref_filter_library_no_tags", TriState.DISABLED)
 
     val tagIncludeMode: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_include_mode_and",
         false,
     )
+
     val tagExcludeMode: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_exclude_mode_and",
         false,
     )
 
     val tagSortByName: Preference<Boolean> = preferenceStore.getBoolean("pref_tag_sort_by_name", false)
+
     val tagSortAscending: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_tag_sort_ascending",
         false,
@@ -169,16 +176,21 @@ class LibraryPreferences(
     val sortMangaTags: Preference<Boolean> = preferenceStore.getBoolean("pref_sort_manga_tags", false)
 
     val searchChapterNames: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_names", false)
+
     val searchChapterContent: Preference<Boolean> = preferenceStore.getBoolean("pref_search_chapter_content", false)
+
     val searchByUrl: Preference<Boolean> = preferenceStore.getBoolean("pref_search_by_url", false)
+
     val searchAlternativeTitles: Preference<Boolean> =
         preferenceStore.getBoolean("pref_search_alternative_titles", true)
+
     val useRegexSearch: Preference<Boolean> = preferenceStore.getBoolean("pref_use_regex_search", false)
 
     fun filterChapterCount() = preferenceStore.getEnum(
         "pref_filter_library_chapter_count",
         TriState.DISABLED,
     )
+
     val filterChapterCountThreshold: Preference<Int> = preferenceStore.getInt(
         "pref_filter_library_chapter_count_threshold",
         10,
@@ -195,6 +207,7 @@ class LibraryPreferences(
     val showUrlInList: Preference<Boolean> = preferenceStore.getBoolean("display_url_in_list", false)
 
     val newShowUpdatesCount: Preference<Boolean> = preferenceStore.getBoolean("library_show_updates_count", true)
+
     val newUpdatesCount: Preference<Int> = preferenceStore.getInt(
         Preference.appStateKey("library_unseen_updates_count"),
         0,
@@ -275,6 +288,36 @@ class LibraryPreferences(
     val showMangaSourceName: Preference<Boolean> = preferenceStore.getBoolean("pref_show_manga_source_name", true)
 
     /**
+     * When true, the library grid shows the author (or author + artist) below the title,
+     * as long as the title fits on one line (or the active filter matches the author/artist).
+     */
+    val showAuthorArtistSubtitle: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_show_author_artist_subtitle",
+        false,
+    )
+
+    /**
+     * When true, grid cells use each manga's real cover aspect ratio (measured once and cached
+     * in MangaCoverMetadata) instead of forcing every cover into the standard 2:3 book shape.
+     */
+    val freeformCoverGrid: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_freeform_cover_grid",
+        false,
+    )
+
+    /**
+     * Only meaningful when [freeformCoverGrid] is on. Switches the comfortable grid from the
+     * standard row-major LazyVerticalGrid (uniform row heights, gaps under shorter covers) to a
+     * masonry-style staggered grid that packs each column independently. Off by default since it
+     * drops fast-scroll support, which the staggered grid scope doesn't share with the standard
+     * one.
+     */
+    val freeformCoverGridStaggered: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_freeform_cover_grid_staggered",
+        false,
+    )
+
+    /**
      * When false, bottom navigation bar labels only show under the currently selected tab,
      * instead of under every tab all the time. Default true preserves existing behavior.
      */
@@ -282,6 +325,46 @@ class LibraryPreferences(
         "pref_always_show_nav_labels",
         true,
     )
+
+    // --- Floating nav bar customization ---
+    // NOTE: these were restored after being accidentally dropped in a previous rewrite of this
+    // file. HomeScreen.kt and AdaptiveSheet.kt depend on them directly.
+
+    /** Width of the floating bottom nav bar as a percentage of the available width. */
+    val navBarWidthPercent: Preference<Int> = preferenceStore.getInt("pref_nav_bar_width_percent", 100)
+
+    /** Height of the floating bottom nav bar, in dp. */
+    val navBarHeightDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_height_dp", 80)
+
+    /** Spacing between items in the floating bottom nav bar, in dp. */
+    val navBarItemSpacingDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_item_spacing_dp", 0)
+
+    /**
+     * Corner radius for the navigation bar in dp.
+     * 0 means pill shape (fully rounded), >0 means custom rounded corners.
+     */
+    val navBarCornerRadiusDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_corner_radius_dp", 0)
+
+    /** Background rendering style for the floating nav bar. See [NavBarBackgroundStyle]. */
+    val navBarBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(
+        "pref_nav_bar_background_style",
+        NavBarBackgroundStyle.Solid,
+    )
+
+    /** Opacity of the nav bar background, as a percentage. Only applies when the style isn't Solid. */
+    val navBarOpacityPercent: Preference<Int> = preferenceStore.getInt("pref_nav_bar_opacity_percent", 100)
+
+    // --- AdaptiveSheet (bottom sheet / dialog) background customization ---
+    // Reuses NavBarBackgroundStyle since sheets support the same Solid/Transparent/Frosted styles.
+
+    /** Background rendering style for AdaptiveSheet. See [NavBarBackgroundStyle]. */
+    val sheetBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(
+        "pref_sheet_background_style",
+        NavBarBackgroundStyle.Solid,
+    )
+
+    /** Opacity of the sheet background, as a percentage. Only applies when the style isn't Solid. */
+    val sheetOpacityPercent: Preference<Int> = preferenceStore.getInt("pref_sheet_opacity_percent", 100)
 
     /**
      * Manga details screen appearance - both default false, preserving the existing look
@@ -291,9 +374,50 @@ class LibraryPreferences(
         "pref_manga_details_hide_backdrop",
         false,
     )
+
+    /** Blur radius applied to the manga details backdrop image, in dp. Slider range 0-20. */
+    val mangaDetailsBackdropBlurDp: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_blur_dp",
+        4,
+    )
+
+    /** Opacity of the manga details backdrop image, as a percentage. Slider range 0-100. */
+    val mangaDetailsBackdropOpacityPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_opacity_percent",
+        20,
+    )
+
+    /**
+     * Brightness of the manga details backdrop image, as a percentage (100 = unchanged).
+     * Slider range 50-150.
+     */
+    val mangaDetailsBackdropBrightnessPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_backdrop_brightness_percent",
+        100,
+    )
+
     val mangaDetailsCenterCover: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_manga_details_center_cover",
         false,
+    )
+
+    /**
+     * When true, the manga details screen shows each cover at its real aspect ratio instead of
+     * forcing it into MangaCover.Book's default shape. Applies to both the large (centered) and
+     * small (side-by-side) cover layouts.
+     */
+    val mangaDetailsFreeformCover: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_manga_details_freeform_cover",
+        false,
+    )
+
+    /**
+     * Width of the large centered cover (see [mangaDetailsCenterCover]) as a percentage of the
+     * available width. Only meaningful - and only exposed in settings - when centerCover is on.
+     */
+    val mangaDetailsCenterCoverSizePercent: Preference<Int> = preferenceStore.getInt(
+        "pref_manga_details_center_cover_size_percent",
+        65,
     )
 
     /**
@@ -331,6 +455,7 @@ class LibraryPreferences(
     )
 
     val mangaReadProgress100: Preference<Boolean> = preferenceStore.getBoolean("pref_manga_read_progress_100", true)
+
     val novelReadProgress100: Preference<Boolean> = preferenceStore.getBoolean("pref_novel_read_progress_100", true)
 
     val duplicateSortMode: Preference<DuplicateSortMode> = preferenceStore.getEnum(
@@ -354,6 +479,18 @@ class LibraryPreferences(
         ToggleBookmark,
         Download,
         Disabled,
+    }
+
+    /**
+     * Background rendering style shared by the floating nav bar and (where applicable) sheets.
+     * - Solid: fully opaque background, uses [navBarOpacityPercent]/opacity is ignored.
+     * - Transparent: flat color at [navBarOpacityPercent] opacity, no blur.
+     * - Frosted: blurred backdrop (via Haze) at [navBarOpacityPercent] opacity.
+     */
+    enum class NavBarBackgroundStyle {
+        Solid,
+        Transparent,
+        Frosted,
     }
 
     companion object {
@@ -381,6 +518,7 @@ class LibraryPreferences(
         const val DEFAULT_CATEGORY_PREF_KEY = "default_category"
         private const val LIBRARY_UPDATE_CATEGORIES_PREF_KEY = "library_update_categories"
         private const val LIBRARY_UPDATE_CATEGORIES_EXCLUDE_PREF_KEY = "library_update_categories_exclude"
+
         val categoryPreferenceKeys = setOf(
             DEFAULT_CATEGORY_PREF_KEY,
             LIBRARY_UPDATE_CATEGORIES_PREF_KEY,
@@ -388,4 +526,3 @@ class LibraryPreferences(
         )
     }
 }
-

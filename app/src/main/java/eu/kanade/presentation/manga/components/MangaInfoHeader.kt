@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -57,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +69,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
@@ -81,14 +85,17 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.palette.graphics.Palette
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import coil3.toBitmap
 import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.DropdownMenu
+import eu.kanade.presentation.library.components.rememberCoverRatio
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.util.system.copyToClipboard
@@ -125,28 +132,61 @@ fun MangaInfoBox(
     categories: List<Category>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
+    onCoverLoaded: (Color) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
     val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
+    val freeformCover by libraryPreferences.mangaDetailsFreeformCover.collectAsState()
+    val centerCoverSizePercent by libraryPreferences.mangaDetailsCenterCoverSizePercent.collectAsState()
+    val backdropBlurDp by libraryPreferences.mangaDetailsBackdropBlurDp.collectAsState()
+    val backdropOpacityPercent by libraryPreferences.mangaDetailsBackdropOpacityPercent.collectAsState()
+    val backdropBrightnessPercent by libraryPreferences.mangaDetailsBackdropBrightnessPercent.collectAsState()
+
+    val backdropColorFilter = remember(backdropBrightnessPercent) {
+        val scale = backdropBrightnessPercent / 100f
+        ColorFilter.colorMatrix(
+            ColorMatrix().apply { setToScale(scale, scale, scale, 1f) },
+        )
+    }
 
     Box(modifier = modifier) {
-        // Backdrop - hidden entirely when the "hide backdrop" appearance setting is on.
-        // Default (false) preserves the existing look exactly.
-        if (!hideBackdrop) {
-            val backdropGradientColors = listOf(
-                Color.Transparent,
-                MaterialTheme.colorScheme.background,
-            )
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(manga)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
+        // Backdrop image is always loaded (needed for palette extraction below, which is
+        // independent of whether it's visually shown), but only rendered visibly when the
+        // "hide backdrop" appearance setting is off. Default (false) preserves the existing
+        // look exactly.
+        val backdropGradientColors = listOf(
+            Color.Transparent,
+            MaterialTheme.colorScheme.background,
+        )
+
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(manga)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            colorFilter = backdropColorFilter,
+            onSuccess = { state ->
+                // Feeds the "cover-based theme" appearance option. Runs regardless of the
+                // hideBackdrop toggle since the two are independent settings.
+                // NOTE: coil3.toBitmap() is the one line here I'm not fully certain about -
+                // if this fails to resolve, check Coil3 3.5.0's real Image->Bitmap API
+                // (version pinned in libs.versions.toml) and swap this call accordingly.
+                runCatching {
+                    val bitmap = state.result.image.toBitmap()
+                    Palette.Builder(bitmap).generate { palette ->
+                        val rgb = palette?.vibrantSwatch?.rgb
+                            ?: palette?.dominantSwatch?.rgb
+                            ?: palette?.mutedSwatch?.rgb
+                        if (rgb != null) onCoverLoaded(Color(rgb))
+                    }
+                }
+            },
+            modifier = if (!hideBackdrop) {
+                Modifier
                     .matchParentSize()
                     .drawWithContent {
                         drawContent()
@@ -154,10 +194,13 @@ fun MangaInfoBox(
                             brush = Brush.verticalGradient(colors = backdropGradientColors),
                         )
                     }
-                    .blur(4.dp)
-                    .alpha(0.2f),
-            )
-        }
+                    .blur(backdropBlurDp.dp)
+                    .alpha(backdropOpacityPercent / 100f)
+            } else {
+                // Still needs to load for palette extraction, but shouldn't be visible.
+                Modifier.size(1.dp).alpha(0f)
+            },
+        )
 
         // Manga & source info. The "center cover" appearance setting forces the centered
         // layout (normally tablet-only) even on phone, reusing it rather than building a
@@ -172,6 +215,7 @@ fun MangaInfoBox(
                     categories = categories,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
+                    freeformCover = freeformCover,
                 )
             } else {
                 MangaAndSourceTitlesLarge(
@@ -182,6 +226,8 @@ fun MangaInfoBox(
                     categories = categories,
                     onCoverClick = onCoverClick,
                     doSearch = doSearch,
+                    freeformCover = freeformCover,
+                    coverSizePercent = centerCoverSizePercent,
                 )
             }
         }
@@ -203,7 +249,6 @@ fun MangaActionRow(
     modifier: Modifier = Modifier,
 ) {
     val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
-
     val nextUpdateDays = remember(nextUpdate) {
         return@remember if (nextUpdate != null) {
             val now = Clock.System.now()
@@ -278,7 +323,6 @@ fun ExpandableMangaDescription(
         }
         val desc =
             description.takeIf { !it.isNullOrBlank() } ?: stringResource(MR.strings.description_placeholder)
-
         MangaSummary(
             description = desc,
             expanded = expanded,
@@ -366,7 +410,12 @@ private fun MangaAndSourceTitlesLarge(
     categories: List<Category>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
+    freeformCover: Boolean = false,
+    coverSizePercent: Int = 65,
 ) {
+    // Null until measured (or when freeformCover is off) - falls back to MangaCover.Book's own
+    // default ratio via the `?:` below, same pattern used for the library grid's freeform mode.
+    val ratio = rememberCoverRatio(manga = manga, enabled = freeformCover)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -374,7 +423,9 @@ private fun MangaAndSourceTitlesLarge(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         MangaCover.Book(
-            modifier = Modifier.fillMaxWidth(0.65f),
+            modifier = Modifier
+                .fillMaxWidth(coverSizePercent / 100f)
+                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m },
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
                 .crossfade(true)
@@ -407,7 +458,9 @@ private fun MangaAndSourceTitlesSmall(
     categories: List<Category>,
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
+    freeformCover: Boolean = false,
 ) {
+    val ratio = rememberCoverRatio(manga = manga, enabled = freeformCover)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -418,7 +471,8 @@ private fun MangaAndSourceTitlesSmall(
         MangaCover.Book(
             modifier = Modifier
                 .sizeIn(maxWidth = 100.dp)
-                .align(Alignment.Top),
+                .align(Alignment.Top)
+                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m },
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
                 .crossfade(true)
@@ -475,7 +529,6 @@ private fun ColumnScope.MangaContentInfo(
         ),
         textAlign = textAlign,
     )
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -513,9 +566,7 @@ private fun ColumnScope.MangaContentInfo(
             )
         }
     }
-
     Spacer(modifier = Modifier.height(2.dp))
-
     Row(
         modifier = Modifier.secondaryItemAlpha(),
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
@@ -545,7 +596,6 @@ private fun ColumnScope.MangaContentInfo(
             textAlign = textAlign,
         )
     }
-
     if (!artist.isNullOrBlank() && author != artist) {
         Row(
             modifier = Modifier.secondaryItemAlpha(),
@@ -569,9 +619,7 @@ private fun ColumnScope.MangaContentInfo(
             )
         }
     }
-
     Spacer(modifier = Modifier.height(2.dp))
-
     Row(
         modifier = Modifier.secondaryItemAlpha(),
         verticalAlignment = Alignment.CenterVertically,
@@ -629,7 +677,6 @@ private fun ColumnScope.MangaContentInfo(
             )
         }
     }
-
     if (categories.isNotEmpty()) {
         Row(
             modifier = Modifier.secondaryItemAlpha(),
@@ -659,34 +706,28 @@ private fun descriptionAnnotator(loadImages: Boolean, linkStyle: SpanStyle) = re
         annotate = { content, child ->
             if (!loadImages && child.type == MarkdownElementTypes.IMAGE) {
                 val inlineLink = child.findChildOfType(MarkdownElementTypes.INLINE_LINK)
-
                 val url = inlineLink?.findChildOfType(MarkdownElementTypes.LINK_DESTINATION)
                     ?.getUnescapedTextInNode(content)
                     ?: inlineLink?.findChildOfType(MarkdownElementTypes.AUTOLINK)
                         ?.findChildOfType(MarkdownTokenTypes.AUTOLINK)
                         ?.getUnescapedTextInNode(content)
                     ?: return@markdownAnnotator false
-
                 val textNode = inlineLink?.findChildOfType(MarkdownElementTypes.LINK_TITLE)
                     ?: inlineLink?.findChildOfType(MarkdownElementTypes.LINK_TEXT)
                 val altText = textNode?.findChildOfType(MarkdownTokenTypes.TEXT)
                     ?.getUnescapedTextInNode(content).orEmpty()
-
                 withLink(LinkAnnotation.Url(url = url)) {
                     pushStyle(linkStyle)
                     appendInlineContent(MARKDOWN_INLINE_IMAGE_TAG)
                     append(altText)
                     pop()
                 }
-
                 return@markdownAnnotator true
             }
-
             if (child.type in DISALLOWED_MARKDOWN_TYPES) {
                 append(content.substring(child.startOffset, child.endOffset))
                 return@markdownAnnotator true
             }
-
             false
         },
         config = markdownAnnotatorConfig(
@@ -767,16 +808,13 @@ private fun MangaSummary(
             .height
         val heightDelta = infoHeight - shrunkHeight
         val scrimHeight = 24.dp.roundToPx()
-
         val actualPlaceable = actual.single()
             .measure(constraints)
         val scrimPlaceable = scrim.single()
             .measure(Constraints.fixed(width = constraints.maxWidth, height = scrimHeight))
-
         val currentHeight = shrunkHeight + ((heightDelta + scrimHeight) * animProgress).roundToInt()
         layout(constraints.maxWidth, currentHeight) {
             actualPlaceable.place(0, 0)
-
             val scrimY = currentHeight - scrimHeight
             scrimPlaceable.place(0, scrimY)
         }

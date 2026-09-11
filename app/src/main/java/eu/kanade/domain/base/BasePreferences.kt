@@ -5,13 +5,13 @@ import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.util.system.GLUtil
 import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.core.common.preference.getEnum
 import tachiyomi.i18n.MR
 
 class BasePreferences(
     val context: Context,
     preferenceStore: PreferenceStore,
 ) {
-
     val downloadedOnly: Preference<Boolean> = preferenceStore.getBoolean(
         Preference.appStateKey("pref_downloaded_only"),
         false,
@@ -30,6 +30,39 @@ class BasePreferences(
         Preference.appStateKey("pref_hide_manga_ui"),
         false,
     )
+
+    /**
+     * Visual style of the bottom navigation bar's scrim, drawn behind the system navigation bar
+     * when [eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim] is true.
+     */
+    val navigationBarStyle: Preference<NavigationBarStyle> = preferenceStore.getEnum(
+        Preference.appStateKey("pref_navigation_bar_style"),
+        NavigationBarStyle.SOLID,
+    )
+
+    /**
+     * Opacity of the navigation bar scrim, as a percentage (0-100). For [NavigationBarStyle.SOLID]
+     * this is the scrim's alpha; for [NavigationBarStyle.GLASS] it controls the strength of the
+     * tint mixed into the blurred content.
+     */
+    val navigationBarOpacity: Preference<Int> = preferenceStore.getInt(
+        Preference.appStateKey("pref_navigation_bar_opacity"),
+        80,
+    )
+
+    /**
+     * Corner radius (dp) applied to the top-left and top-right corners of the navigation bar
+     * scrim. 0 keeps the original flush rectangle.
+     */
+    val navigationBarCornerRadius: Preference<Int> = preferenceStore.getInt(
+        Preference.appStateKey("pref_navigation_bar_corner_radius"),
+        0,
+    )
+
+    enum class NavigationBarStyle {
+        SOLID,
+        GLASS,
+    }
 
     enum class ExtensionInstaller(val titleRes: StringResource, val requiresSystemPermission: Boolean) {
         LEGACY(MR.strings.ext_installer_legacy, true),

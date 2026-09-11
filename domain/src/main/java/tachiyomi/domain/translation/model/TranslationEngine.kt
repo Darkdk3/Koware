@@ -9,16 +9,18 @@ interface TranslationEngine {
     val isOffline: Boolean
     val supportedLanguages: List<Pair<String, String>>
 
-
+    /**
+     * Whether this engine can handle arbitrary prompts (recommendations, summaries, etc.),
+     * not just source→target translation. True only for general-purpose LLM engines —
+     * dedicated translation-only APIs (Libre, DeepL, Google Translate, Systran) leave this false.
+     */
     val supportsGeneralPrompts: Boolean get() = false
-
 
     suspend fun translate(
         texts: List<String>,
         sourceLanguage: String,
         targetLanguage: String,
     ): TranslationResult
-
 
     suspend fun translateSingle(
         text: String,
@@ -27,7 +29,6 @@ interface TranslationEngine {
     ): TranslationResult {
         return translate(listOf(text), sourceLanguage, targetLanguage)
     }
-
 
     /**
      * Send a free-form prompt and get a text response back. Only meaningful when
@@ -43,10 +44,8 @@ interface TranslationEngine {
         )
     }
 
-
     fun isConfigured(): Boolean = true
 }
-
 
 sealed class TranslationResult {
     data class Success(
@@ -54,12 +53,10 @@ sealed class TranslationResult {
         val detectedSourceLanguage: String? = null,
     ) : TranslationResult()
 
-
     data class Error(
         val message: String,
         val errorCode: ErrorCode = ErrorCode.UNKNOWN,
     ) : TranslationResult()
-
 
     enum class ErrorCode {
         UNKNOWN,
@@ -73,7 +70,6 @@ sealed class TranslationResult {
         SERVICE_UNAVAILABLE,
     }
 }
-
 
 object LanguageCodes {
     val COMMON_LANGUAGES = listOf(
@@ -112,7 +108,6 @@ object LanguageCodes {
         "fa" to "Persian",
         "bn" to "Bengali",
     )
-
 
     fun getDisplayName(code: String): String {
         return COMMON_LANGUAGES.find { it.first == code }?.second ?: code

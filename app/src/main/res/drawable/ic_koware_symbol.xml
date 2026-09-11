@@ -4,8 +4,33 @@
     android:viewportWidth="432"
     android:viewportHeight="432">
 
+    <!-- Main cyan circular border -->
     <path
-        android:fillColor="#FFFFFFFF"
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#67E8F9"
+        android:strokeWidth="5"
+        android:strokeAlpha="0.90"
+        android:pathData="
+            M216,27
+            A189,189 0,1 0,216,405
+            A189,189 0,1 0,216,27
+            Z" />
+
+    <!-- Subtle inner ring -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#67E8F9"
+        android:strokeWidth="1.5"
+        android:strokeAlpha="0.18"
+        android:pathData="
+            M216,42
+            A174,174 0,1 0,216,390
+            A174,174 0,1 0,216,42
+            Z" />
+
+    <!-- Central symbol -->
+    <path
+        android:fillColor="#A970FF"
         android:pathData="
             M262,94
             L255,92

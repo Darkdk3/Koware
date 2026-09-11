@@ -4,9 +4,13 @@ import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.materialkolor.DynamicMaterialExpressiveTheme
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.AppTheme
 import eu.kanade.presentation.theme.colorscheme.BaseColorScheme
@@ -42,6 +46,31 @@ fun TachiyomiTheme(
     )
 }
 
+/** Theme seeded from a manga's cover color, with a selectable Material Kolor palette style. */
+@Composable
+fun TachiyomiTheme(
+    seedColor: Color?,
+    appTheme: AppTheme? = null,
+    amoled: Boolean? = null,
+    typography: Typography = MaterialTheme.typography,
+    content: @Composable () -> Unit,
+) {
+    if (seedColor == null) {
+        TachiyomiTheme(appTheme, amoled, content)
+    } else {
+        val uiPreferences = Injekt.get<UiPreferences>()
+        val isAmoled = amoled ?: uiPreferences.themeDarkAmoled.get()
+        DynamicMaterialExpressiveTheme(
+            seedColor = seedColor,
+            isAmoled = isAmoled,
+            style = uiPreferences.themeCoverBasedStyle.get(),
+            typography = typography,
+            animate = true,
+            content = content,
+        )
+    }
+}
+
 @Composable
 fun TachiyomiPreviewTheme(
     appTheme: AppTheme = AppTheme.DEFAULT,
@@ -57,6 +86,7 @@ private fun BaseTachiyomiTheme(
 ) {
     val context = LocalContext.current
     val isDark = isSystemInDarkTheme()
+
     MaterialExpressiveTheme(
         colorScheme = remember(appTheme, isDark, isAmoled) {
             getThemeColorScheme(
@@ -76,11 +106,11 @@ private fun getThemeColorScheme(
     isDark: Boolean,
     isAmoled: Boolean,
 ): ColorScheme {
-    val colorScheme = if (appTheme == AppTheme.MONET) {
-        MonetColorScheme(context)
-    } else {
-        colorSchemes.getOrDefault(appTheme, TachiyomiColorScheme)
+    val colorScheme = when (appTheme) {
+        AppTheme.MONET -> MonetColorScheme(context)
+        else -> colorSchemes.getOrDefault(appTheme, TachiyomiColorScheme)
     }
+
     return colorScheme.getColorScheme(
         isDark = isDark,
         isAmoled = isAmoled,

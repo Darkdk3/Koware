@@ -34,7 +34,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -43,6 +45,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -55,10 +61,27 @@ fun AdaptiveSheet(
     enableImplicitDismiss: Boolean,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    containerAlpha: Float = 1f,
+    hazeState: HazeState? = null,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val sheetShape = MaterialTheme.shapes.extraLarge
+    val resolvedColor = containerColor.copy(alpha = containerAlpha)
+    val hazeModifier = if (hazeState != null) {
+        Modifier
+            .clip(sheetShape)
+            .hazeEffect(
+                state = hazeState,
+                style = HazeStyle(tint = HazeTint(resolvedColor)),
+            )
+    } else {
+        Modifier
+    }
+    val surfaceColor = if (hazeState != null) Color.Transparent else resolvedColor
+
     if (isTabletUi) {
         var targetAlpha by remember { mutableFloatStateOf(0f) }
         val alpha by animateFloatAsState(
@@ -94,9 +117,10 @@ fun AdaptiveSheet(
                     )
                     .systemBarsPadding()
                     .padding(vertical = 16.dp)
-                    .then(modifier),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    .then(modifier)
+                    .then(hazeModifier),
+                shape = sheetShape,
+                color = surfaceColor,
                 content = {
                     BackHandler(
                         enabled = enableImplicitDismiss && remember { derivedStateOf { alpha > 0f } }.value,
@@ -179,9 +203,10 @@ fun AdaptiveSheet(
                         flingBehavior = flingBehavior,
                     )
                     .navigationBarsPadding()
-                    .statusBarsPadding(),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    .statusBarsPadding()
+                    .then(hazeModifier),
+                shape = sheetShape,
+                color = surfaceColor,
                 content = {
                     BackHandler(
                         enabled = enableImplicitDismiss && anchoredDraggableState.targetValue == 0,

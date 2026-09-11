@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.text.shared
 
 import android.app.Activity
+import androidx.core.graphics.ColorUtils
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 
 object ThemeUtils {
@@ -10,7 +11,12 @@ object ThemeUtils {
         val jsObject: String,
     )
 
-    fun getThemeColors(activity: Activity, preferences: ReaderPreferences, theme: String): Pair<Int, Int> {
+    fun getThemeColors(
+        activity: Activity,
+        preferences: ReaderPreferences,
+        theme: String,
+        coverSeedColor: Int? = null,
+    ): Pair<Int, Int> {
         val backgroundColor = preferences.novelBackgroundColor.get()
         val fontColor = preferences.novelFontColor.get()
 
@@ -56,6 +62,16 @@ object ThemeUtils {
             "sepia" -> 0xFFF4ECD8.toInt() to 0xFF5B4636.toInt()
             "black" -> 0xFF000000.toInt() to 0xFFCCCCCC.toInt()
             "grey" -> 0xFF292832.toInt() to 0xFFCCCCCC.toInt()
+            "cover" -> {
+                // Falls back to the "dark" theme if the cover hasn't been measured yet (e.g. not
+                // downloaded locally) - coverSeedColor is only non-null once MangaCoverPalette has
+                // actually extracted something.
+                if (coverSeedColor != null) {
+                    darkenForReading(coverSeedColor)
+                } else {
+                    0xFF121212.toInt() to 0xFFE0E0E0.toInt()
+                }
+            }
             "custom" -> {
                 val bg = if (backgroundColor != 0) backgroundColor else 0xFFFFFFFF.toInt()
                 val text = if (fontColor != 0) fontColor else 0xFF000000.toInt()
@@ -65,8 +81,36 @@ object ThemeUtils {
         }
     }
 
-    fun getThemeTokens(activity: Activity, preferences: ReaderPreferences, theme: String): ThemeTokens {
-        val (readerBgColor, readerTextColor) = getThemeColors(activity, preferences, theme)
+    /**
+     * Derives a dark, readable reading background/text pair from an arbitrary cover color.
+     *
+     * Keeps the cover's hue (and a fraction of its saturation) so the page still feels tied to
+     * the cover, but pins lightness low for the background (dark enough to read comfortably) and
+     * high for the text (strong contrast against that background) - the actual cover color is
+     * rarely usable as-is for either role.
+     */
+    internal fun darkenForReading(seedColor: Int): Pair<Int, Int> {
+        val hsl = FloatArray(3)
+        ColorUtils.colorToHSL(seedColor, hsl)
+        val hue = hsl[0]
+        val saturation = hsl[1]
+
+        val backgroundHsl = floatArrayOf(hue, (saturation * 0.55f).coerceIn(0f, 1f), 0.13f)
+        val backgroundColor = ColorUtils.HSLToColor(backgroundHsl)
+
+        val textHsl = floatArrayOf(hue, (saturation * 0.25f).coerceIn(0f, 1f), 0.92f)
+        val textColor = ColorUtils.HSLToColor(textHsl)
+
+        return backgroundColor to textColor
+    }
+
+    fun getThemeTokens(
+        activity: Activity,
+        preferences: ReaderPreferences,
+        theme: String,
+        coverSeedColor: Int? = null,
+    ): ThemeTokens {
+        val (readerBgColor, readerTextColor) = getThemeColors(activity, preferences, theme, coverSeedColor)
 
         val readerBgHex = colorToHex(readerBgColor)
         val readerTextHex = colorToHex(readerTextColor)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -55,13 +60,10 @@ object CommonMangaItemDefaults {
 
 private val ContinueReadingButtonSizeSmall = 28.dp
 private val ContinueReadingButtonSizeLarge = 32.dp
-
 private val ContinueReadingButtonIconSizeSmall = 16.dp
 private val ContinueReadingButtonIconSizeLarge = 20.dp
-
 private val ContinueReadingButtonGridPadding = 6.dp
 private val ContinueReadingButtonListSpacing = 8.dp
-
 private const val GRID_SELECTED_COVER_ALPHA = 0.76f
 
 /**
@@ -176,6 +178,9 @@ private fun BoxScope.CoverTextOverlay(
 
 /**
  * Layout of grid list item with title below the cover.
+ *
+ * When [showAuthorArtistSubtitle] is on and [authorArtist] is non-blank, the author/artist is
+ * shown under the title.
  */
 @Composable
 fun MangaComfortableGridItem(
@@ -189,6 +194,9 @@ fun MangaComfortableGridItem(
     coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
     coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
     onClickContinueReading: (() -> Unit)? = null,
+    authorArtist: String? = null,
+    showAuthorArtistSubtitle: Boolean = false,
+    freeformCoverRatio: Float? = null,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -197,12 +205,14 @@ fun MangaComfortableGridItem(
     ) {
         Column {
             MangaGridCover(
+                aspectRatio = freeformCoverRatio ?: MangaCover.Book.ratio,
                 cover = {
                     MangaCover.Book(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxSize()
                             .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
                         data = coverData,
+                        applyAspectRatio = freeformCoverRatio == null,
                     )
                 },
                 badgesStart = coverBadgeStart,
@@ -220,13 +230,22 @@ fun MangaComfortableGridItem(
                     }
                 },
             )
-            GridItemTitle(
-                modifier = Modifier.padding(4.dp),
-                title = title,
-                style = MaterialTheme.typography.titleSmall,
-                minLines = 2,
-                maxLines = titleMaxLines,
-            )
+            if (showAuthorArtistSubtitle && !authorArtist.isNullOrBlank()) {
+                GridItemTitleWithSubtitle(
+                    modifier = Modifier.padding(4.dp),
+                    title = title,
+                    authorArtist = authorArtist,
+                    titleMaxLines = titleMaxLines,
+                )
+            } else {
+                GridItemTitle(
+                    modifier = Modifier.padding(4.dp),
+                    title = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    minLines = 2,
+                    maxLines = titleMaxLines,
+                )
+            }
         }
     }
 }
@@ -237,6 +256,7 @@ fun MangaComfortableGridItem(
 @Composable
 private fun MangaGridCover(
     modifier: Modifier = Modifier,
+    aspectRatio: Float = MangaCover.Book.ratio,
     cover: @Composable BoxScope.() -> Unit = {},
     badgesStart: (@Composable RowScope.() -> Unit)? = null,
     badgesEnd: (@Composable RowScope.() -> Unit)? = null,
@@ -245,7 +265,7 @@ private fun MangaGridCover(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(MangaCover.Book.ratio),
+            .aspectRatio(aspectRatio),
     ) {
         cover()
         content?.invoke(this)
@@ -257,7 +277,6 @@ private fun MangaGridCover(
                 content = badgesStart,
             )
         }
-
         if (badgesEnd != null) {
             BadgeGroup(
                 modifier = Modifier
@@ -288,6 +307,42 @@ private fun GridItemTitle(
         overflow = TextOverflow.Ellipsis,
         style = style,
     )
+}
+
+/**
+ * Title + author/artist subtitle for the comfortable grid, ported from the old
+ * LibraryGridHolder's post-layout line-count check. The title is first measured with room for
+ * [titleMaxLines]; if it only needed one line, we collapse it to one line via [onTextLayout] and
+ * reveal the subtitle underneath. If the title needed the extra line(s), the subtitle never shows
+ * and the title keeps its full [titleMaxLines] allowance.
+ */
+@Composable
+private fun GridItemTitleWithSubtitle(
+    title: String,
+    authorArtist: String,
+    titleMaxLines: Int,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = title,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            minLines = 1,
+            maxLines = titleMaxLines,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Text(
+            text = authorArtist,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /**

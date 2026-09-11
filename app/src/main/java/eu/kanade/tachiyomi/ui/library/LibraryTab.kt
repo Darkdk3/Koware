@@ -112,6 +112,17 @@ data object LibraryTab : Tab {
         val showUrlInList by settingsViewModel.libraryPreferences.showUrlInList.changes().collectAsState(
             settingsViewModel.libraryPreferences.showUrlInList.get(),
         )
+        val showAuthorArtistSubtitle by
+            settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.changes().collectAsState(
+                settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.get(),
+            )
+        val freeformCoverGrid by settingsViewModel.libraryPreferences.freeformCoverGrid.changes().collectAsState(
+            settingsViewModel.libraryPreferences.freeformCoverGrid.get(),
+        )
+        val freeformCoverGridStaggered by
+            settingsViewModel.libraryPreferences.freeformCoverGridStaggered.changes().collectAsState(
+                settingsViewModel.libraryPreferences.freeformCoverGridStaggered.get(),
+            )
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -255,6 +266,9 @@ data object LibraryTab : Tab {
                         getItemsForCategory = { state.getItemsForCategory(it) },
                         titleMaxLines = titleMaxLines,
                         showUrlInList = showUrlInList,
+                        showAuthorArtistSubtitle = showAuthorArtistSubtitle,
+                        freeformCoverGrid = freeformCoverGrid,
+                        freeformCoverGridStaggered = freeformCoverGridStaggered,
                         paginationEnabled = viewModel.paginationEnabled,
                         onCategoryFirstVisible = viewModel::onCategoryFirstVisible,
                         onLoadMore = viewModel::loadMoreForCategory,
