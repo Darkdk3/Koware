@@ -20,7 +20,12 @@ enum class DiscoverBrowseMode { LATEST, POPULAR }
 data class DiscoverEntry(
     val source: CatalogueSource,
     val manga: Manga,
-)
+) : RecommendableItem {
+    override val sourceName: String get() = source.name
+    override val mangaTitle: String get() = manga.title
+    override val mangaGenre: List<String>? get() = manga.genre
+    override val mangaAuthor: String? get() = manga.author
+}
 
 data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),

@@ -15,21 +15,29 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -91,6 +99,8 @@ fun discoverMangaTab(
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
+                recommendations = state.recommendations,
+                isLoadingRecommendations = state.isLoadingRecommendations,
                 isLoading = state.isLoading,
                 isLoadingMore = state.isLoadingMore,
                 browseMode = state.browseMode,
@@ -106,6 +116,8 @@ fun discoverMangaTab(
 @Composable
 private fun DiscoverScreenContent(
     items: List<DiscoverMangaEntry>,
+    recommendations: List<DiscoverMangaEntry>,
+    isLoadingRecommendations: Boolean,
     isLoading: Boolean,
     isLoadingMore: Boolean,
     browseMode: DiscoverMangaBrowseMode,
@@ -139,6 +151,17 @@ private fun DiscoverScreenContent(
     // Toggle stays visible in every state - loading, empty, or populated - so switching
     // modes is always available rather than disappearing while content loads.
     Column(modifier = Modifier.fillMaxSize()) {
+        AiRecommendationsShelf(
+            recommendations = recommendations,
+            isLoading = isLoadingRecommendations,
+            onMangaClick = onMangaClick,
+        )
+        if (recommendations.isNotEmpty() || isLoadingRecommendations) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+        }
         BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
 
         when {
@@ -226,6 +249,112 @@ private fun BrowseModeToggle(
             onClick = { onSelect(DiscoverMangaBrowseMode.POPULAR) },
             label = { Text("Popular") },
         )
+    }
+}
+
+@Composable
+private fun AiRecommendationsShelf(
+    recommendations: List<DiscoverMangaEntry>,
+    isLoading: Boolean,
+    onMangaClick: (DiscoverMangaEntry) -> Unit,
+) {
+    if (recommendations.isEmpty() && !isLoading) return
+
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "AI recommendations",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            if (isLoading) {
+                Spacer(Modifier.width(8.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        if (isLoading && recommendations.isEmpty()) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(6) {
+                    Column(modifier = Modifier.width(92.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(shimmerBrush()),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .fillMaxWidth(0.9f)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(shimmerBrush()),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .fillMaxWidth(0.6f)
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(shimmerBrush()),
+                        )
+                    }
+                }
+            }
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(recommendations, key = { "rec_${it.manga.id}" }) { entry ->
+                    Column(modifier = Modifier.width(92.dp)) {
+                        MangaComfortableGridItem(
+                            isSelected = false,
+                            title = entry.manga.title,
+                            coverData = MangaCover(
+                                mangaId = entry.manga.id,
+                                sourceId = entry.manga.source,
+                                isMangaFavorite = entry.manga.favorite,
+                                url = entry.manga.thumbnailUrl,
+                                lastModified = entry.manga.coverLastModified,
+                            ),
+                            coverBadgeStart = {},
+                            coverBadgeEnd = {},
+                            onLongClick = {},
+                            onClick = { onMangaClick(entry) },
+                            onClickContinueReading = null,
+                            titleMaxLines = 2,
+                        )
+                        Text(
+                            text = entry.source.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
