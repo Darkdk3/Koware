@@ -4,54 +4,26 @@ package tachiyomi.domain.translation.model
  * Base interface for translation engines.
  */
 interface TranslationEngine {
-    /**
-     * Unique identifier for this engine.
-     */
     val id: Long
-
-    /**
-     * Display name of the engine.
-     */
     val name: String
-
-    /**
-     * Whether this engine requires an API key.
-     */
     val requiresApiKey: Boolean
-
-    /**
-     * Whether this engine is rate-limited (web-based).
-     * Offline engines like ML Kit don't need rate limiting.
-     */
     val isRateLimited: Boolean
-
-    /**
-     * Whether this engine works offline.
-     */
     val isOffline: Boolean
-
-    /**
-     * List of supported languages as (code, displayName) pairs.
-     */
     val supportedLanguages: List<Pair<String, String>>
 
     /**
-     * Translate a list of text segments.
-     *
-     * @param texts List of text segments to translate
-     * @param sourceLanguage Source language code (e.g., "en", "auto")
-     * @param targetLanguage Target language code (e.g., "zh", "ja")
-     * @return Result containing translated texts or error
+     * Whether this engine can handle arbitrary prompts (recommendations, summaries, etc.),
+     * not just source→target translation. True only for general-purpose LLM engines —
+     * dedicated translation-only APIs (Libre, DeepL, Google Translate, Systran) leave this false.
      */
+    val supportsGeneralPrompts: Boolean get() = false
+
     suspend fun translate(
         texts: List<String>,
         sourceLanguage: String,
         targetLanguage: String,
     ): TranslationResult
 
-    /**
-     * Translate a single text.
-     */
     suspend fun translateSingle(
         text: String,
         sourceLanguage: String,
@@ -61,26 +33,25 @@ interface TranslationEngine {
     }
 
     /**
-     * Check if the engine is properly configured (API key set, etc.).
+     * Send a free-form prompt and get a text response back. Only meaningful when
+     * [supportsGeneralPrompts] is true.
      */
+    suspend fun complete(prompt: String): TranslationResult {
+        return TranslationResult.Error(
+            "This engine only supports translation, not general prompts.",
+            TranslationResult.ErrorCode.LANGUAGE_NOT_SUPPORTED,
+        )
+    }
+
     fun isConfigured(): Boolean = true
 }
 
-/**
- * Result of a translation operation.
- */
 sealed class TranslationResult {
-    /**
-     * Successful translation.
-     */
     data class Success(
         val translatedTexts: List<String>,
         val detectedSourceLanguage: String? = null,
     ) : TranslationResult()
 
-    /**
-     * Translation failed.
-     */
     data class Error(
         val message: String,
         val errorCode: ErrorCode = ErrorCode.UNKNOWN,
@@ -99,9 +70,6 @@ sealed class TranslationResult {
     }
 }
 
-/**
- * Common language codes used across translation engines.
- */
 object LanguageCodes {
     val COMMON_LANGUAGES = listOf(
         "auto" to "Auto-detect",
