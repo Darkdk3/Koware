@@ -35,6 +35,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,6 +93,7 @@ fun discoverTab(
             DiscoverScreenContent(
                 items = state.items,
                 recommendations = state.recommendations,
+                isLoadingRecommendations = state.isLoadingRecommendations,
                 isLoading = state.isLoading,
                 isLoadingMore = state.isLoadingMore,
                 browseMode = state.browseMode,
@@ -108,6 +110,7 @@ fun discoverTab(
 private fun DiscoverScreenContent(
     items: List<DiscoverEntry>,
     recommendations: List<DiscoverEntry>,
+    isLoadingRecommendations: Boolean,
     isLoading: Boolean,
     isLoadingMore: Boolean,
     browseMode: DiscoverBrowseMode,
@@ -140,7 +143,17 @@ private fun DiscoverScreenContent(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        AiRecommendationsShelf(recommendations = recommendations, onMangaClick = onMangaClick)
+        AiRecommendationsShelf(
+            recommendations = recommendations,
+            isLoading = isLoadingRecommendations,
+            onMangaClick = onMangaClick,
+        )
+        if (recommendations.isNotEmpty() || isLoadingRecommendations) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+        }
         BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
         when {
             isLoading -> DiscoverLoadingGrid(columns = columns, contentPadding = contentPadding)
@@ -206,9 +219,10 @@ private fun DiscoverScreenContent(
 @Composable
 private fun AiRecommendationsShelf(
     recommendations: List<DiscoverEntry>,
+    isLoading: Boolean,
     onMangaClick: (DiscoverEntry) -> Unit,
 ) {
-    if (recommendations.isEmpty()) return
+    if (recommendations.isEmpty() && !isLoading) return
 
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(
@@ -227,31 +241,81 @@ private fun AiRecommendationsShelf(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
+            if (isLoading) {
+                Spacer(Modifier.width(8.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
 
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(recommendations, key = { "rec_${it.manga.id}" }) { entry ->
-                Column(modifier = Modifier.width(92.dp)) {
-                    MangaComfortableGridItem(
-                        isSelected = false,
-                        title = entry.manga.title,
-                        coverData = MangaCover(
-                            mangaId = entry.manga.id,
-                            sourceId = entry.manga.source,
-                            isMangaFavorite = entry.manga.favorite,
-                            url = entry.manga.thumbnailUrl,
-                            lastModified = entry.manga.coverLastModified,
-                        ),
-                        coverBadgeStart = {},
-                        coverBadgeEnd = {},
-                        onLongClick = {},
-                        onClick = { onMangaClick(entry) },
-                        onClickContinueReading = null,
-                        titleMaxLines = 2,
-                    )
+        if (isLoading && recommendations.isEmpty()) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(6) {
+                    Column(modifier = Modifier.width(92.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(2f / 3f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(shimmerBrush()),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .fillMaxWidth(0.9f)
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(shimmerBrush()),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .fillMaxWidth(0.6f)
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(shimmerBrush()),
+                        )
+                    }
+                }
+            }
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(recommendations, key = { "rec_${it.manga.id}" }) { entry ->
+                    Column(modifier = Modifier.width(92.dp)) {
+                        MangaComfortableGridItem(
+                            isSelected = false,
+                            title = entry.manga.title,
+                            coverData = MangaCover(
+                                mangaId = entry.manga.id,
+                                sourceId = entry.manga.source,
+                                isMangaFavorite = entry.manga.favorite,
+                                url = entry.manga.thumbnailUrl,
+                                lastModified = entry.manga.coverLastModified,
+                            ),
+                            coverBadgeStart = {},
+                            coverBadgeEnd = {},
+                            onLongClick = {},
+                            onClick = { onMangaClick(entry) },
+                            onClickContinueReading = null,
+                            titleMaxLines = 2,
+                        )
+                        Text(
+                            text = entry.source.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                        )
+                    }
                 }
             }
         }

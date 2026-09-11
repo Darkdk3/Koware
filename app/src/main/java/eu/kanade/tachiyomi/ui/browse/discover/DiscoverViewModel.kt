@@ -25,6 +25,7 @@ data class DiscoverEntry(
 data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),
     val recommendations: List<DiscoverEntry> = emptyList(),
+    val isLoadingRecommendations: Boolean = false,
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -96,8 +97,9 @@ class DiscoverViewModel(
 
     private fun loadAiRecommendations() {
         viewModelScope.launchIO {
+            mutableState.update { it.copy(isLoadingRecommendations = true) }
             val recs = runCatching { getAiRecommendations.await(state.value.items) }.getOrDefault(emptyList())
-            mutableState.update { it.copy(recommendations = recs) }
+            mutableState.update { it.copy(recommendations = recs, isLoadingRecommendations = false) }
         }
     }
 
