@@ -424,4 +424,37 @@ class TranslationPreferences(
         "translation_gemini_prompt",
         "",
     )
+
+    // AI Features (recommendations, etc.) - separate from the translation engine selection,
+    // so a different/cheaper model can power AI features without touching translation setup.
+
+
+    /**
+     * Which engine powers AI features (recommendations, etc.). 0L means "same as whatever
+     * the translation engine is currently set to" - the default, so nothing needs configuring
+     * unless the person wants to split them.
+     */
+    fun aiFeatureEngineId() = preferenceStore.getLong(
+        "ai_feature_engine_id",
+        0L,
+    )
+
+
+    /**
+     * Whether AI features use their own API key instead of reusing the selected engine's
+     * key from Translation settings.
+     */
+    fun aiFeatureUseSeparateApiKey() = preferenceStore.getBoolean(
+        "ai_feature_use_separate_api_key",
+        false,
+    )
+
+
+    /**
+     * The separate API key for AI features, only used when [aiFeatureUseSeparateApiKey] is true.
+     */
+    fun aiFeatureApiKey() = preferenceStore.getString(
+        "ai_feature_api_key",
+        "",
+    )
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ChromeReaderMode
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Explore
@@ -228,6 +229,12 @@ object SettingsMainScreen : Screen() {
             subtitleRes = TDMR.strings.pref_translation_enabled_summary,
             icon = Icons.Outlined.Translate,
             screen = SettingsTranslationScreen,
+        ),
+        Item(
+            titleRes = TDMR.strings.pref_category_ai_features,
+            subtitleRes = TDMR.strings.pref_ai_features_summary,
+            icon = Icons.Outlined.AutoAwesome,
+            screen = SettingsAiScreen,
         ),
         Item(
             titleRes = MR.strings.pref_category_tracking,

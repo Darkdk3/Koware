@@ -1,57 +1,25 @@
 package tachiyomi.domain.translation.model
 
-/**
- * Base interface for translation engines.
- */
+
 interface TranslationEngine {
-    /**
-     * Unique identifier for this engine.
-     */
     val id: Long
-
-    /**
-     * Display name of the engine.
-     */
     val name: String
-
-    /**
-     * Whether this engine requires an API key.
-     */
     val requiresApiKey: Boolean
-
-    /**
-     * Whether this engine is rate-limited (web-based).
-     * Offline engines like ML Kit don't need rate limiting.
-     */
     val isRateLimited: Boolean
-
-    /**
-     * Whether this engine works offline.
-     */
     val isOffline: Boolean
-
-    /**
-     * List of supported languages as (code, displayName) pairs.
-     */
     val supportedLanguages: List<Pair<String, String>>
 
-    /**
-     * Translate a list of text segments.
-     *
-     * @param texts List of text segments to translate
-     * @param sourceLanguage Source language code (e.g., "en", "auto")
-     * @param targetLanguage Target language code (e.g., "zh", "ja")
-     * @return Result containing translated texts or error
-     */
+
+    val supportsGeneralPrompts: Boolean get() = false
+
+
     suspend fun translate(
         texts: List<String>,
         sourceLanguage: String,
         targetLanguage: String,
     ): TranslationResult
 
-    /**
-     * Translate a single text.
-     */
+
     suspend fun translateSingle(
         text: String,
         sourceLanguage: String,
@@ -60,31 +28,38 @@ interface TranslationEngine {
         return translate(listOf(text), sourceLanguage, targetLanguage)
     }
 
+
     /**
-     * Check if the engine is properly configured (API key set, etc.).
+     * Send a free-form prompt and get a text response back. Only meaningful when
+     * [supportsGeneralPrompts] is true.
+     *
+     * @param apiKeyOverride when non-null, used instead of the engine's own configured key -
+     * lets AI-only features (recommendations, etc.) use a separate key from translation.
      */
+    suspend fun complete(prompt: String, apiKeyOverride: String? = null): TranslationResult {
+        return TranslationResult.Error(
+            "This engine only supports translation, not general prompts.",
+            TranslationResult.ErrorCode.LANGUAGE_NOT_SUPPORTED,
+        )
+    }
+
+
     fun isConfigured(): Boolean = true
 }
 
-/**
- * Result of a translation operation.
- */
+
 sealed class TranslationResult {
-    /**
-     * Successful translation.
-     */
     data class Success(
         val translatedTexts: List<String>,
         val detectedSourceLanguage: String? = null,
     ) : TranslationResult()
 
-    /**
-     * Translation failed.
-     */
+
     data class Error(
         val message: String,
         val errorCode: ErrorCode = ErrorCode.UNKNOWN,
     ) : TranslationResult()
+
 
     enum class ErrorCode {
         UNKNOWN,
@@ -99,9 +74,7 @@ sealed class TranslationResult {
     }
 }
 
-/**
- * Common language codes used across translation engines.
- */
+
 object LanguageCodes {
     val COMMON_LANGUAGES = listOf(
         "auto" to "Auto-detect",
@@ -139,6 +112,7 @@ object LanguageCodes {
         "fa" to "Persian",
         "bn" to "Bengali",
     )
+
 
     fun getDisplayName(code: String): String {
         return COMMON_LANGUAGES.find { it.first == code }?.second ?: code
