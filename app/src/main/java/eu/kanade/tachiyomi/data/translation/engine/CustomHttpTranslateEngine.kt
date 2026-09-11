@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.translation.engine
 
+
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.interceptor.rateLimitExempt
 import kotlinx.coroutines.Dispatchers
@@ -25,20 +26,12 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.Inflater
 import java.util.zip.InflaterInputStream
 
-/**
- * Custom HTTP translation engine.
- * Allows users to configure their own translation API endpoint.
- *
- * Supports configurable:
- * - API URL (POST endpoint)
- * - API Key (Authorization header)
- * - Request body template with placeholders
- * - Response JSON path for result extraction
- */
+
 class CustomHttpTranslateEngine(
     private val networkHelper: NetworkHelper = Injekt.get(),
     private val preferences: TranslationPreferences = Injekt.get(),
 ) : TranslationEngine {
+
 
     private val client: OkHttpClient
         get() {
@@ -51,13 +44,15 @@ class CustomHttpTranslateEngine(
                 .rateLimitExempt()
         }
 
+
     override val id: Long = ENGINE_ID
     override val name: String = "Custom HTTP"
-    override val requiresApiKey: Boolean = false // Optional, depends on user's API
+    override val requiresApiKey: Boolean = false
     override val isRateLimited: Boolean = true
     override val isOffline: Boolean = false
+    override val supportsGeneralPrompts: Boolean = true
 
-    // Common language codes - user's API may support different languages
+
     override val supportedLanguages: List<Pair<String, String>> = listOf(
         "auto" to "Auto-detect",
         "ar" to "Arabic",
@@ -88,12 +83,15 @@ class CustomHttpTranslateEngine(
         "zh" to "Chinese",
     )
 
+
     private val json = Json { ignoreUnknownKeys = true }
+
 
     override fun isConfigured(): Boolean {
         val url = preferences.customHttpUrl().get()
         return url.isNotBlank()
     }
+
 
     override suspend fun translate(
         texts: List<String>,
@@ -105,11 +103,12 @@ class CustomHttpTranslateEngine(
             if (apiUrl.isBlank()) {
                 return@withContext TranslationResult.Error(
                     "Custom HTTP URL not configured",
-                    TranslationResult.ErrorCode.API_KEY_MISSING, // Using API_KEY_MISSING as "config missing"
+                    TranslationResult.ErrorCode.API_KEY_MISSING,
                 )
             }
 
-            val translatedTexts = translateBatch(apiUrl, texts, sourceLanguage, targetLanguage)
+
+            val translatedTexts = translateBatch(apiUrl, texts, sourceLanguage, targetLanguage, apiKeyOverride = null)
             TranslationResult.Success(translatedTexts, null)
         } catch (e: Exception) {
             TranslationResult.Error(
@@ -119,37 +118,58 @@ class CustomHttpTranslateEngine(
         }
     }
 
-    private suspend fun translateBatch(
-        apiUrl: String,
-        texts: List<String>,
-        sourceLanguage: String,
-        targetLanguage: String,
-    ): List<String> {
-        val apiKey = preferences.customHttpApiKey().get().takeIf { it.isNotBlank() }
+
+    override suspend fun complete(prompt: String, apiKeyOverride: String?): TranslationResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val apiUrl = preferences.customHttpUrl().get()
+                if (apiUrl.isBlank()) {
+                    return@withContext TranslationResult.Error(
+                        "Custom HTTP URL not configured",
+                        TranslationResult.ErrorCode.API_KEY_MISSING,
+                    )
+                }
+
+
+                val result = completePrompt(apiUrl, prompt, apiKeyOverride)
+                TranslationResult.Success(listOf(result), null)
+            } catch (e: Exception) {
+                TranslationResult.Error(
+                    e.message ?: "Completion failed",
+                    TranslationResult.ErrorCode.UNKNOWN,
+                )
+            }
+        }
+
+
+    private suspend fun completePrompt(apiUrl: String, prompt: String, apiKeyOverride: String?): String {
+        val apiKey = (apiKeyOverride?.takeIf { it.isNotBlank() } ?: preferences.customHttpApiKey().get())
+            .takeIf { it.isNotBlank() }
         val requestTemplate = preferences.customHttpRequestTemplate().get()
         val responsePath = preferences.customHttpResponsePath().get()
         val method = preferences.customHttpMethod().get()
 
-        // Placeholders in the URL are substituted URL-encoded (mainly for GET query params)
-        val finalUrl = substituteUrl(apiUrl, texts, sourceLanguage, targetLanguage)
+
+        val texts = listOf(prompt)
+        val finalUrl = substituteUrl(apiUrl, texts, sourceLanguage = "auto", targetLanguage = "en")
+
 
         val requestBuilder = Request.Builder().url(finalUrl)
         if (method.equals("GET", ignoreCase = true)) {
             requestBuilder.get()
         } else {
-            // Build request body from template
-            val requestBody = buildRequestBody(requestTemplate, texts, sourceLanguage, targetLanguage)
+            val requestBody = buildRequestBody(requestTemplate, texts, sourceLanguage = "auto", targetLanguage = "en")
             requestBuilder
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .header("Content-Type", "application/json")
         }
 
-        // Add API key if configured
+
         if (!apiKey.isNullOrBlank()) {
             requestBuilder.header("Authorization", "Bearer $apiKey")
         }
 
-        // Custom headers as ;- or newline-separated "Name: Value" pairs, override defaults on name match
+
         preferences.customHttpHeaders().get().split(';', '\n')
             .mapNotNull { entry ->
                 val idx = entry.indexOf(':')
@@ -161,28 +181,81 @@ class CustomHttpTranslateEngine(
                 requestBuilder.header(name, value.replace("{apiKey}", apiKey.orEmpty()))
             }
 
+
         return client.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
                 val errorBody = readBody(response) ?: "Unknown error"
                 throw Exception("HTTP ${response.code}: $errorBody")
             }
 
+
+            val responseBody = readBody(response) ?: throw Exception("Empty response")
+            parseResponse(responseBody, responsePath, expectedCount = 1).firstOrNull()
+                ?: throw Exception("Empty completion result")
+        }
+    }
+
+
+    private suspend fun translateBatch(
+        apiUrl: String,
+        texts: List<String>,
+        sourceLanguage: String,
+        targetLanguage: String,
+        apiKeyOverride: String?,
+    ): List<String> {
+        val apiKey = (apiKeyOverride?.takeIf { it.isNotBlank() } ?: preferences.customHttpApiKey().get())
+            .takeIf { it.isNotBlank() }
+        val requestTemplate = preferences.customHttpRequestTemplate().get()
+        val responsePath = preferences.customHttpResponsePath().get()
+        val method = preferences.customHttpMethod().get()
+
+
+        val finalUrl = substituteUrl(apiUrl, texts, sourceLanguage, targetLanguage)
+
+
+        val requestBuilder = Request.Builder().url(finalUrl)
+
+
+        if (method.equals("GET", ignoreCase = true)) {
+            requestBuilder.get()
+        } else {
+            val requestBody = buildRequestBody(requestTemplate, texts, sourceLanguage, targetLanguage)
+            requestBuilder
+                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .header("Content-Type", "application/json")
+        }
+
+
+        if (!apiKey.isNullOrBlank()) {
+            requestBuilder.header("Authorization", "Bearer $apiKey")
+        }
+
+
+        preferences.customHttpHeaders().get().split(';', '\n')
+            .mapNotNull { entry ->
+                val idx = entry.indexOf(':')
+                if (idx <= 0) return@mapNotNull null
+                entry.substring(0, idx).trim() to entry.substring(idx + 1).trim()
+            }
+            .filter { (name, _) -> name.isNotEmpty() }
+            .forEach { (name, value) ->
+                requestBuilder.header(name, value.replace("{apiKey}", apiKey.orEmpty()))
+            }
+
+
+        return client.newCall(requestBuilder.build()).execute().use { response ->
+            if (!response.isSuccessful) {
+                val errorBody = readBody(response) ?: "Unknown error"
+                throw Exception("HTTP ${response.code}: $errorBody")
+            }
+
+
             val responseBody = readBody(response) ?: throw Exception("Empty response")
             parseResponse(responseBody, responsePath, texts.size)
         }
     }
 
-    /**
-     * Build the request body from the user's template.
-     * Replaces placeholders:
-     * - {text} - single text as a JSON string literal, quotes included (first one if multiple)
-     * - {text_esc} - single text JSON-escaped without surrounding quotes, for embedding inside a larger string
-     * - {texts} - JSON array of texts
-     * - {source} - source language code
-     * - {target} - target language code
-     * - {source_name} - source language English name (falls back to the code)
-     * - {target_name} - target language English name (falls back to the code)
-     */
+
     private fun buildRequestBody(
         template: String,
         texts: List<String>,
@@ -192,6 +265,7 @@ class CustomHttpTranslateEngine(
         val textsJson = json.encodeToString(JsonArray.serializer(), JsonArray(texts.map { JsonPrimitive(it) }))
         val singleText =
             texts.firstOrNull()?.let { json.encodeToString(JsonPrimitive.serializer(), JsonPrimitive(it)) } ?: "\"\""
+
 
         return template
             .replace("{texts}", textsJson)
@@ -203,14 +277,11 @@ class CustomHttpTranslateEngine(
             .replace("{target}", targetLanguage)
     }
 
+
     private fun languageName(code: String): String =
         supportedLanguages.firstOrNull { it.first == code }?.second ?: code
 
-    /**
-     * Read the response body, decompressing manually if needed.
-     * OkHttp only auto-decompresses gzip when it added Accept-Encoding itself;
-     * a user-supplied Accept-Encoding header delivers the body raw.
-     */
+
     private fun readBody(response: okhttp3.Response): String? {
         val bytes = response.body?.bytes()?.takeIf { it.isNotEmpty() } ?: return null
         return when (response.header("Content-Encoding")?.lowercase()) {
@@ -220,19 +291,15 @@ class CustomHttpTranslateEngine(
         }
     }
 
+
     private fun inflate(bytes: ByteArray): ByteArray =
         try {
-            // zlib-wrapped deflate
             InflaterInputStream(bytes.inputStream()).use { it.readBytes() }
         } catch (e: Exception) {
-            // raw deflate, some servers omit the zlib header
             InflaterInputStream(bytes.inputStream(), Inflater(true)).use { it.readBytes() }
         }
 
-    /**
-     * Substitute placeholders into the URL, URL-encoded.
-     * {text} here is the raw first text (no JSON quoting); {texts}/{text_esc} are not applicable.
-     */
+
     private fun substituteUrl(
         url: String,
         texts: List<String>,
@@ -240,6 +307,8 @@ class CustomHttpTranslateEngine(
         targetLanguage: String,
     ): String {
         fun enc(value: String) = java.net.URLEncoder.encode(value, "UTF-8")
+
+
         return url
             .replace("{text}", enc(texts.firstOrNull().orEmpty()))
             .replace("{source_name}", enc(languageName(sourceLanguage)))
@@ -248,26 +317,23 @@ class CustomHttpTranslateEngine(
             .replace("{target}", enc(targetLanguage))
     }
 
-    /**
-     * Parse the response JSON using the user-configured path.
-     * Supports dot notation: translatedText, result.translations, etc.
-     * Returns a list of translated texts.
-     */
+
     private fun parseResponse(responseBody: String, path: String, expectedCount: Int): List<String> {
         val jsonElement = json.parseToJsonElement(responseBody)
+
+
         val result = try {
             navigateJsonPath(jsonElement, path)
         } catch (e: Exception) {
-            // Include the body so 200-with-error responses are diagnosable
             throw Exception("${e.message}. Response body: ${responseBody.take(300)}")
         }
+
 
         return when (result) {
             is JsonArray -> result.map {
                 when (it) {
                     is JsonPrimitive -> it.content
                     is JsonObject -> {
-                        // Try common field names for text
                         it["text"]?.jsonPrimitive?.content
                             ?: it["translatedText"]?.jsonPrimitive?.content
                             ?: it["translation"]?.jsonPrimitive?.content
@@ -277,7 +343,6 @@ class CustomHttpTranslateEngine(
                 }
             }
             is JsonPrimitive -> {
-                // Single result, replicate for all texts if needed
                 val text = result.content
                 if (expectedCount == 1) listOf(text) else List(expectedCount) { text }
             }
@@ -285,23 +350,20 @@ class CustomHttpTranslateEngine(
         }
     }
 
-    /**
-     * Navigate a JSON element using dot notation path.
-     * Supports array access with [index] notation.
-     */
+
     private fun navigateJsonPath(element: JsonElement, path: String): JsonElement {
         if (path.isBlank()) return element
+
 
         val parts = path.trim().split(".").map { it.trim() }
         var current = element
 
+
         for (part in parts) {
-            // Check for array access: fieldName[0]
             val arrayMatch = Regex("""(.+?)\[(\d+)\]""").matchEntire(part)
             if (arrayMatch != null) {
                 val fieldName = arrayMatch.groupValues[1]
                 val index = arrayMatch.groupValues[2].toInt()
-
                 current = if (fieldName.isNotBlank()) {
                     current.jsonObject[fieldName] ?: throw Exception("Field '$fieldName' not found")
                 } else {
@@ -315,10 +377,12 @@ class CustomHttpTranslateEngine(
             }
         }
 
+
         return current
     }
 
+
     companion object {
-        const val ENGINE_ID = 10L // Unique ID for this engine
+        const val ENGINE_ID = 10L
     }
 }

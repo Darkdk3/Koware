@@ -1,8 +1,6 @@
 package tachiyomi.domain.translation.model
 
-/**
- * Base interface for translation engines.
- */
+
 interface TranslationEngine {
     val id: Long
     val name: String
@@ -35,8 +33,11 @@ interface TranslationEngine {
     /**
      * Send a free-form prompt and get a text response back. Only meaningful when
      * [supportsGeneralPrompts] is true.
+     *
+     * @param apiKeyOverride when non-null, used instead of the engine's own configured key -
+     * lets AI-only features (recommendations, etc.) use a separate key from translation.
      */
-    suspend fun complete(prompt: String): TranslationResult {
+    suspend fun complete(prompt: String, apiKeyOverride: String? = null): TranslationResult {
         return TranslationResult.Error(
             "This engine only supports translation, not general prompts.",
             TranslationResult.ErrorCode.LANGUAGE_NOT_SUPPORTED,

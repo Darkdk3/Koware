@@ -1,19 +1,17 @@
 package eu.kanade.tachiyomi.ui.browse.discover
 
-import eu.kanade.tachiyomi.data.translation.TranslationEngineManager
+import eu.kanade.tachiyomi.data.translation.AiEngineResolver
 import kotlinx.serialization.json.Json
 import tachiyomi.domain.manga.interactor.BuildReadingProfile
 import tachiyomi.domain.translation.model.TranslationResult
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
 
 class GetAiRecommendations(
     private val buildReadingProfile: BuildReadingProfile = BuildReadingProfile(),
-    private val translationEngineManager: TranslationEngineManager = Injekt.get(),
+    private val aiEngineResolver: AiEngineResolver = AiEngineResolver(),
 ) {
     suspend fun await(pool: List<DiscoverEntry>): List<DiscoverEntry> {
-        val engine = translationEngineManager.getEngine()
-        if (engine == null || !engine.supportsGeneralPrompts || pool.isEmpty()) return emptyList()
+        if (pool.isEmpty()) return emptyList()
+        val resolved = aiEngineResolver.resolve() ?: return emptyList()
 
         val profile = buildReadingProfile.await()
         if (profile.topGenres.isEmpty()) return emptyList()
@@ -35,7 +33,7 @@ class GetAiRecommendations(
             $candidateList
         """.trimIndent()
 
-        val result = engine.complete(prompt)
+        val result = resolved.engine.complete(prompt, resolved.apiKeyOverride)
         val text = (result as? TranslationResult.Success)?.translatedTexts?.firstOrNull()
             ?: return emptyList()
 

@@ -589,6 +589,8 @@
 
     <!-- Translation Services -->
     <string name="pref_category_translation">Translation</string>
+    <string name="pref_category_ai_features">AI Features</string>
+    <string name="pref_ai_features_summary">Recommendations engine and API key settings</string>
     <string name="pref_translation_general">General</string>
     <string name="pref_translation_enabled">Enable translation</string>
     <string name="pref_translation_enabled_summary">Allow translating novel chapters</string>
