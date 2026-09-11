@@ -37,6 +37,7 @@ class NvidiaNimTranslateEngine(
     override val isOffline: Boolean = false
 
     override val supportedLanguages: List<Pair<String, String>> = LanguageCodes.COMMON_LANGUAGES
+    override val supportsGeneralPrompts: Boolean = true
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -196,6 +197,77 @@ class NvidiaNimTranslateEngine(
             "$normalizedBaseUrl/v1/chat/completions"
         }
     }
+
+    override suspend fun complete(prompt: String, apiKeyOverride: String?): TranslationResult =
+        withContext(Dispatchers.IO) {
+            val baseUrl = preferences.nvidiaNimBaseUrl().get().trimEnd('/')
+            val model = preferences.nvidiaNimModel().get().trim()
+            val apiKey = (apiKeyOverride?.takeIf { it.isNotBlank() } ?: preferences.nvidiaNimApiKey().get()).trim()
+
+            if (baseUrl.isBlank()) {
+                return@withContext TranslationResult.Error(
+                    "NVIDIA NIM base URL not configured",
+                    TranslationResult.ErrorCode.API_KEY_MISSING,
+                )
+            }
+
+            if (model.isBlank()) {
+                return@withContext TranslationResult.Error(
+                    "NVIDIA NIM model not configured",
+                    TranslationResult.ErrorCode.API_KEY_MISSING,
+                )
+            }
+
+            try {
+                val request = ChatRequest(
+                    model = model,
+                    messages = listOf(
+                        Message(role = "system", content = "You are a helpful assistant that recommends manga and novels."),
+                        Message(role = "user", content = prompt),
+                    ),
+                )
+                val requestBody = json.encodeToString(ChatRequest.serializer(), request)
+                val apiUrl = buildApiUrl(baseUrl)
+
+                val requestBuilder = Request.Builder()
+                    .url(apiUrl)
+                    .post(requestBody.toRequestBody("application/json".toMediaType()))
+                    .header("Content-Type", "application/json")
+
+                if (apiKey.isNotBlank()) {
+                    requestBuilder.header("Authorization", "Bearer $apiKey")
+                }
+
+                val response = client.newCall(requestBuilder.build()).execute()
+                val responseBody = response.use { it.body.string() }
+
+                if (!response.isSuccessful) {
+                    val errorCode = when (response.code) {
+                        401, 403 -> TranslationResult.ErrorCode.API_KEY_INVALID
+                        429 -> TranslationResult.ErrorCode.RATE_LIMITED
+                        503 -> TranslationResult.ErrorCode.SERVICE_UNAVAILABLE
+                        402 -> TranslationResult.ErrorCode.QUOTA_EXCEEDED
+                        else -> TranslationResult.ErrorCode.UNKNOWN
+                    }
+                    val errorMessage = try {
+                        val errorResponse = json.decodeFromString(ChatResponse.serializer(), responseBody)
+                        errorResponse.error?.message ?: "HTTP ${response.code}"
+                    } catch (_: Exception) {
+                        "HTTP ${response.code}: $responseBody"
+                    }
+                    throw TranslationException(errorMessage, errorCode)
+                }
+
+                val chatResponse = json.decodeFromString(ChatResponse.serializer(), responseBody)
+                val text = chatResponse.choices.firstOrNull()?.message?.content?.trim()
+                    ?: throw TranslationException("Empty response from NVIDIA NIM", TranslationResult.ErrorCode.UNKNOWN)
+                TranslationResult.Success(listOf(text))
+            } catch (e: TranslationException) {
+                TranslationResult.Error(e.message ?: "Completion failed", e.errorCode)
+            } catch (e: Exception) {
+                TranslationResult.Error(e.message ?: "Unknown error", TranslationResult.ErrorCode.UNKNOWN)
+            }
+        }
 
     private class TranslationException(
         message: String,

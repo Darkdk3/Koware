@@ -84,6 +84,18 @@ object SettingsTranslationScreen : SearchableSettings {
                 ),
             ),
             getRateLimitGroup(translationPreferences),
+            Preference.PreferenceGroup(
+                title = stringResource(TDMR.strings.pref_category_ai_features),
+                preferenceItems = listOf(
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(TDMR.strings.pref_category_ai_features),
+                        subtitle = stringResource(TDMR.strings.pref_ai_features_summary),
+                        onClick = {
+                            navigator.push(SettingsAiScreen)
+                        },
+                    ),
+                ),
+            ),
         ) + getEngineConfigGroups(translationPreferences, engineManager)
     }
 

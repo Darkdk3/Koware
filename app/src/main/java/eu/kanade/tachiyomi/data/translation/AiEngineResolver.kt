@@ -1,11 +1,9 @@
 package eu.kanade.tachiyomi.data.translation
 
-
 import tachiyomi.domain.translation.model.TranslationEngine
 import tachiyomi.domain.translation.service.TranslationPreferences
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-
 
 /**
  * Resolves which engine (and API key) AI-only features - recommendations, and anything
@@ -22,25 +20,25 @@ class AiEngineResolver(
         val apiKeyOverride: String?,
     )
 
-
     fun resolve(): Resolved? {
         val chosenId = preferences.aiFeatureEngineId().get()
         val engine = if (chosenId == 0L) {
-            engineManager.getEngine()
+            // "Same as translation" — use the selected translation engine directly.
+            // If it's not configured (e.g. translation not set up yet), still try to
+            // return it so the user sees an actionable error about the missing API key.
+            val selected = engineManager.getSelectedEngine()
+            if (selected.supportsGeneralPrompts) selected else null
         } else {
             engineManager.engines.find { it.id == chosenId }
         } ?: return null
 
-
         if (!engine.supportsGeneralPrompts) return null
-
 
         val apiKeyOverride = if (preferences.aiFeatureUseSeparateApiKey().get()) {
             preferences.aiFeatureApiKey().get().takeIf { it.isNotBlank() }
         } else {
             null
         }
-
 
         return Resolved(engine, apiKeyOverride)
     }

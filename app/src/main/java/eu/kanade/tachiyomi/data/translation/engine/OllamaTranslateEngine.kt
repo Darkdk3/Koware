@@ -33,6 +33,7 @@ class OllamaTranslateEngine(
     override val isOffline: Boolean = true
 
     override val supportedLanguages: List<Pair<String, String>> = LanguageCodes.COMMON_LANGUAGES
+    override val supportsGeneralPrompts: Boolean = true
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -194,6 +195,63 @@ class OllamaTranslateEngine(
         // Combine all response parts
         return responses.mapNotNull { it.response }.joinToString("")
     }
+
+    override suspend fun complete(prompt: String, apiKeyOverride: String?): TranslationResult =
+        withContext(Dispatchers.IO) {
+            val ollamaUrl = preferences.ollamaUrl().get().trimEnd('/')
+            val model = preferences.ollamaModel().get()
+
+            if (ollamaUrl.isBlank()) {
+                return@withContext TranslationResult.Error(
+                    "Ollama server URL not configured",
+                    TranslationResult.ErrorCode.API_KEY_MISSING,
+                )
+            }
+
+            if (model.isBlank()) {
+                return@withContext TranslationResult.Error(
+                    "Ollama model not configured",
+                    TranslationResult.ErrorCode.API_KEY_MISSING,
+                )
+            }
+
+            try {
+                val request = GenerateRequest(
+                    model = model,
+                    prompt = prompt,
+                    stream = false,
+                )
+                val requestBody = json.encodeToString(GenerateRequest.serializer(), request)
+                val apiUrl = "$ollamaUrl/api/generate"
+
+                val httpRequest = Request.Builder()
+                    .url(apiUrl)
+                    .post(requestBody.toRequestBody("application/json".toMediaType()))
+                    .header("Content-Type", "application/json")
+                    .build()
+
+                val response = client.newCall(httpRequest).execute()
+                val responseBody = response.use { it.body.string() }
+
+                if (!response.isSuccessful) {
+                    val errorCode = when (response.code) {
+                        404 -> TranslationResult.ErrorCode.SERVICE_UNAVAILABLE
+                        else -> TranslationResult.ErrorCode.UNKNOWN
+                    }
+                    throw TranslationException("Ollama error: HTTP ${response.code}", errorCode)
+                }
+
+                val fullResponse = parseOllamaResponse(responseBody).trim()
+                if (fullResponse.isEmpty()) {
+                    throw TranslationException("Empty response from Ollama", TranslationResult.ErrorCode.UNKNOWN)
+                }
+                TranslationResult.Success(listOf(fullResponse))
+            } catch (e: TranslationException) {
+                TranslationResult.Error(e.message ?: "Completion failed", e.errorCode)
+            } catch (e: Exception) {
+                TranslationResult.Error(e.message ?: "Unknown error", TranslationResult.ErrorCode.UNKNOWN)
+            }
+        }
 
     private class TranslationException(
         message: String,

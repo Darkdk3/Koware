@@ -37,6 +37,7 @@ class OpenAITranslateEngine(
     override val isOffline: Boolean = false
 
     override val supportedLanguages: List<Pair<String, String>> = LanguageCodes.COMMON_LANGUAGES
+    override val supportsGeneralPrompts: Boolean = true
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -173,6 +174,64 @@ class OpenAITranslateEngine(
         return chatResponse.choices.firstOrNull()?.message?.content
             ?: throw TranslationException("Empty response from OpenAI", TranslationResult.ErrorCode.UNKNOWN)
     }
+
+    override suspend fun complete(prompt: String, apiKeyOverride: String?): TranslationResult =
+        withContext(Dispatchers.IO) {
+            val apiKey = apiKeyOverride?.takeIf { it.isNotBlank() } ?: preferences.openAiApiKey().get()
+
+            if (apiKey.isBlank()) {
+                return@withContext TranslationResult.Error(
+                    "OpenAI API key not configured",
+                    TranslationResult.ErrorCode.API_KEY_MISSING,
+                )
+            }
+
+            try {
+                val request = ChatRequest(
+                    messages = listOf(
+                        Message(role = "system", content = "You are a helpful assistant that recommends manga and novels."),
+                        Message(role = "user", content = prompt),
+                    ),
+                )
+                val requestBody = json.encodeToString(ChatRequest.serializer(), request)
+
+                val httpRequest = Request.Builder()
+                    .url(apiUrl)
+                    .post(requestBody.toRequestBody("application/json".toMediaType()))
+                    .header("Authorization", "Bearer $apiKey")
+                    .header("Content-Type", "application/json")
+                    .build()
+
+                val response = client.newCall(httpRequest).execute()
+                val responseBody = response.use { it.body.string() }
+
+                if (!response.isSuccessful) {
+                    val errorCode = when (response.code) {
+                        401 -> TranslationResult.ErrorCode.API_KEY_INVALID
+                        429 -> TranslationResult.ErrorCode.RATE_LIMITED
+                        402, 403 -> TranslationResult.ErrorCode.QUOTA_EXCEEDED
+                        503 -> TranslationResult.ErrorCode.SERVICE_UNAVAILABLE
+                        else -> TranslationResult.ErrorCode.UNKNOWN
+                    }
+                    val errorMessage = try {
+                        val errorResponse = json.decodeFromString(ChatResponse.serializer(), responseBody)
+                        errorResponse.error?.message ?: "HTTP ${response.code}"
+                    } catch (e: Exception) {
+                        "HTTP ${response.code}: $responseBody"
+                    }
+                    throw TranslationException(errorMessage, errorCode)
+                }
+
+                val chatResponse = json.decodeFromString(ChatResponse.serializer(), responseBody)
+                val text = chatResponse.choices.firstOrNull()?.message?.content
+                    ?: throw TranslationException("Empty response from OpenAI", TranslationResult.ErrorCode.UNKNOWN)
+                TranslationResult.Success(listOf(text))
+            } catch (e: TranslationException) {
+                TranslationResult.Error(e.message ?: "Completion failed", e.errorCode)
+            } catch (e: Exception) {
+                TranslationResult.Error(e.message ?: "Unknown error", TranslationResult.ErrorCode.UNKNOWN)
+            }
+        }
 
     private class TranslationException(
         message: String,

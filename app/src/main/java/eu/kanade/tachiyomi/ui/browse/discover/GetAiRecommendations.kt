@@ -4,10 +4,15 @@ import eu.kanade.tachiyomi.data.translation.AiEngineResolver
 import kotlinx.serialization.json.Json
 import tachiyomi.domain.manga.interactor.BuildReadingProfile
 import tachiyomi.domain.translation.model.TranslationResult
+import tachiyomi.domain.translation.service.TranslationPreferences
+import tachiyomi.domain.translation.service.TranslationPromptDefaults
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 class GetAiRecommendations(
     private val buildReadingProfile: BuildReadingProfile = BuildReadingProfile(),
     private val aiEngineResolver: AiEngineResolver = AiEngineResolver(),
+    private val preferences: TranslationPreferences = Injekt.get(),
 ) {
     suspend fun await(pool: List<DiscoverEntry>): List<DiscoverEntry> {
         if (pool.isEmpty()) return emptyList()
@@ -21,17 +26,26 @@ class GetAiRecommendations(
                 "author: ${entry.manga.author ?: "unknown"}"
         }.joinToString("\n")
 
-        val prompt = """
-            Reader's most-read genres: ${profile.topGenres.joinToString()}
-            Reader's most-read authors: ${profile.topAuthors.joinToString()}
+        val systemPrompt = preferences.aiFeatureSystemPrompt().get()
+            .ifBlank { TranslationPromptDefaults.DEFAULT_AI_RECOMMENDATION_PROMPT }
 
-            From this candidate list, pick up to 8 titles this reader would most enjoy.
-            Return ONLY a JSON array of the candidate index numbers, best match first.
-            No explanation, no other text.
+        val userPrompt = preferences.aiFeatureUserPrompt().get()
 
-            Candidates:
-            $candidateList
-        """.trimIndent()
+        val prompt = if (userPrompt.isNotBlank()) {
+            TranslationPromptDefaults.applyAiPrompt(
+                userPrompt,
+                profile.topGenres.joinToString(),
+                profile.topAuthors.joinToString(),
+                candidateList,
+            )
+        } else {
+            TranslationPromptDefaults.applyAiPrompt(
+                systemPrompt,
+                profile.topGenres.joinToString(),
+                profile.topAuthors.joinToString(),
+                candidateList,
+            )
+        }
 
         val result = resolved.engine.complete(prompt, resolved.apiKeyOverride)
         val text = (result as? TranslationResult.Success)?.translatedTexts?.firstOrNull()

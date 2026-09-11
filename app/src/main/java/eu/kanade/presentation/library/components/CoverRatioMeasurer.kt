@@ -10,6 +10,8 @@ import androidx.compose.ui.platform.LocalContext
 import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.model.asMangaCover
 
@@ -25,12 +27,18 @@ fun rememberCoverRatio(manga: Manga, enabled: Boolean): Float? {
 
     if (enabled && ratio == null) {
         LaunchedEffect(manga.id, manga.coverLastModified) {
-            val request = ImageRequest.Builder(context)
-                .data(manga.asMangaCover())
-                .build()
-            val result = context.imageLoader.execute(request)
-            if (result is SuccessResult && result.image.width > 0 && result.image.height > 0) {
-                ratio = result.image.width.toFloat() / result.image.height.toFloat()
+            withContext(Dispatchers.IO) {
+                try {
+                    val request = ImageRequest.Builder(context)
+                        .data(manga.asMangaCover())
+                        .build()
+                    val result = context.imageLoader.execute(request)
+                    if (result is SuccessResult && result.image.width > 0 && result.image.height > 0) {
+                        ratio = result.image.width.toFloat() / result.image.height.toFloat()
+                    }
+                } catch (_: Exception) {
+                    // Cover failed to load; leave ratio as null so the grid falls back to 2:3
+                }
             }
         }
     }
