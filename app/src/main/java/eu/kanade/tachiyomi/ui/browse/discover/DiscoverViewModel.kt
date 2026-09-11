@@ -20,11 +20,17 @@ enum class DiscoverBrowseMode { LATEST, POPULAR }
 data class DiscoverEntry(
     val source: CatalogueSource,
     val manga: Manga,
-)
+) : RecommendableItem {
+    override val sourceName: String get() = source.name
+    override val mangaTitle: String get() = manga.title
+    override val mangaGenre: List<String>? get() = manga.genre
+    override val mangaAuthor: String? get() = manga.author
+}
 
 data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),
     val recommendations: List<DiscoverEntry> = emptyList(),
+    val isLoadingRecommendations: Boolean = false,
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -96,8 +102,9 @@ class DiscoverViewModel(
 
     private fun loadAiRecommendations() {
         viewModelScope.launchIO {
+            mutableState.update { it.copy(isLoadingRecommendations = true) }
             val recs = runCatching { getAiRecommendations.await(state.value.items) }.getOrDefault(emptyList())
-            mutableState.update { it.copy(recommendations = recs) }
+            mutableState.update { it.copy(recommendations = recs, isLoadingRecommendations = false) }
         }
     }
 

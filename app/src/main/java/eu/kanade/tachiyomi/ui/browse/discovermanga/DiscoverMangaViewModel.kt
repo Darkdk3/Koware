@@ -8,6 +8,8 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
+import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
+import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
 import kotlinx.coroutines.flow.update
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
@@ -29,10 +31,17 @@ enum class DiscoverMangaBrowseMode { LATEST, POPULAR }
 data class DiscoverMangaEntry(
     val source: CatalogueSource,
     val manga: Manga,
-)
+) : RecommendableItem {
+    override val sourceName: String get() = source.name
+    override val mangaTitle: String get() = manga.title
+    override val mangaGenre: List<String>? get() = manga.genre
+    override val mangaAuthor: String? get() = manga.author
+}
 
 data class DiscoverMangaScreenState(
     val items: List<DiscoverMangaEntry> = emptyList(),
+    val recommendations: List<DiscoverMangaEntry> = emptyList(),
+    val isLoadingRecommendations: Boolean = false,
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -46,6 +55,7 @@ class DiscoverMangaViewModel(
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val jsPluginManager: JsPluginManager = Injekt.get(),
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
+    private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations(),
 ) : StateViewModel<DiscoverMangaScreenState>(DiscoverMangaScreenState()) {
 
     private data class SourcePageCursor(val nextPage: Int, val hasNextPage: Boolean)
@@ -95,6 +105,16 @@ class DiscoverMangaViewModel(
             mutableState.update {
                 it.copy(items = merged, isLoading = false, hasPinnedNovelSources = sources.isNotEmpty())
             }
+
+            loadAiRecommendations()
+        }
+    }
+
+    private fun loadAiRecommendations() {
+        viewModelScope.launchIO {
+            mutableState.update { it.copy(isLoadingRecommendations = true) }
+            val recs = runCatching { getAiRecommendations.await(state.value.items) }.getOrDefault(emptyList())
+            mutableState.update { it.copy(recommendations = recs, isLoadingRecommendations = false) }
         }
     }
 
