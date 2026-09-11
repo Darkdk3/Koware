@@ -41,6 +41,9 @@ data class DiscoverMangaEntry(
 data class DiscoverMangaScreenState(
     val items: List<DiscoverMangaEntry> = emptyList(),
     val recommendations: List<DiscoverMangaEntry> = emptyList(),
+    val recommendationTopGenres: List<String> = emptyList(),
+    val recommendationScores: Map<Long, Int> = emptyMap(),
+    val aiRecommendationMessage: String? = null,
     val isLoadingRecommendations: Boolean = false,
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
@@ -112,9 +115,57 @@ class DiscoverMangaViewModel(
 
     private fun loadAiRecommendations() {
         viewModelScope.launchIO {
-            mutableState.update { it.copy(isLoadingRecommendations = true) }
-            val recs = runCatching { getAiRecommendations.await(state.value.items) }.getOrDefault(emptyList())
-            mutableState.update { it.copy(recommendations = recs, isLoadingRecommendations = false) }
+            mutableState.update { it.copy(isLoadingRecommendations = true, aiRecommendationMessage = null) }
+            val result = runCatching { getAiRecommendations.await(state.value.items) }
+                .getOrElse { AiRecommendationResult.Failed(it.message ?: "AI request failed") }
+            mutableState.update { state ->
+                when (result) {
+                    is AiRecommendationResult.Success -> state.copy(
+                        recommendations = result.recommendations,
+                        recommendationTopGenres = result.topGenres,
+                        recommendationScores = result.recommendations.mapIndexedNotNull { index, entry ->
+                            result.scores.getOrNull(index)?.let { entry.manga.id to it }
+                        }.toMap(),
+                        isLoadingRecommendations = false,
+                        aiRecommendationMessage = null,
+                    )
+                    AiRecommendationResult.NoEngine -> state.copy(
+                        recommendations = emptyList(),
+                        recommendationTopGenres = emptyList(),
+                        recommendationScores = emptyMap(),
+                        isLoadingRecommendations = false,
+                        aiRecommendationMessage = "Set up an AI engine in Settings \u2192 AI to get personalized recommendations.",
+                    )
+                    AiRecommendationResult.NoReadingHistory -> state.copy(
+                        recommendations = emptyList(),
+                        recommendationTopGenres = emptyList(),
+                        recommendationScores = emptyMap(),
+                        isLoadingRecommendations = false,
+                        aiRecommendationMessage = "Keep reading so the AI can learn your taste - recommendations will appear here.",
+                    )
+                    AiRecommendationResult.NoCandidates -> state.copy(
+                        recommendations = emptyList(),
+                        recommendationTopGenres = emptyList(),
+                        recommendationScores = emptyMap(),
+                        isLoadingRecommendations = false,
+                        aiRecommendationMessage = "Pin some manga sources first - AI recommendations will appear here once the feed has titles.",
+                    )
+                    AiRecommendationResult.NoMatches -> state.copy(
+                        recommendations = emptyList(),
+                        recommendationTopGenres = emptyList(),
+                        recommendationScores = emptyMap(),
+                        isLoadingRecommendations = false,
+                        aiRecommendationMessage = "The AI didn't find a good match this time - tap refresh to try again.",
+                    )
+                    is AiRecommendationResult.Failed -> state.copy(
+                        recommendations = emptyList(),
+                        recommendationTopGenres = emptyList(),
+                        recommendationScores = emptyMap(),
+                        isLoadingRecommendations = false,
+                        aiRecommendationMessage = "AI recommendations failed: ${result.message}",
+                    )
+                }
+            }
         }
     }
 

@@ -93,6 +93,9 @@ fun discoverTab(
             DiscoverScreenContent(
                 items = state.items,
                 recommendations = state.recommendations,
+                recommendationTopGenres = state.recommendationTopGenres,
+                recommendationScores = state.recommendationScores,
+                aiRecommendationMessage = state.aiRecommendationMessage,
                 isLoadingRecommendations = state.isLoadingRecommendations,
                 isLoading = state.isLoading,
                 isLoadingMore = state.isLoadingMore,
@@ -110,6 +113,9 @@ fun discoverTab(
 private fun DiscoverScreenContent(
     items: List<DiscoverEntry>,
     recommendations: List<DiscoverEntry>,
+    recommendationTopGenres: List<String>,
+    recommendationScores: Map<Long, Int>,
+    aiRecommendationMessage: String?,
     isLoadingRecommendations: Boolean,
     isLoading: Boolean,
     isLoadingMore: Boolean,
@@ -145,15 +151,16 @@ private fun DiscoverScreenContent(
     Column(modifier = Modifier.fillMaxSize()) {
         AiRecommendationsShelf(
             recommendations = recommendations,
+            topGenres = recommendationTopGenres,
+            scores = recommendationScores,
             isLoading = isLoadingRecommendations,
+            message = aiRecommendationMessage,
             onMangaClick = onMangaClick,
         )
-        if (recommendations.isNotEmpty() || isLoadingRecommendations) {
-            HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 12.dp),
-                color = MaterialTheme.colorScheme.outlineVariant,
-            )
-        }
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
         BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
         when {
             isLoading -> DiscoverLoadingGrid(columns = columns, contentPadding = contentPadding)
@@ -219,11 +226,12 @@ private fun DiscoverScreenContent(
 @Composable
 private fun AiRecommendationsShelf(
     recommendations: List<DiscoverEntry>,
+    topGenres: List<String>,
+    scores: Map<Long, Int>,
     isLoading: Boolean,
+    message: String?,
     onMangaClick: (DiscoverEntry) -> Unit,
 ) {
-    if (recommendations.isEmpty() && !isLoading) return
-
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -233,14 +241,21 @@ private fun AiRecommendationsShelf(
                 imageVector = Icons.Outlined.AutoAwesome,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
             )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "AI recommendations",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = "AI recommendations",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "based on what you read most",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (isLoading) {
                 Spacer(Modifier.width(8.dp))
                 CircularProgressIndicator(
@@ -251,76 +266,125 @@ private fun AiRecommendationsShelf(
             }
         }
 
-        if (isLoading && recommendations.isEmpty()) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(6) {
-                    Column(modifier = Modifier.width(92.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(2f / 3f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(shimmerBrush()),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 6.dp)
-                                .fillMaxWidth(0.9f)
-                                .height(10.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(shimmerBrush()),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 4.dp)
-                                .fillMaxWidth(0.6f)
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(shimmerBrush()),
-                        )
+        when {
+            isLoading && recommendations.isEmpty() -> {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(6) {
+                        Column(modifier = Modifier.width(92.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(2f / 3f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(shimmerBrush()),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 6.dp)
+                                    .fillMaxWidth(0.9f)
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(shimmerBrush()),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .fillMaxWidth(0.6f)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(shimmerBrush()),
+                            )
+                        }
                     }
                 }
             }
-        } else {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(recommendations, key = { "rec_${it.manga.id}" }) { entry ->
-                    Column(modifier = Modifier.width(92.dp)) {
-                        MangaComfortableGridItem(
-                            isSelected = false,
-                            title = entry.manga.title,
-                            coverData = MangaCover(
-                                mangaId = entry.manga.id,
-                                sourceId = entry.manga.source,
-                                isMangaFavorite = entry.manga.favorite,
-                                url = entry.manga.thumbnailUrl,
-                                lastModified = entry.manga.coverLastModified,
-                            ),
-                            coverBadgeStart = {},
-                            coverBadgeEnd = {},
-                            onLongClick = {},
-                            onClick = { onMangaClick(entry) },
-                            onClickContinueReading = null,
-                            titleMaxLines = 2,
-                        )
-                        Text(
-                            text = entry.source.name,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 4.dp),
-                        )
+            recommendations.isNotEmpty() -> {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(recommendations, key = { "rec_${it.manga.id}" }) { entry ->
+                        val heuristicMatch = remember(entry.manga.id, topGenres) {
+                            matchScore(entry.manga.genre.orEmpty(), topGenres)
+                        }
+                        val match = scores[entry.manga.id] ?: heuristicMatch
+                        Column(modifier = Modifier.width(92.dp)) {
+                            Box {
+                                MangaComfortableGridItem(
+                                    isSelected = false,
+                                    title = entry.manga.title,
+                                    coverData = MangaCover(
+                                        mangaId = entry.manga.id,
+                                        sourceId = entry.manga.source,
+                                        isMangaFavorite = entry.manga.favorite,
+                                        url = entry.manga.thumbnailUrl,
+                                        lastModified = entry.manga.coverLastModified,
+                                    ),
+                                    coverBadgeStart = {},
+                                    coverBadgeEnd = {},
+                                    onLongClick = {},
+                                    onClick = { onMangaClick(entry) },
+                                    onClickContinueReading = null,
+                                    titleMaxLines = 2,
+                                )
+                                if (match != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(4.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(
+                                                Brush.linearGradient(
+                                                    colors = listOf(
+                                                        MaterialTheme.colorScheme.primary,
+                                                        MaterialTheme.colorScheme.tertiary,
+                                                    ),
+                                                ),
+                                            )
+                                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = "$match%",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = entry.source.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 4.dp),
+                            )
+                        }
                     }
                 }
+            }
+            else -> {
+                Text(
+                    text = message ?: "No AI recommendations right now - try refreshing.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
             }
         }
     }
 }
+
+private fun matchScore(genres: List<String>, topGenres: List<String>): Int? {
+    if (genres.isEmpty() || topGenres.isEmpty()) return null
+    val profile = topGenres.toSet()
+    val matched = genres.count { it in profile }
+    if (matched == 0) return null
+    return (matched * 200 / (genres.size + profile.size)).coerceIn(1, 100)
+}
+
 
 @Composable
 private fun BrowseModeToggle(

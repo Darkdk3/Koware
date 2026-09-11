@@ -23,7 +23,7 @@ import tachiyomi.domain.manga.model.asMangaCover
 @Composable
 fun rememberCoverRatio(manga: Manga, enabled: Boolean): Float? {
     var ratio by remember(manga.id, manga.coverLastModified) { mutableStateOf<Float?>(null) }
-    val context = LocalContext.current
+    val context = LocalContext.current.applicationContext
 
     if (enabled && ratio == null) {
         LaunchedEffect(manga.id, manga.coverLastModified) {
@@ -31,6 +31,7 @@ fun rememberCoverRatio(manga: Manga, enabled: Boolean): Float? {
                 try {
                     val request = ImageRequest.Builder(context)
                         .data(manga.asMangaCover())
+                        .size(coil3.size.Size.ORIGINAL)
                         .build()
                     val result = context.imageLoader.execute(request)
                     if (result is SuccessResult && result.image.width > 0 && result.image.height > 0) {
