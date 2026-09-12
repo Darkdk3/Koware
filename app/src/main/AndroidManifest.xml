@@ -262,6 +262,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".ui.webview.NotionSetupWebViewActivity"
+            android:configChanges="uiMode|orientation|screenSize"
+            android:exported="false" />
+
+        <activity
             android:name=".extension.util.ExtensionInstallActivity"
             android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
