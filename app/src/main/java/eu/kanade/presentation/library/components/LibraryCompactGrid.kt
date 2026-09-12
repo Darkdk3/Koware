@@ -21,6 +21,7 @@ internal fun LibraryCompactGrid(
     onClickContinueReading: ((LibraryManga) -> Unit)?,
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
+    freeformCoverGrid: Boolean = false,
     onLoadMore: (() -> Unit)? = null,
     loadMoreKey: Long = 0,
 ) {
@@ -36,6 +37,7 @@ internal fun LibraryCompactGrid(
             contentType = { "library_compact_grid_item" },
         ) { libraryItem ->
             val manga = libraryItem.libraryManga.manga
+            val freeformCoverRatio = rememberCoverRatio(manga = manga, enabled = freeformCoverGrid)
             MangaCompactGridItem(
                 isSelected = manga.id in selection,
                 title = manga.title.takeIf { showTitle },
@@ -63,6 +65,7 @@ internal fun LibraryCompactGrid(
                 } else {
                     null
                 },
+                freeformCoverRatio = freeformCoverRatio,
             )
         }
 

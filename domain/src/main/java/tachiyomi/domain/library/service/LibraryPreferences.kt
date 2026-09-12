@@ -297,8 +297,9 @@ class LibraryPreferences(
     )
 
     /**
-     * When true, grid cells use each manga's real cover aspect ratio (measured once and cached
-     * in MangaCoverMetadata) instead of forcing every cover into the standard 2:3 book shape.
+     * When true, grid cells in every library grid display mode (compact, cover-only and
+     * comfortable) use each manga's real cover aspect ratio instead of forcing every cover
+     * into the standard 2:3 book shape, matching J2K's freeform cover behavior.
      */
     val freeformCoverGrid: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_freeform_cover_grid",
