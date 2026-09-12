@@ -8,6 +8,7 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
+import eu.kanade.tachiyomi.ui.browse.discover.AiRecommendationResult
 import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
 import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
 import kotlinx.coroutines.flow.update

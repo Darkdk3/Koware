@@ -88,7 +88,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     override fun onCreate() {
         super<Application>.onCreate()
         patchInjekt()
-        SingletonImageLoader.install(newImageLoader(this))
+        // Coil 3 has no SingletonImageLoader.install(); the Application implements the
+        // Factory so registering it via setSafe gives Coil the custom loader for all covers.
+        SingletonImageLoader.setSafe(this)
         TelemetryConfig.init(applicationContext)
 
         GlobalExceptionHandler.initialize(applicationContext, CrashActivity::class.java)
