@@ -55,6 +55,7 @@ import eu.kanade.tachiyomi.data.track.EnhancedTracker
 import eu.kanade.tachiyomi.data.track.Tracker
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
+import eu.kanade.tachiyomi.data.track.notion.NotionTracker
 import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.util.lang.convertEpochMillisZone
 import eu.kanade.tachiyomi.util.system.copyToClipboard
@@ -794,6 +795,13 @@ data class TrackerSearchScreen(
             onDismissRequest = navigator::pop,
             supportsPrivateTracking = viewModel.supportsPrivateTracking,
             altTitles = state.altTitles,
+            onCreateEntry = viewModel.createEntryCallback
+                ?.let { create ->
+                    {
+                        val title = textFieldState.text.toString().ifBlank { initialQuery }
+                        create(title) { navigator.pop() }
+                    }
+                },
         )
     }
 
@@ -831,9 +839,23 @@ data class TrackerSearchScreen(
             Injekt.get<SourceManager>().getOrStub(sourceId).isNovelSource()
         }
 
+        /**
+         * Notion browsers show the whole database instead of a title lookup, plus an
+         * "Add" action that creates a new row. Other trackers keep the normal search flow.
+         */
+        private val notionTracker: NotionTracker? = tracker as? NotionTracker
+
+        val createEntryCallback: ((String, () -> Unit) -> Unit)? = notionTracker
+            ?.let { notion ->
+                { title: String, onSuccess: () -> Unit -> createEntry(notion, title, onSuccess) }
+            }
+
         init {
             // Run search on first launch
-            if (initialQuery.isNotBlank()) {
+            if (notionTracker != null) {
+                // Empty query lists every entry in the Notion database.
+                trackingSearch("")
+            } else if (initialQuery.isNotBlank()) {
                 trackingSearch(initialQuery)
             }
             // Load alt titles from local manga record.
@@ -877,6 +899,21 @@ data class TrackerSearchScreen(
 
         fun registerTracking(item: TrackSearch) {
             viewModelScope.launchNonCancellable { tracker.register(item, mangaId) }
+        }
+
+        private fun createEntry(notion: NotionTracker, title: String, onSuccess: () -> Unit) {
+            viewModelScope.launchNonCancellable {
+                try {
+                    val entry = withIOContext { notion.createEntry(title) }
+                    registerTracking(entry)
+                    withUIContext { onSuccess() }
+                } catch (e: Throwable) {
+                    logcat(LogPriority.ERROR, e) { "Notion: failed to create entry" }
+                    withUIContext {
+                        Injekt.get<Application>().toast(e.message ?: "Couldn't create the entry")
+                    }
+                }
+            }
         }
 
         fun updateSelection(selected: TrackSearch) {

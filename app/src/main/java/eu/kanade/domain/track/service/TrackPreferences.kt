@@ -116,6 +116,12 @@ class TrackPreferences(
         true,
     )
 
+    // Notion Settings
+    val notionDefaultMediaType: Preference<String> = preferenceStore.getString(
+        "notion_default_media_type",
+        "Manga",
+    )
+
     // MangaBaka Settings
     val mangaBakaMarkChaptersAsRead: Preference<Boolean> = preferenceStore.getBoolean(
         "mangabaka_mark_chapters_read",
