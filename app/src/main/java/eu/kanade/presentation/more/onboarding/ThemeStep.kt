@@ -42,7 +42,14 @@ internal class ThemeStep : OnboardingStep {
         val amoled by amoledPref.collectAsState()
         val basePreferences = remember { Injekt.get<BasePreferences>() }
         val hideMangaUiPref = basePreferences.hideMangaUi
+        val uiModePref = basePreferences.uiMode
         val hideMangaUi by hideMangaUiPref.collectAsState()
+        val setHideMangaUi: (Boolean) -> Unit = { checked ->
+            hideMangaUiPref.set(checked)
+            uiModePref.set(
+                if (checked) BasePreferences.UiMode.NOVEL_ONLY else BasePreferences.UiMode.BOTH,
+            )
+        }
 
         Column {
             AppThemeModePreferenceWidget(
@@ -62,13 +69,13 @@ internal class ThemeStep : OnboardingStep {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { hideMangaUiPref.set(!hideMangaUi) }
+                    .clickable { setHideMangaUi(!hideMangaUi) }
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Checkbox(
                     checked = hideMangaUi,
-                    onCheckedChange = { hideMangaUiPref.set(it) },
+                    onCheckedChange = setHideMangaUi,
                 )
                 Text(
                     text = stringResource(TDMR.strings.pref_hide_manga_ui),

@@ -169,9 +169,9 @@ private fun SearchResult(
     val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
 
     val basePreferences = remember { Injekt.get<BasePreferences>() }
-    val hideMangaUi by basePreferences.hideMangaUi.collectAsState()
+    val uiMode by basePreferences.uiMode.collectAsState()
 
-    val index = getIndex(hideMangaUi)
+    val index = getIndex(uiMode)
     val result by produceState<List<SearchResultItem>?>(initialValue = null, searchKey) {
         value = index.asSequence()
             .flatMap { settingsData ->
@@ -269,8 +269,11 @@ private fun SearchResult(
 
 @Composable
 @NonRestartableComposable
-private fun getIndex(hideMangaUi: Boolean) = settingScreens
-    .filterNot { hideMangaUi && it in mangaOnlySettingScreens }
+private fun getIndex(uiMode: BasePreferences.UiMode) = settingScreens
+    .filterNot { screen ->
+        (uiMode == BasePreferences.UiMode.NOVEL_ONLY && screen in mangaOnlySettingScreens) ||
+            (uiMode == BasePreferences.UiMode.MANGA_ONLY && screen in novelOnlySettingScreens)
+    }
     .map { screen ->
         SettingsData(
             title = stringResource(screen.getTitleRes()),
@@ -310,6 +313,11 @@ private val settingScreens = listOf(
 
 private val mangaOnlySettingScreens = setOf(
     SettingsReaderScreen,
+)
+
+private val novelOnlySettingScreens = setOf(
+    SettingsNovelReaderScreen,
+    SettingsNovelDownloadScreen,
 )
 
 private data class SettingsData(

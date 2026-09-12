@@ -62,18 +62,18 @@ data object UpdatesTab : Tab {
         val settingsViewModel = viewModel<UpdatesSettingsViewModel>()
         val basePreferences = remember { Injekt.get<BasePreferences>() }
         val state by viewModel.state.collectAsState()
-        val hideMangaUi by basePreferences.hideMangaUi.changes().collectAsState(
-            initial = basePreferences.hideMangaUi.get(),
+        val uiMode by basePreferences.uiMode.changes().collectAsState(
+            initial = basePreferences.uiMode.get(),
         )
 
-        LaunchedEffect(hideMangaUi) {
-            viewModel.syncFilterWithHideManga(hideMangaUi)
+        LaunchedEffect(uiMode) {
+            viewModel.syncFilterWithUiMode(uiMode)
         }
 
         UpdateScreen(
             state = state,
             snackbarHostState = viewModel.snackbarHostState,
-            showFilterChips = !hideMangaUi,
+            showFilterChips = uiMode == BasePreferences.UiMode.BOTH,
             lastUpdated = viewModel.lastUpdated,
             onClickCover = { item -> navigator.push(MangaScreen(item.update.mangaId)) },
             onSelectAll = viewModel::toggleAllSelection,
@@ -92,8 +92,8 @@ data object UpdatesTab : Tab {
             onFilterSelected = viewModel::setFilter,
             onFilterClicked = viewModel::showFilterDialog,
             hasActiveFilters = state.hasActiveFilters,
-            showAllFilter = !hideMangaUi,
-            showMangaFilter = !hideMangaUi,
+            showAllFilter = uiMode == BasePreferences.UiMode.BOTH,
+            showMangaFilter = uiMode == BasePreferences.UiMode.BOTH,
             onToggleGroupByNovel = viewModel::toggleGroupByNovel,
             onClickNovelGroup = { mangaId -> navigator.push(MangaScreen(mangaId)) },
             onLoadMore = viewModel::loadMore,

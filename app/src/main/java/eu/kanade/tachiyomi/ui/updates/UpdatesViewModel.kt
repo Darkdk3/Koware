@@ -644,10 +644,16 @@ class UpdatesViewModel(
         currentLimit.value = GetUpdates.PAGE_SIZE
     }
 
-    fun syncFilterWithHideManga(hideMangaUi: Boolean) {
-        if (!hideMangaUi || state.value.filter == UpdatesFilter.ALL) return
+    fun syncFilterWithUiMode(uiMode: eu.kanade.domain.base.BasePreferences.UiMode) {
+        if (uiMode == eu.kanade.domain.base.BasePreferences.UiMode.BOTH) return
+        val forced = if (uiMode == eu.kanade.domain.base.BasePreferences.UiMode.MANGA_ONLY) {
+            UpdatesFilter.MANGA
+        } else {
+            UpdatesFilter.ALL
+        }
+        if (state.value.filter == forced) return
 
-        mutableState.update { it.copy(filter = UpdatesFilter.ALL) }
+        mutableState.update { it.copy(filter = forced) }
         mutableState.update {
             it.copy(items = latestUpdates.toUpdateItems().toList())
         }
