@@ -142,6 +142,7 @@ fun LibraryPager(
                     onClickContinueReading = onClickContinueReading,
                     searchQuery = searchQuery,
                     onGlobalSearchClicked = onGlobalSearchClicked,
+                    freeformCoverGrid = freeformCoverGrid,
                     onLoadMore = onLoadMoreForCategory,
                     loadMoreKey = loadMoreKey,
                 )

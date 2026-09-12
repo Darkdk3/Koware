@@ -432,6 +432,9 @@ private fun MangaAndSourceTitlesLarge(
                 .build(),
             contentDescription = stringResource(MR.strings.manga_cover),
             onClick = onCoverClick,
+            // The measured freeform ratio is already applied above; don't let the fixed 2:3
+            // book shape override it and crop the cover back to the default ratio.
+            applyAspectRatio = ratio == null,
         )
         Spacer(modifier = Modifier.height(16.dp))
         MangaContentInfo(
@@ -479,6 +482,7 @@ private fun MangaAndSourceTitlesSmall(
                 .build(),
             contentDescription = stringResource(MR.strings.manga_cover),
             onClick = onCoverClick,
+            applyAspectRatio = ratio == null,
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(2.dp),

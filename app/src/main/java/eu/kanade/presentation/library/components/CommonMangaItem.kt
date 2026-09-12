@@ -82,19 +82,27 @@ fun MangaCompactGridItem(
     coverAlpha: Float = 1f,
     coverBadgeStart: @Composable (RowScope.() -> Unit)? = null,
     coverBadgeEnd: @Composable (RowScope.() -> Unit)? = null,
+    freeformCoverRatio: Float? = null,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
         onClick = onClick,
         onLongClick = onLongClick,
     ) {
+        // When freeform is active the surrounding box already matches the cover's real ratio,
+        // so the image fills it completely instead of re-applying the fixed 2:3 book shape.
+        val coverModifier = if (freeformCoverRatio != null) {
+            Modifier.fillMaxSize()
+        } else {
+            Modifier.fillMaxWidth()
+        }
         MangaGridCover(
+            aspectRatio = freeformCoverRatio ?: MangaCover.Book.ratio,
             cover = {
                 MangaCover.Book(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
+                    modifier = coverModifier.alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
                     data = coverData,
+                    applyAspectRatio = freeformCoverRatio == null,
                 )
             },
             badgesStart = coverBadgeStart,
