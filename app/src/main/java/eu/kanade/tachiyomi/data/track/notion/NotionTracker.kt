@@ -641,66 +641,40 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
      */
     private suspend fun applyRecommendedSchema(schema: JsonObject, databaseId: String, secret: String): Set<String> {
         val existing = schema["properties"]?.jsonObject ?: return emptySet()
+        val additions = linkedMapOf<String, JsonElement>()
 
-        val additions = buildJsonObject {
-            if (!existing.containsKey(TYPE_PROPERTY)) {
-                putJsonObject(TYPE_PROPERTY) {
-                    putJsonObject("select") {
-                        putJsonArray("options") {
-                            MEDIA_TYPES.forEach { type ->
-                                add(buildJsonObject { put("name", type) })
-                            }
-                        }
-                    }
-                }
-            }
-            if (!existing.containsKey(STATUS_PROPERTY)) {
-                putJsonObject(STATUS_PROPERTY) {
-                    putJsonObject("select") {
-                        putJsonArray("options") {
-                            STATUS_NAMES.forEach { name ->
-                                add(buildJsonObject { put("name", name) })
-                            }
-                        }
-                    }
-                }
-            }
-            if (!existing.containsKey(CHAPTER_PROPERTY)) {
-                putJsonObject(CHAPTER_PROPERTY) { putJsonObject("number") {} }
-            }
-            if (!existing.containsKey(SCORE_PROPERTY)) {
-                putJsonObject(SCORE_PROPERTY) { putJsonObject("number") {} }
-            }
-            if (!existing.containsKey(TOTAL_CHAPTERS_PROPERTY)) {
-                putJsonObject(TOTAL_CHAPTERS_PROPERTY) { putJsonObject("number") {} }
-            }
-            if (!existing.containsKey(COVER_PROPERTY)) {
-                putJsonObject(COVER_PROPERTY) { putJsonObject("url") {} }
-            }
-        }
-
-        // Merge missing select options into existing select columns.
         listOf(TYPE_PROPERTY to MEDIA_TYPES, STATUS_PROPERTY to STATUS_NAMES).forEach { (property, desired) ->
             val existingType = existing[property]?.jsonObject?.get("type")?.jsonPrimitive?.content
-            if (existingType == "select") {
-                val existingOptions = existing[property]?.jsonObject?.get("select")?.jsonObject
+            val existingOptions = if (existingType == "select") {
+                existing[property]?.jsonObject?.get("select")?.jsonObject
                     ?.get("options")?.jsonArray.orEmpty()
                     .mapNotNull { it.jsonObject["name"]?.jsonPrimitive?.content }
                     .toSet()
-                val missing = desired.filter { it !in existingOptions }
-                if (missing.isNotEmpty() && !additions.containsKey(property)) {
-                    additions.put(property, buildJsonObject {
+            } else emptySet()
+            val missing = desired.filter { it !in existingOptions }
+
+            when {
+                !existing.containsKey(property) -> {
+                    additions[property] = buildJsonObject {
                         putJsonObject("select") {
-                            putJsonArray("options") {
-                                (existingOptions + desired).forEach { name ->
-                                    add(buildJsonObject { put("name", name) })
-                                }
-                            }
+                            putJsonArray("options") { desired.forEach { add(buildJsonObject { put("name", it) }) } }
                         }
-                    })
+                    }
+                }
+                existingType == "select" && missing.isNotEmpty() -> {
+                    additions[property] = buildJsonObject {
+                        putJsonObject("select") {
+                            putJsonArray("options") { (existingOptions + desired).forEach { add(buildJsonObject { put("name", it) }) } }
+                        }
+                    }
                 }
             }
         }
+
+        if (!existing.containsKey(CHAPTER_PROPERTY)) additions[CHAPTER_PROPERTY] = buildJsonObject { putJsonObject("number") {} }
+        if (!existing.containsKey(SCORE_PROPERTY)) additions[SCORE_PROPERTY] = buildJsonObject { putJsonObject("number") {} }
+        if (!existing.containsKey(TOTAL_CHAPTERS_PROPERTY)) additions[TOTAL_CHAPTERS_PROPERTY] = buildJsonObject { putJsonObject("number") {} }
+        if (!existing.containsKey(COVER_PROPERTY)) additions[COVER_PROPERTY] = buildJsonObject { putJsonObject("url") {} }
 
         if (additions.isEmpty()) return emptySet()
 
@@ -715,7 +689,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
             logcat(LogPriority.WARN, it) { "Notion: could not provision schema columns for $databaseId" }
             return emptySet()
         }
-        return additions.keys
+        return additions.keys.toSet()
     }
 
     private fun toTrackSearch(page: JsonObject): TrackSearch {
