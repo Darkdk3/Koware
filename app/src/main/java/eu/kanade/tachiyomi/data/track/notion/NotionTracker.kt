@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.awaitSuccess
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -696,7 +697,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
                                 }
                             }
                         }
-                    }
+                    })
                 }
             }
         }
