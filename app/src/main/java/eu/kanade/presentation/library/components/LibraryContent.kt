@@ -18,6 +18,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import eu.kanade.core.preference.PreferenceMutableState
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -25,6 +27,9 @@ import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.presentation.core.components.material.PullRefresh
+import tachiyomi.presentation.core.util.collectAsState
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -67,6 +72,8 @@ fun LibraryContent(
         ),
     ) {
         val pagerState = rememberPagerState(currentPage) { categories.size }
+        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val uiStyle by uiPreferences.uiStyle.collectAsState()
 
         val scope = rememberCoroutineScope()
         var isRefreshing by remember(pagerState.currentPage) { mutableStateOf(false) }
@@ -128,6 +135,7 @@ fun LibraryContent(
                 showAuthorArtistSubtitle = showAuthorArtistSubtitle,
                 freeformCoverGrid = freeformCoverGrid,
                 freeformCoverGridStaggered = freeformCoverGridStaggered,
+                uiStyle = uiStyle,
                 paginationEnabled = paginationEnabled,
                 onCategoryFirstVisible = onCategoryFirstVisible,
                 onLoadMore = onLoadMore,

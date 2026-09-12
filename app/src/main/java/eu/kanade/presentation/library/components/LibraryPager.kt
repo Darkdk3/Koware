@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import eu.kanade.core.preference.PreferenceMutableState
+import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryDisplayMode
@@ -50,6 +51,7 @@ fun LibraryPager(
     showAuthorArtistSubtitle: Boolean = false,
     freeformCoverGrid: Boolean = false,
     freeformCoverGridStaggered: Boolean = false,
+    uiStyle: UiStyle = UiStyle.LEGACY,
     paginationEnabled: Boolean = false,
     onCategoryFirstVisible: (Category) -> Unit = {},
     onLoadMore: (Category) -> Unit = {},
@@ -162,6 +164,7 @@ fun LibraryPager(
                     showAuthorArtistSubtitle = showAuthorArtistSubtitle,
                     freeformCoverGrid = freeformCoverGrid,
                     freeformCoverGridStaggered = freeformCoverGridStaggered,
+                    uiStyle = uiStyle,
                     onLoadMore = onLoadMoreForCategory,
                     loadMoreKey = loadMoreKey,
                 )
