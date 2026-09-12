@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.preference.PreferenceManager
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -570,9 +571,7 @@ private fun UiModeSelector(basePreferences: BasePreferences) {
                 value = BasePreferences.UiMode.MANGA_ONLY,
                 selected = uiMode,
                 onSelect = {
-                    basePreferences.uiMode.set(BasePreferences.UiMode.MANGA_ONLY)
-                    basePreferences.hideMangaUi.set(false)
-                    restartApp(context)
+                    setUiMode(basePreferences, BasePreferences.UiMode.MANGA_ONLY, context)
                 },
             )
             UiModeChip(
@@ -580,9 +579,7 @@ private fun UiModeSelector(basePreferences: BasePreferences) {
                 value = BasePreferences.UiMode.NOVEL_ONLY,
                 selected = uiMode,
                 onSelect = {
-                    basePreferences.uiMode.set(BasePreferences.UiMode.NOVEL_ONLY)
-                    basePreferences.hideMangaUi.set(true)
-                    restartApp(context)
+                    setUiMode(basePreferences, BasePreferences.UiMode.NOVEL_ONLY, context)
                 },
             )
             UiModeChip(
@@ -590,9 +587,7 @@ private fun UiModeSelector(basePreferences: BasePreferences) {
                 value = BasePreferences.UiMode.BOTH,
                 selected = uiMode,
                 onSelect = {
-                    basePreferences.uiMode.set(BasePreferences.UiMode.BOTH)
-                    basePreferences.hideMangaUi.set(false)
-                    restartApp(context)
+                    setUiMode(basePreferences, BasePreferences.UiMode.BOTH, context)
                 },
             )
         }
@@ -613,11 +608,32 @@ private fun UiModeChip(
     )
 }
 
+private fun setUiMode(
+    basePreferences: BasePreferences,
+    mode: BasePreferences.UiMode,
+    context: android.content.Context,
+) {
+    basePreferences.uiMode.set(mode)
+    basePreferences.hideMangaUi.set(mode == BasePreferences.UiMode.NOVEL_ONLY)
+
+    // Preference.set() writes through SharedPreferences.apply(), which is asynchronous and can
+    // be lost if the process dies right after. Commit the same values synchronously so the
+    // mode definitely survives the app restart that follows.
+    PreferenceManager.getDefaultSharedPreferences(context).edit()
+        .putString(basePreferences.uiMode.key(), mode.name)
+        .putBoolean(
+            basePreferences.hideMangaUi.key(),
+            mode == BasePreferences.UiMode.NOVEL_ONLY,
+        )
+        .commit()
+
+    restartApp(context)
+}
+
 private fun restartApp(context: android.content.Context) {
     val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     context.startActivity(intent)
-    Runtime.getRuntime().exit(0)
 }
 
 private val DateFormats = listOf(
