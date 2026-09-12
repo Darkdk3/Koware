@@ -1,6 +1,7 @@
 package eu.kanade.presentation.library.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.manga.components.MangaCover
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.Badge
 import tachiyomi.presentation.core.components.BadgeGroup
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.selectedBackground
@@ -251,6 +253,122 @@ fun MangaComfortableGridItem(
                     title = title,
                     style = MaterialTheme.typography.titleSmall,
                     minLines = 2,
+                    maxLines = titleMaxLines,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Modern ("redesigned") library grid item. The cover sits inside a rounded 16dp card with a
+ * 1dp stroke, an accent-filled unread chip on the cover's bottom-start corner, soft chips for
+ * downloads/language at the top, an accent continue button, and the title (plus optional
+ * author/artist subtitle) on the card surface below the cover instead of over it.
+ */
+@Composable
+fun MangaModernGridItem(
+    coverData: MangaCoverModel,
+    title: String,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    isSelected: Boolean = false,
+    titleMaxLines: Int = 2,
+    coverAlpha: Float = 1f,
+    coverBadgeStart: (@Composable RowScope.() -> Unit)? = null,
+    coverBadgeEnd: (@Composable RowScope.() -> Unit)? = null,
+    onClickContinueReading: (() -> Unit)? = null,
+    authorArtist: String? = null,
+    showAuthorArtistSubtitle: Boolean = false,
+    freeformCoverRatio: Float? = null,
+    unreadCount: Long = 0,
+) {
+    val cardShape = RoundedCornerShape(16.dp)
+    val coverShape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = Modifier
+            .clip(cardShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, cardShape)
+            .then(
+                if (isSelected) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, cardShape)
+                } else {
+                    Modifier
+                },
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            .padding(8.dp),
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(freeformCoverRatio ?: MangaCover.Book.ratio),
+            ) {
+                MangaCover.Book(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
+                    data = coverData,
+                    shape = coverShape,
+                    applyAspectRatio = freeformCoverRatio == null,
+                )
+                if (coverBadgeEnd != null) {
+                    BadgeGroup(
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .align(Alignment.TopEnd),
+                        content = coverBadgeEnd,
+                    )
+                }
+                if (coverBadgeStart != null) {
+                    BadgeGroup(
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .align(Alignment.TopStart),
+                        content = coverBadgeStart,
+                    )
+                }
+                if (unreadCount > 0) {
+                    Badge(
+                        text = "$unreadCount new",
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .align(Alignment.BottomStart),
+                        color = MaterialTheme.colorScheme.primary,
+                        textColor = MaterialTheme.colorScheme.onPrimary,
+                        shape = RoundedCornerShape(999.dp),
+                    )
+                }
+                if (onClickContinueReading != null) {
+                    ContinueReadingButton(
+                        size = ContinueReadingButtonSizeLarge,
+                        iconSize = ContinueReadingButtonIconSizeLarge,
+                        onClick = onClickContinueReading,
+                        modifier = Modifier
+                            .padding(6.dp)
+                            .align(Alignment.BottomEnd),
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
+                    )
+                }
+            }
+            if (showAuthorArtistSubtitle && !authorArtist.isNullOrBlank()) {
+                GridItemTitleWithSubtitle(
+                    modifier = Modifier.padding(start = 2.dp, top = 8.dp, end = 2.dp),
+                    title = title,
+                    authorArtist = authorArtist,
+                    titleMaxLines = titleMaxLines,
+                )
+            } else {
+                GridItemTitle(
+                    modifier = Modifier.padding(start = 2.dp, top = 8.dp, end = 2.dp),
+                    title = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    minLines = 1,
                     maxLines = titleMaxLines,
                 )
             }
@@ -473,14 +591,15 @@ private fun ContinueReadingButton(
     iconSize: Dp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
 ) {
     Box(modifier = modifier) {
         FilledIconButton(
             onClick = onClick,
             shape = MaterialTheme.shapes.small,
             colors = IconButtonDefaults.filledIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-                contentColor = contentColorFor(MaterialTheme.colorScheme.primaryContainer),
+                containerColor = containerColor,
+                contentColor = contentColorFor(containerColor),
             ),
             modifier = Modifier.size(size),
         ) {

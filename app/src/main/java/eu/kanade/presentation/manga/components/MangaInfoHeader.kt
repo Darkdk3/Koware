@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -51,6 +53,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -94,6 +97,7 @@ import com.mikepenz.markdown.model.markdownAnnotator
 import com.mikepenz.markdown.model.markdownAnnotatorConfig
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.library.components.rememberCoverRatio
 import eu.kanade.tachiyomi.R
@@ -136,6 +140,8 @@ fun MangaInfoBox(
     modifier: Modifier = Modifier,
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
+    val uiStyle by uiPreferences.uiStyle.collectAsState()
     val hideBackdrop by libraryPreferences.mangaDetailsHideBackdrop.collectAsState()
     val centerCover by libraryPreferences.mangaDetailsCenterCover.collectAsState()
     val freeformCover by libraryPreferences.mangaDetailsFreeformCover.collectAsState()
@@ -202,11 +208,38 @@ fun MangaInfoBox(
             },
         )
 
+        if (uiStyle == UiStyle.MODERN && !hideBackdrop) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            0.45f to Color.Transparent,
+                            1f to MaterialTheme.colorScheme.background,
+                        ),
+                    ),
+            )
+        }
+
         // Manga & source info. The "center cover" appearance setting forces the centered
         // layout (normally tablet-only) even on phone, reusing it rather than building a
         // separate centered layout from scratch.
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-            if (!isTabletUi && !centerCover) {
+            if (uiStyle == UiStyle.MODERN) {
+                ModernMangaHeader(
+                    appBarPadding = appBarPadding,
+                    manga = manga,
+                    sourceName = sourceName,
+                    isStubSource = isStubSource,
+                    categories = categories,
+                    onCoverClick = onCoverClick,
+                    doSearch = doSearch,
+                    freeformCover = freeformCover,
+                    centerCover = centerCover,
+                    coverSizePercent = centerCoverSizePercent,
+                )
+            } else if (!isTabletUi && !centerCover) {
                 MangaAndSourceTitlesSmall(
                     appBarPadding = appBarPadding,
                     manga = manga,
@@ -401,8 +434,67 @@ fun ExpandableMangaDescription(
     }
 }
 
+/**
+ * Modern ("redesigned") details header: the cover/title block sits on a neutral surface card
+ * with rounded corners and a 1dp stroke. The blurred cover backdrop stays behind it as a
+ * capped wash (see the scrim in [MangaInfoBox]) instead of bleeding into the text, and the
+ * accent is reserved for the action row / buttons on the screen.
+ */
+@Composable
+private fun ModernMangaHeader(
+    appBarPadding: Dp,
+    manga: Manga,
+    sourceName: String,
+    isStubSource: Boolean,
+    categories: List<Category>,
+    onCoverClick: () -> Unit,
+    doSearch: (query: String, global: Boolean) -> Unit,
+    freeformCover: Boolean,
+    centerCover: Boolean,
+    coverSizePercent: Int,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = appBarPadding + 24.dp),
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 2.dp,
+    ) {
+        Column(modifier = Modifier.padding(bottom = 12.dp)) {
+            if (centerCover) {
+                MangaAndSourceTitlesLarge(
+                    appBarPadding = 0.dp,
+                    manga = manga,
+                    sourceName = sourceName,
+                    isStubSource = isStubSource,
+                    categories = categories,
+                    onCoverClick = onCoverClick,
+                    doSearch = doSearch,
+                    freeformCover = freeformCover,
+                    coverSizePercent = coverSizePercent,
+                )
+            } else {
+                MangaAndSourceTitlesSmall(
+                    appBarPadding = 0.dp,
+                    manga = manga,
+                    sourceName = sourceName,
+                    isStubSource = isStubSource,
+                    categories = categories,
+                    onCoverClick = onCoverClick,
+                    doSearch = doSearch,
+                    freeformCover = freeformCover,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun MangaAndSourceTitlesLarge(
+    modifier: Modifier = Modifier,
     appBarPadding: Dp,
     manga: Manga,
     sourceName: String,
@@ -417,7 +509,7 @@ private fun MangaAndSourceTitlesLarge(
     // default ratio via the `?:` below, same pattern used for the library grid's freeform mode.
     val ratio = rememberCoverRatio(manga = manga, enabled = freeformCover)
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(start = 16.dp, top = appBarPadding + 16.dp, end = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -454,6 +546,7 @@ private fun MangaAndSourceTitlesLarge(
 
 @Composable
 private fun MangaAndSourceTitlesSmall(
+    modifier: Modifier = Modifier,
     appBarPadding: Dp,
     manga: Manga,
     sourceName: String,
@@ -465,7 +558,7 @@ private fun MangaAndSourceTitlesSmall(
 ) {
     val ratio = rememberCoverRatio(manga = manga, enabled = freeformCover)
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(start = 16.dp, top = appBarPadding + 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),

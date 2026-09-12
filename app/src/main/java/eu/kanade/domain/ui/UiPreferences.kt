@@ -4,6 +4,7 @@ import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.model.AppTheme
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
+import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.isDynamicColorAvailable
 import tachiyomi.core.common.preference.Preference
@@ -29,6 +30,9 @@ class UiPreferences(
     )
 
     val themeDarkAmoled: Preference<Boolean> = preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)
+
+    /** Overall UI style: legacy (original) or modern (redesigned look). */
+    val uiStyle: Preference<UiStyle> = preferenceStore.getEnum("pref_ui_style", UiStyle.LEGACY)
 
     /** Material Kolor palette style used when theming from a manga's cover color. */
     val themeCoverBasedStyle: Preference<PaletteStyle> = preferenceStore.getEnum(
