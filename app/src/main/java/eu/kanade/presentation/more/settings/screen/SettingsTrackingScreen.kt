@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.Visibility
@@ -28,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
@@ -63,7 +66,10 @@ import eu.kanade.tachiyomi.data.track.bangumi.BangumiApi
 import eu.kanade.tachiyomi.data.track.hikka.HikkaApi
 import eu.kanade.tachiyomi.data.track.mangabaka.MangaBakaApi
 import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeListApi
+import eu.kanade.tachiyomi.data.track.notion.NotionTracker
 import eu.kanade.tachiyomi.data.track.shikimori.ShikimoriApi
+import eu.kanade.tachiyomi.network.HttpException
+import eu.kanade.tachiyomi.ui.webview.NotionSetupWebViewActivity
 import eu.kanade.tachiyomi.ui.webview.TrackerWebViewLoginActivity
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.toast
@@ -315,13 +321,23 @@ object SettingsTrackingScreen : SearchableSettings {
                         title = "Sync reading list",
                         subtitle = "Keep reading list status in sync with RanobeDB",
                     ),
+                    Preference.PreferenceItem.InfoPreference(
+                        "Login via WebView. Cookies will be automatically extracted after successful login.",
+                    ),
                     Preference.PreferenceItem.TrackerPreference(
                         tracker = trackerManager.notion,
                         login = { dialog = NotionLoginDialog(trackerManager.notion) },
                         logout = { dialog = LogoutDialog(trackerManager.notion) },
                     ),
+                    Preference.PreferenceItem.ListPreference(
+                        preference = trackPreferences.notionDefaultMediaType,
+                        entries = NotionTracker.MEDIA_TYPES.associateWith { it },
+                        title = "Default media type",
+                        subtitle = "Saved to the Type column of new Notion entries",
+                    ),
                     Preference.PreferenceItem.InfoPreference(
-                        "Login via WebView. Cookies will be automatically extracted after successful login.",
+                        "Database columns: Title, Type, Status, Chapter, Score, Total Chapters, Cover. " +
+                            "Login auto-creates any missing columns. Pick the connected database or create a new one from the login dialog.",
                     ),
                 ),
             ),
@@ -478,7 +494,7 @@ object SettingsTrackingScreen : SearchableSettings {
 
     @Composable
     private fun NotionLoginDialogContent(
-        tracker: Tracker,
+        tracker: NotionTracker,
         onDismissRequest: () -> Unit,
     ) {
         val context = LocalContext.current
@@ -488,6 +504,17 @@ object SettingsTrackingScreen : SearchableSettings {
         var secret by remember { mutableStateOf(TextFieldValue(tracker.getPassword())) }
         var processing by remember { mutableStateOf(false) }
         var inputError by remember { mutableStateOf(false) }
+
+        // Database discovery (permission linking): list databases the integration can access.
+        var searchingDatabases by remember { mutableStateOf(false) }
+        var databases by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+        var showDatabasePicker by remember { mutableStateOf(false) }
+        var databaseNote by remember { mutableStateOf<String?>(null) }
+
+        // One-tap database creation inside a page the integration can access.
+        var showCreateSection by remember { mutableStateOf(false) }
+        var parentPage by remember { mutableStateOf(TextFieldValue("")) }
+        var creatingDatabase by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = onDismissRequest,
@@ -503,23 +530,16 @@ object SettingsTrackingScreen : SearchableSettings {
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     Text(
-                        text = "Create an integration at notion.so/my-integrations, copy its secret, " +
-                            "then share your tracking database with it and copy the database's ID " +
-                            "from its URL.",
+                        text = "1) Create an integration at notion.so/my-integrations and copy its secret. " +
+                            "2) Share your tracking database with it (open the database, ... -> Connections -> add integration). " +
+                            "3) Pick the database below, or let Koware create one for you.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-
-                    OutlinedTextField(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = databaseId,
-                        onValueChange = { databaseId = it },
-                        label = { Text("Database ID") },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                        singleLine = true,
-                        isError = inputError && !processing,
                     )
 
                     var hideSecret by remember { mutableStateOf(true) }
@@ -547,11 +567,178 @@ object SettingsTrackingScreen : SearchableSettings {
                         },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done,
+                            imeAction = ImeAction.Next,
                         ),
                         singleLine = true,
                         isError = inputError && !processing,
                     )
+
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = secret.text.isNotBlank() && !processing && !searchingDatabases,
+                        onClick = {
+                            scope.launchIO {
+                                searchingDatabases = true
+                                databaseNote = null
+                                showDatabasePicker = false
+                                try {
+                                    val found = tracker.fetchDatabases(secret.text.trim())
+                                    databases = found
+                                    databaseNote = if (found.isEmpty()) {
+                                        "No databases found. Share a database with your integration in Notion first."
+                                    } else {
+                                        null
+                                    }
+                                    showDatabasePicker = found.isNotEmpty()
+                                } catch (e: Throwable) {
+                                    databaseNote = if (e is HttpException) {
+                                        "The integration secret was rejected (${e.code}). Check that you copied it fully."
+                                    } else {
+                                        e.message
+                                    }
+                                }
+                                searchingDatabases = false
+                            }
+                        },
+                    ) {
+                        if (searchingDatabases) {
+                            CircularProgressIndicator(modifier = Modifier.height(16.dp))
+                        } else {
+                            Text("Find my databases")
+                        }
+                    }
+
+                    if (databaseNote != null) {
+                        Text(
+                            text = databaseNote.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    if (showDatabasePicker && databases.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Databases shared with your integration:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            databases.forEach { (id, title) ->
+                                OutlinedButton(
+                                    onClick = {
+                                        databaseId = TextFieldValue(id)
+                                        databaseNote = "Selected: ${title.ifBlank { id }}"
+                                        showDatabasePicker = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = title.ifBlank { id },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = databaseId,
+                        onValueChange = { databaseId = it },
+                        label = { Text("Database ID or URL") },
+                        supportingText = {
+                            Text("The page URL or ID of your Notion database")
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                        singleLine = true,
+                        isError = inputError && !processing,
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                context.startActivity(
+                                    NotionSetupWebViewActivity.newIntent(
+                                        context,
+                                        title = "Notion Integrations",
+                                        url = "https://www.notion.so/my-integrations",
+                                    ),
+                                )
+                            },
+                        ) {
+                            Text("Open setup")
+                        }
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = databaseId.text.isNotBlank(),
+                            onClick = {
+                                context.startActivity(
+                                    NotionSetupWebViewActivity.newIntent(
+                                        context,
+                                        title = "Notion Database",
+                                        url = "https://www.notion.so/${databaseId.text.trim()}",
+                                    ),
+                                )
+                            },
+                        ) {
+                            Text("Open database")
+                        }
+                    }
+
+                    TextButton(
+                        onClick = { showCreateSection = !showCreateSection },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (showCreateSection) "Hide database creation" else "Create tracking database for me")
+                    }
+
+                    if (showCreateSection) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Paste the URL of any page you've shared with the integration. " +
+                                    "Koware creates a ready-to-use tracking database inside it.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            OutlinedTextField(
+                                modifier = Modifier.fillMaxWidth(),
+                                value = parentPage,
+                                onValueChange = { parentPage = it },
+                                label = { Text("Parent page URL or ID") },
+                                singleLine = true,
+                            )
+                            Button(
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = parentPage.text.isNotBlank() && secret.text.isNotBlank() && !creatingDatabase,
+                                onClick = {
+                                    scope.launchIO {
+                                        creatingDatabase = true
+                                        databaseNote = null
+                                        try {
+                                            val newId = tracker.createTrackingDatabase(
+                                                parentPageIdOrUrl = parentPage.text.trim(),
+                                                secret = secret.text.trim(),
+                                            )
+                                            databaseId = TextFieldValue(newId)
+                                            databaseNote = "Database created and connected."
+                                            showCreateSection = false
+                                        } catch (e: Throwable) {
+                                            databaseNote = e.message
+                                        }
+                                        creatingDatabase = false
+                                    }
+                                },
+                            ) {
+                                if (creatingDatabase) {
+                                    CircularProgressIndicator(modifier = Modifier.height(16.dp))
+                                } else {
+                                    Text("Create database")
+                                }
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -936,7 +1123,7 @@ private data class LogoutDialog(
 )
 
 private data class NotionLoginDialog(
-    val tracker: Tracker,
+    val tracker: NotionTracker,
 )
 
 private data class NovelTrackerLoginDialog(

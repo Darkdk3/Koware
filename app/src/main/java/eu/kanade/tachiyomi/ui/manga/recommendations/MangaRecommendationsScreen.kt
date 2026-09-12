@@ -211,7 +211,7 @@ private fun SuggestionRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        items(suggestions, key = { it.id }) { manga ->
+        items(suggestions, key = { it.url }) { manga ->
             Box(modifier = Modifier.width(110.dp)) {
                 MangaComfortableGridItem(
                     isSelected = false,

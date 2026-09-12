@@ -289,7 +289,6 @@ fun MangaModernGridItem(
         modifier = Modifier
             .clip(cardShape)
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, cardShape)
             .then(
                 if (isSelected) {
                     Modifier.border(2.dp, MaterialTheme.colorScheme.primary, cardShape)

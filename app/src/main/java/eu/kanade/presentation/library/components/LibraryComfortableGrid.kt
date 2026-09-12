@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
@@ -26,7 +25,6 @@ internal fun LibraryComfortableGrid(
     showAuthorArtistSubtitle: Boolean = false,
     freeformCoverGrid: Boolean = false,
     freeformCoverGridStaggered: Boolean = false,
-    uiStyle: UiStyle = UiStyle.LEGACY,
     onLoadMore: (() -> Unit)? = null,
     loadMoreKey: Long = 0,
 ) {
@@ -38,7 +36,6 @@ internal fun LibraryComfortableGrid(
             modifier = Modifier.fillMaxSize(),
             columns = columns,
             contentPadding = contentPadding,
-            uiStyle = uiStyle,
         ) {
             globalSearchItem(searchQuery, onGlobalSearchClicked)
 
@@ -55,7 +52,6 @@ internal fun LibraryComfortableGrid(
                     titleMaxLines = titleMaxLines,
                     showAuthorArtistSubtitle = showAuthorArtistSubtitle,
                     freeformCoverGrid = freeformCoverGrid,
-                    uiStyle = uiStyle,
                 )
             }
 
@@ -66,7 +62,6 @@ internal fun LibraryComfortableGrid(
             modifier = Modifier.fillMaxSize(),
             columns = columns,
             contentPadding = contentPadding,
-            uiStyle = uiStyle,
         ) {
             globalSearchItem(searchQuery, onGlobalSearchClicked)
 
@@ -83,7 +78,6 @@ internal fun LibraryComfortableGrid(
                     titleMaxLines = titleMaxLines,
                     showAuthorArtistSubtitle = showAuthorArtistSubtitle,
                     freeformCoverGrid = freeformCoverGrid,
-                    uiStyle = uiStyle,
                 )
             }
 
@@ -92,10 +86,6 @@ internal fun LibraryComfortableGrid(
     }
 }
 
-/**
- * The actual per-manga cell, shared between the standard and staggered grid branches above so the
- * two scopes (LazyGridScope vs LazyStaggeredGridScope) don't duplicate this logic.
- */
 @Composable
 private fun LibraryComfortableGridCell(
     libraryItem: LibraryItem,
@@ -106,11 +96,8 @@ private fun LibraryComfortableGridCell(
     titleMaxLines: Int,
     showAuthorArtistSubtitle: Boolean,
     freeformCoverGrid: Boolean,
-    uiStyle: UiStyle,
 ) {
     val manga = libraryItem.libraryManga.manga
-    // Author/artist are deduped when identical (common for doujin/self-published works) so the
-    // subtitle doesn't repeat the same name twice.
     val authorArtist = if (showAuthorArtistSubtitle) {
         if (manga.author == manga.artist || manga.artist.isNullOrBlank()) {
             manga.author?.trim().orEmpty()
@@ -137,51 +124,26 @@ private fun LibraryComfortableGridCell(
         null
     }
 
-    if (uiStyle == UiStyle.MODERN) {
-        MangaModernGridItem(
-            isSelected = manga.id in selection,
-            title = manga.title,
-            coverData = coverData,
-            coverBadgeStart = {
-                DownloadsBadge(count = libraryItem.badges.downloadCount)
-            },
-            coverBadgeEnd = {
-                LanguageBadge(
-                    isLocal = libraryItem.badges.isLocal,
-                    sourceLanguage = libraryItem.badges.sourceLanguage,
-                )
-            },
-            unreadCount = libraryItem.badges.unreadCount,
-            onLongClick = { onLongClick(libraryItem.libraryManga) },
-            onClick = { onClick(libraryItem.libraryManga) },
-            onClickContinueReading = onClickContinue,
-            titleMaxLines = titleMaxLines,
-            authorArtist = authorArtist,
-            showAuthorArtistSubtitle = showAuthorArtistSubtitle,
-            freeformCoverRatio = freeformCoverRatio,
-        )
-    } else {
-        MangaComfortableGridItem(
-            isSelected = manga.id in selection,
-            title = manga.title,
-            coverData = coverData,
-            coverBadgeStart = {
-                DownloadsBadge(count = libraryItem.badges.downloadCount)
-                UnreadBadge(count = libraryItem.badges.unreadCount)
-            },
-            coverBadgeEnd = {
-                LanguageBadge(
-                    isLocal = libraryItem.badges.isLocal,
-                    sourceLanguage = libraryItem.badges.sourceLanguage,
-                )
-            },
-            onLongClick = { onLongClick(libraryItem.libraryManga) },
-            onClick = { onClick(libraryItem.libraryManga) },
-            onClickContinueReading = onClickContinue,
-            titleMaxLines = titleMaxLines,
-            authorArtist = authorArtist,
-            showAuthorArtistSubtitle = showAuthorArtistSubtitle,
-            freeformCoverRatio = freeformCoverRatio,
-        )
-    }
+    MangaModernGridItem(
+        isSelected = manga.id in selection,
+        title = manga.title,
+        coverData = coverData,
+        coverBadgeStart = {
+            DownloadsBadge(count = libraryItem.badges.downloadCount)
+        },
+        coverBadgeEnd = {
+            LanguageBadge(
+                isLocal = libraryItem.badges.isLocal,
+                sourceLanguage = libraryItem.badges.sourceLanguage,
+            )
+        },
+        unreadCount = libraryItem.badges.unreadCount,
+        onLongClick = { onLongClick(libraryItem.libraryManga) },
+        onClick = { onClick(libraryItem.libraryManga) },
+        onClickContinueReading = onClickContinue,
+        titleMaxLines = titleMaxLines,
+        authorArtist = authorArtist,
+        showAuthorArtistSubtitle = showAuthorArtistSubtitle,
+        freeformCoverRatio = freeformCoverRatio,
+    )
 }

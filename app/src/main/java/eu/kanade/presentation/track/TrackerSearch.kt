@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -99,6 +100,7 @@ fun TrackerSearch(
     onDismissRequest: () -> Unit,
     supportsPrivateTracking: Boolean,
     altTitles: List<String> = emptyList(),
+    onCreateEntry: (() -> Unit)? = null,
 ) {
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
@@ -146,6 +148,15 @@ fun TrackerSearch(
                         )
                     },
                     actions = {
+                        if (onCreateEntry != null) {
+                            IconButton(onClick = onCreateEntry) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add new entry",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                         if (state.text.isNotEmpty()) {
                             IconButton(
                                 onClick = {
