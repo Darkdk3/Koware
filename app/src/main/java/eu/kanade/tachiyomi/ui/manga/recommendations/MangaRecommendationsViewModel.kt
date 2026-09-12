@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
+import eu.kanade.tachiyomi.ui.browse.discover.AiRecommendationResult
 import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
 import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -82,27 +83,27 @@ class MangaRecommendationsViewModel(
                     )
                 }.getOrElse {
                     logcat(LogPriority.ERROR, it) { "AI recs failed" }
-                    GetAiRecommendations.AiRecommendationResult.Failed(it.message ?: "AI request failed")
+                    AiRecommendationResult.Failed(it.message ?: "AI request failed")
                 }
             } else {
-                GetAiRecommendations.AiRecommendationResult.NoCandidates
+                AiRecommendationResult.NoCandidates
             }
 
             val picks = when (aiResult) {
-                is GetAiRecommendations.AiRecommendationResult.Success ->
+                is AiRecommendationResult.Success ->
                     aiResult.recommendations.map { (it as MangaRecommendable).manga }
                 else -> emptyList()
             }
             val scores = when (aiResult) {
-                is GetAiRecommendations.AiRecommendationResult.Success -> aiResult.scores
+                is AiRecommendationResult.Success -> aiResult.scores
                 else -> emptyList()
             }
             val aiMessage = when (aiResult) {
-                is GetAiRecommendations.AiRecommendationResult.Failed -> aiResult.message
-                GetAiRecommendations.AiRecommendationResult.Disabled -> "AI features are turned off in Settings → AI."
-                GetAiRecommendations.AiRecommendationResult.NoEngine -> "Set up an AI engine in Settings → AI."
-                GetAiRecommendations.AiRecommendationResult.NoReadingHistory -> "Keep reading so the AI can learn your taste."
-                is GetAiRecommendations.AiRecommendationResult.Success -> null
+                is AiRecommendationResult.Failed -> aiResult.message
+                AiRecommendationResult.Disabled -> "AI features are turned off in Settings → AI."
+                AiRecommendationResult.NoEngine -> "Set up an AI engine in Settings → AI."
+                AiRecommendationResult.NoReadingHistory -> "Keep reading so the AI can learn your taste."
+                is AiRecommendationResult.Success -> null
                 else -> null
             }
 
