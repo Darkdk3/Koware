@@ -32,6 +32,17 @@ class BasePreferences(
     )
 
     /**
+     * Which content the whole app UI is filtered to: manga only, novel only, or both.
+     *
+     * This is the source of truth for the manga/novel UI swap. [hideMangaUi] is kept in
+     * sync (true exactly for [UiMode.NOVEL_ONLY]) so older call sites keep working.
+     */
+    val uiMode: Preference<UiMode> = preferenceStore.getEnum(
+        Preference.appStateKey("pref_ui_mode"),
+        UiMode.BOTH,
+    )
+
+    /**
      * Visual style of the bottom navigation bar's scrim, drawn behind the system navigation bar
      * when [eu.kanade.tachiyomi.util.system.isNavigationBarNeedsScrim] is true.
      */
@@ -62,6 +73,12 @@ class BasePreferences(
     enum class NavigationBarStyle {
         SOLID,
         GLASS,
+    }
+
+    enum class UiMode {
+        BOTH,
+        NOVEL_ONLY,
+        MANGA_ONLY,
     }
 
     enum class ExtensionInstaller(val titleRes: StringResource, val requiresSystemPermission: Boolean) {

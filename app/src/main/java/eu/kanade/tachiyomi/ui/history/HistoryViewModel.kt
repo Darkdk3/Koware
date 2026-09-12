@@ -168,13 +168,18 @@ class HistoryViewModel(
         mutableState.update { it.copy(filter = filter, limit = HISTORY_PAGE_SIZE) }
     }
 
-    fun syncFilterWithHideManga(hideMangaUi: Boolean) {
-        if (!hideMangaUi) return
+    fun syncFilterWithUiMode(uiMode: eu.kanade.domain.base.BasePreferences.UiMode) {
+        if (uiMode == eu.kanade.domain.base.BasePreferences.UiMode.BOTH) return
+        val forced = if (uiMode == eu.kanade.domain.base.BasePreferences.UiMode.MANGA_ONLY) {
+            HistoryFilter.MANGA
+        } else {
+            HistoryFilter.ALL
+        }
         mutableState.update { state ->
-            if (state.filter == HistoryFilter.ALL) {
+            if (state.filter == forced) {
                 state
             } else {
-                state.copy(filter = HistoryFilter.ALL, limit = HISTORY_PAGE_SIZE)
+                state.copy(filter = forced, limit = HISTORY_PAGE_SIZE)
             }
         }
     }

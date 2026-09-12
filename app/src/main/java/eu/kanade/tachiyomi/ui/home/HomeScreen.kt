@@ -109,15 +109,27 @@ object HomeScreen : Screen() {
         MoreTab,
     )
 
+    private val MANGA_TABS = listOf(
+        LibraryTab,
+        UpdatesTab,
+        HistoryTab,
+        BrowseTab,
+        MoreTab,
+    )
+
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
         val basePreferences = remember { Injekt.get<BasePreferences>() }
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
-        val hideMangaUi by basePreferences.hideMangaUi.collectAsState()
+        val uiMode by basePreferences.uiMode.collectAsState()
         val alwaysShowNavLabels by libraryPreferences.alwaysShowNavigationLabels.collectAsState()
-        val tabs = if (isJoined || hideMangaUi) JOINED_TABS else TABS
+        val tabs = when (uiMode) {
+            BasePreferences.UiMode.MANGA_ONLY -> MANGA_TABS
+            BasePreferences.UiMode.NOVEL_ONLY -> JOINED_TABS
+            BasePreferences.UiMode.BOTH -> if (isJoined) JOINED_TABS else TABS
+        }
 
         // Shared blur source: the tab content below is registered against this
         // state (.hazeSource), and it's provided app-wide via LocalHazeState so
@@ -127,7 +139,7 @@ object HomeScreen : Screen() {
 
         CompositionLocalProvider(LocalHazeState provides hazeState) {
             TabNavigator(
-                tab = NovelsTab,
+                tab = if (uiMode == BasePreferences.UiMode.MANGA_ONLY) LibraryTab else NovelsTab,
                 key = TabNavigatorKey,
             ) { tabNavigator ->
                 // Provide usable navigator to content screen
@@ -250,7 +262,11 @@ object HomeScreen : Screen() {
                     launch {
                         openTabEvent.receiveAsFlow().collectLatest {
                             tabNavigator.current = when (it) {
-                                is Tab.Library -> if (isJoined || hideMangaUi) NovelsTab else LibraryTab
+                                is Tab.Library -> when (uiMode) {
+                                    BasePreferences.UiMode.MANGA_ONLY -> LibraryTab
+                                    BasePreferences.UiMode.NOVEL_ONLY -> NovelsTab
+                                    BasePreferences.UiMode.BOTH -> if (isJoined) NovelsTab else LibraryTab
+                                }
                                 Tab.Updates -> UpdatesTab
                                 Tab.History -> HistoryTab
                                 is Tab.Browse -> {

@@ -58,8 +58,10 @@ data object BrowseTab : Tab {
         }
 
     override suspend fun onReselect(navigator: Navigator) {
-        val hideMangaUi = Injekt.get<BasePreferences>().hideMangaUi.get()
-        navigator.push(if (hideMangaUi) NovelGlobalSearchScreen() else GlobalSearchScreen())
+        val uiMode = Injekt.get<BasePreferences>().uiMode.get()
+        navigator.push(
+            if (uiMode == BasePreferences.UiMode.NOVEL_ONLY) NovelGlobalSearchScreen() else GlobalSearchScreen(),
+        )
     }
 
     private val switchToExtensionTabChannel = Channel<Unit>(1, BufferOverflow.DROP_OLDEST)
@@ -72,8 +74,7 @@ data object BrowseTab : Tab {
     override fun Content() {
         val context = LocalContext.current
         val basePreferences = remember { Injekt.get<BasePreferences>() }
-        val hideMangaUi by basePreferences.hideMangaUi.collectAsState()
-        val hideMangaBrowseTabs = hideMangaUi
+        val uiMode by basePreferences.uiMode.collectAsState()
 
         // Hoisted for extensions tab's search bar
         val extensionsViewModel = viewModel<ExtensionsViewModel>()
@@ -85,15 +86,20 @@ data object BrowseTab : Tab {
         val discoverViewModel = viewModel<DiscoverViewModel>()
         val discoverMangaViewModel = viewModel<DiscoverMangaViewModel>()
 
-        val tabs = if (hideMangaBrowseTabs) {
-            listOf(
+        val tabs = when (uiMode) {
+            BasePreferences.UiMode.NOVEL_ONLY -> listOf(
                 discoverTab(discoverViewModel),
                 novelSourcesTab(),
                 novelExtensionsTab(novelExtensionsViewModel),
                 novelMigrateSourceTab(),
             )
-        } else {
-            listOf(
+            BasePreferences.UiMode.MANGA_ONLY -> listOf(
+                discoverMangaTab(discoverMangaViewModel),
+                sourcesTab(),
+                extensionsTab(extensionsViewModel),
+                migrateSourceTab(),
+            )
+            BasePreferences.UiMode.BOTH -> listOf(
                 discoverTab(discoverViewModel),
                 discoverMangaTab(discoverMangaViewModel),
                 novelSourcesTab(),
@@ -105,10 +111,12 @@ data object BrowseTab : Tab {
             )
         }
 
-        // discoverMangaTab only exists in the else branch above, so the hideMangaBrowseTabs
-        // branch's index is unchanged; the else branch shifts by +1 for the new insertion.
-        val novelExtensionsTabIndex = if (hideMangaBrowseTabs) 2 else 4
-        val mangaExtensionsTabIndex = if (hideMangaBrowseTabs) null else 5
+        val novelExtensionsTabIndex = if (uiMode == BasePreferences.UiMode.NOVEL_ONLY) 2 else 4
+        val mangaExtensionsTabIndex = when (uiMode) {
+            BasePreferences.UiMode.NOVEL_ONLY -> null
+            BasePreferences.UiMode.MANGA_ONLY -> 2
+            BasePreferences.UiMode.BOTH -> 5
+        }
 
         val state = rememberPagerState { tabs.size }
 
@@ -131,7 +139,13 @@ data object BrowseTab : Tab {
         LaunchedEffect(Unit) {
             switchToExtensionTabChannel.receiveAsFlow()
                 .collectLatest {
-                    state.scrollToPage(if (hideMangaBrowseTabs) novelExtensionsTabIndex else mangaExtensionsTabIndex!!)
+                    state.scrollToPage(
+                        when (uiMode) {
+                            BasePreferences.UiMode.NOVEL_ONLY -> novelExtensionsTabIndex
+                            BasePreferences.UiMode.MANGA_ONLY -> mangaExtensionsTabIndex!!
+                            BasePreferences.UiMode.BOTH -> mangaExtensionsTabIndex!!
+                        },
+                    )
                 }
         }
 

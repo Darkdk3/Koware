@@ -85,11 +85,14 @@ object SettingsMainScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val backPress = LocalBackPress.currentOrThrow
         val basePreferences = remember { Injekt.get<BasePreferences>() }
-        val hideMangaUi by basePreferences.hideMangaUi.collectAsState()
+        val uiMode by basePreferences.uiMode.collectAsState()
         val containerColor = if (twoPane) getPalerSurface() else MaterialTheme.colorScheme.surface
         val topBarState = rememberTopAppBarState()
-        val visibleItems = remember(hideMangaUi) {
-            items.filterNot { hideMangaUi && it.isMangaOnly }
+        val visibleItems = remember(uiMode) {
+            items.filterNot { item ->
+                (uiMode == BasePreferences.UiMode.NOVEL_ONLY && item.isMangaOnly) ||
+                    (uiMode == BasePreferences.UiMode.MANGA_ONLY && item.isNovelOnly)
+            }
         }
 
         Scaffold(
@@ -184,6 +187,7 @@ object SettingsMainScreen : Screen() {
         val icon: ImageVector,
         val screen: VoyagerScreen,
         val isMangaOnly: Boolean = false,
+        val isNovelOnly: Boolean = false,
     )
 
     private val items = listOf(
@@ -211,6 +215,7 @@ object SettingsMainScreen : Screen() {
             subtitleRes = TDMR.strings.pref_novel_reader_summary,
             icon = Icons.AutoMirrored.Outlined.ChromeReaderMode,
             screen = SettingsNovelReaderScreen,
+            isNovelOnly = true,
         ),
         Item(
             titleRes = MR.strings.pref_category_downloads,
@@ -223,6 +228,7 @@ object SettingsMainScreen : Screen() {
             subtitleRes = TDMR.strings.pref_novel_request_throttling_summary,
             icon = Icons.Outlined.GetApp,
             screen = SettingsNovelDownloadScreen,
+            isNovelOnly = true,
         ),
         Item(
             titleRes = TDMR.strings.pref_category_translation,

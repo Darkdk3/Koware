@@ -69,18 +69,18 @@ data object HistoryTab : Tab {
         val viewModel = viewModel<HistoryViewModel>()
         val basePreferences = remember { Injekt.get<BasePreferences>() }
         val state by viewModel.state.collectAsState()
-        val hideMangaUi by basePreferences.hideMangaUi.changes().collectAsState(
-            initial = basePreferences.hideMangaUi.get(),
+        val uiMode by basePreferences.uiMode.changes().collectAsState(
+            initial = basePreferences.uiMode.get(),
         )
 
-        LaunchedEffect(hideMangaUi) {
-            viewModel.syncFilterWithHideManga(hideMangaUi)
+        LaunchedEffect(uiMode) {
+            viewModel.syncFilterWithUiMode(uiMode)
         }
 
         HistoryScreen(
             state = state,
             snackbarHostState = snackbarHostState,
-            showFilterChips = !hideMangaUi,
+            showFilterChips = uiMode == BasePreferences.UiMode.BOTH,
             onSearchQueryChange = viewModel::updateSearchQuery,
             onClickCover = { navigator.push(MangaScreen(it)) },
             onClickResume = viewModel::getNextChapterForManga,
@@ -89,8 +89,8 @@ data object HistoryTab : Tab {
             onFilterSelected = viewModel::setFilter,
             onGroupByNovelChanged = viewModel::setGroupByNovel,
             onLoadNextPage = viewModel::loadNextPage,
-            showAllFilter = !hideMangaUi,
-            showMangaFilter = !hideMangaUi,
+            showAllFilter = uiMode == BasePreferences.UiMode.BOTH,
+            showMangaFilter = uiMode == BasePreferences.UiMode.BOTH,
         )
 
         val onDismissRequest = { viewModel.setDialog(null) }

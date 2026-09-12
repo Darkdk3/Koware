@@ -1,12 +1,18 @@
 package eu.kanade.presentation.more.settings.screen
 
 import android.app.Activity
+import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -16,6 +22,7 @@ import androidx.core.app.ActivityCompat
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.materialkolor.PaletteStyle
+import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
@@ -502,13 +509,10 @@ object SettingsAppearanceScreen : SearchableSettings {
                         true
                     },
                 ),
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = basePreferences.hideMangaUi,
-                    title = stringResource(TDMR.strings.pref_hide_manga_ui),
-                    subtitle = stringResource(TDMR.strings.pref_hide_manga_ui_summary),
-                    onValueChanged = {
-                        context.toast(MR.strings.requires_app_restart)
-                        true
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Content UI",
+                    content = {
+                        UiModeSelector(basePreferences = basePreferences)
                     },
                 ),
                 Preference.PreferenceItem.SwitchPreference(
@@ -535,6 +539,78 @@ object SettingsAppearanceScreen : SearchableSettings {
             ),
         )
     }
+}
+
+@Composable
+private fun UiModeSelector(basePreferences: BasePreferences) {
+    val uiMode by basePreferences.uiMode.collectAsState()
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(
+            text = "Show content for",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            UiModeChip(
+                label = "Manga only",
+                value = BasePreferences.UiMode.MANGA_ONLY,
+                selected = uiMode,
+                onSelect = {
+                    basePreferences.uiMode.set(BasePreferences.UiMode.MANGA_ONLY)
+                    basePreferences.hideMangaUi.set(false)
+                    restartApp(context)
+                },
+            )
+            UiModeChip(
+                label = "Novel only",
+                value = BasePreferences.UiMode.NOVEL_ONLY,
+                selected = uiMode,
+                onSelect = {
+                    basePreferences.uiMode.set(BasePreferences.UiMode.NOVEL_ONLY)
+                    basePreferences.hideMangaUi.set(true)
+                    restartApp(context)
+                },
+            )
+            UiModeChip(
+                label = "Both",
+                value = BasePreferences.UiMode.BOTH,
+                selected = uiMode,
+                onSelect = {
+                    basePreferences.uiMode.set(BasePreferences.UiMode.BOTH)
+                    basePreferences.hideMangaUi.set(false)
+                    restartApp(context)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun UiModeChip(
+    label: String,
+    value: BasePreferences.UiMode,
+    selected: BasePreferences.UiMode,
+    onSelect: () -> Unit,
+) {
+    FilterChip(
+        selected = selected == value,
+        onClick = onSelect,
+        label = { Text(label) },
+    )
+}
+
+private fun restartApp(context: android.content.Context) {
+    val intent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    context.startActivity(intent)
+    Runtime.getRuntime().exit(0)
 }
 
 private val DateFormats = listOf(
