@@ -129,6 +129,7 @@ fun MangaScreen(
     showSourceName: Boolean = true,
     onToggleSourceNameVisibility: (() -> Unit)? = null,
     onSourceSuggestionClicked: (tachiyomi.domain.manga.model.Manga) -> Unit,
+    onMoreSuggestionClicked: () -> Unit = {},
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -193,6 +194,7 @@ fun MangaScreen(
             showSourceName = showSourceName,
             onToggleSourceNameVisibility = onToggleSourceNameVisibility,
             onSourceSuggestionClicked = onSourceSuggestionClicked,
+            onMoreSuggestionClicked = onMoreSuggestionClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
             onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
@@ -244,6 +246,7 @@ fun MangaScreen(
             showSourceName = showSourceName,
             onToggleSourceNameVisibility = onToggleSourceNameVisibility,
             onSourceSuggestionClicked = onSourceSuggestionClicked,
+            onMoreSuggestionClicked = onMoreSuggestionClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiMarkAsReadClicked = onMultiMarkAsReadClicked,
             onMarkPreviousAsReadClicked = onMarkPreviousAsReadClicked,
@@ -305,6 +308,7 @@ private fun MangaScreenSmallImpl(
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
     onSourceSuggestionClicked: (tachiyomi.domain.manga.model.Manga) -> Unit,
+    onMoreSuggestionClicked: () -> Unit = {},
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -538,6 +542,8 @@ private fun MangaScreenSmallImpl(
                         eu.kanade.presentation.manga.components.SourceSuggestionsRow(
                             suggestions = state.sourceSuggestions.orEmpty(),
                             onSuggestionClick = onSourceSuggestionClicked,
+                            onMoreClicked = onMoreSuggestionClicked,
+                            suggestionCount = state.sourceSuggestions?.size ?: 0,
                         )
                     }
 
@@ -619,6 +625,7 @@ fun MangaScreenLargeImpl(
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
     onSourceSuggestionClicked: (tachiyomi.domain.manga.model.Manga) -> Unit,
+    onMoreSuggestionClicked: () -> Unit = {},
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Chapter>, bookmarked: Boolean) -> Unit,
@@ -828,6 +835,8 @@ fun MangaScreenLargeImpl(
                         eu.kanade.presentation.manga.components.SourceSuggestionsRow(
                             suggestions = state.sourceSuggestions.orEmpty(),
                             onSuggestionClick = onSourceSuggestionClicked,
+                            onMoreClicked = onMoreSuggestionClicked,
+                            suggestionCount = state.sourceSuggestions?.size ?: 0,
                         )
                     }
                 },
