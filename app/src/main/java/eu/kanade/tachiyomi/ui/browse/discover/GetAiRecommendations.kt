@@ -38,6 +38,9 @@ sealed interface AiRecommendationResult<out T : RecommendableItem> {
         val scores: List<Int?>,
     ) : AiRecommendationResult<T>
 
+    /** AI features are turned off by the user (Settings → AI). */
+    data object Disabled : AiRecommendationResult<Nothing>
+
     /** No AI engine is configured (or it doesn't support general prompts). */
     data object NoEngine : AiRecommendationResult<Nothing>
 
@@ -60,6 +63,7 @@ class GetAiRecommendations(
     private val preferences: TranslationPreferences = Injekt.get(),
 ) {
     suspend fun <T : RecommendableItem> await(pool: List<T>): AiRecommendationResult<T> {
+        if (!preferences.aiFeaturesEnabled().get()) return AiRecommendationResult.Disabled
         if (pool.isEmpty()) return AiRecommendationResult.NoCandidates
         val resolved = aiEngineResolver.resolve() ?: return AiRecommendationResult.NoEngine
 

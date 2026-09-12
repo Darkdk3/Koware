@@ -430,6 +430,16 @@ class TranslationPreferences(
 
 
     /**
+     * Master switch for AI features (recommendations, etc.). When off, AI features are
+     * disabled everywhere, but translation (which can use the same engines) keeps working.
+     */
+    fun aiFeaturesEnabled() = preferenceStore.getBoolean(
+        "ai_features_enabled",
+        true,
+    )
+
+
+    /**
      * Which engine powers AI features (recommendations, etc.). 0L means "same as whatever
      * the translation engine is currently set to" - the default, so nothing needs configuring
      * unless the person wants to split them.

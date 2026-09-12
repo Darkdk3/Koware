@@ -1,5 +1,10 @@
 package eu.kanade.tachiyomi.ui.browse.discover
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -7,6 +12,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +44,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +66,7 @@ import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.MangaCover
+import tachiyomi.domain.translation.service.TranslationPreferences
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -103,6 +112,7 @@ fun discoverTab(
                 contentPadding = contentPadding,
                 onMangaClick = viewModel::openEntry,
                 onBrowseModeChange = viewModel::setBrowseMode,
+                onRefresh = viewModel::loadDiscoverFeed,
                 onLoadMore = viewModel::loadMore,
             )
         },
@@ -123,6 +133,7 @@ private fun DiscoverScreenContent(
     contentPadding: PaddingValues,
     onMangaClick: (DiscoverEntry) -> Unit,
     onBrowseModeChange: (DiscoverBrowseMode) -> Unit,
+    onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
@@ -148,24 +159,45 @@ private fun DiscoverScreenContent(
         GridCells.Adaptive(minSize = 130.dp)
     }
 
+    val translationPreferences = remember { Injekt.get<TranslationPreferences>() }
+    val aiFeaturesEnabled by translationPreferences.aiFeaturesEnabled().collectAsState()
+    val shelfExpanded by remember {
+        derivedStateOf {
+            gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
+        }
+    }
+
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        AiRecommendationsShelf(
-            recommendations = recommendations,
-            topGenres = recommendationTopGenres,
-            scores = recommendationScores,
-            isLoading = isLoadingRecommendations,
-            message = aiRecommendationMessage,
-            onMangaClick = onMangaClick,
-        )
-        HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            color = MaterialTheme.colorScheme.outlineVariant,
-        )
+        if (aiFeaturesEnabled) {
+            AnimatedVisibility(
+                visible = shelfExpanded,
+                enter = expandVertically(animationSpec = tween(220)) + fadeIn(animationSpec = tween(180)),
+                exit = shrinkVertically(animationSpec = tween(220)) + fadeOut(animationSpec = tween(180)),
+            ) {
+                AiRecommendationsShelf(
+                    recommendations = recommendations,
+                    topGenres = recommendationTopGenres,
+                    scores = recommendationScores,
+                    isLoading = isLoadingRecommendations,
+                    message = aiRecommendationMessage,
+                    onMangaClick = onMangaClick,
+                )
+            }
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+            )
+        }
         BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
         when {
             isLoading -> DiscoverLoadingGrid(columns = columns, contentPadding = contentPadding)
             items.isEmpty() -> Box(
-                modifier = Modifier.fillMaxSize().padding(24.dp),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -220,6 +252,7 @@ private fun DiscoverScreenContent(
                 }
             }
         }
+    }
     }
 }
 
