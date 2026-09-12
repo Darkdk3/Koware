@@ -57,6 +57,7 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.NovelGlobalSearchScreen
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.notes.MangaNotesScreen
+import eu.kanade.tachiyomi.ui.manga.recommendations.MangaRecommendationsScreen
 import eu.kanade.tachiyomi.ui.manga.track.TrackInfoDialogHomeScreen
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
@@ -228,6 +229,9 @@ class MangaScreen(
                 onToggleSourceNameVisibility = viewModel::toggleSourceNameVisibility,
                 onSourceSuggestionClicked = { manga ->
                     navigator.push(MangaScreen(manga.id))
+                },
+                onMoreSuggestionClicked = {
+                    navigator.push(MangaRecommendationsScreen(successState.manga.id))
                 },
                 onMultiBookmarkClicked = viewModel::bookmarkChapters,
                 onMultiMarkAsReadClicked = viewModel::markChaptersRead,
