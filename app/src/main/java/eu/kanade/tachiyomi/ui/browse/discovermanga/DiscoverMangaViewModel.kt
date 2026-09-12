@@ -130,6 +130,13 @@ class DiscoverMangaViewModel(
                         isLoadingRecommendations = false,
                         aiRecommendationMessage = null,
                     )
+                    AiRecommendationResult.Disabled -> state.copy(
+                        recommendations = emptyList(),
+                        recommendationTopGenres = emptyList(),
+                        recommendationScores = emptyMap(),
+                        isLoadingRecommendations = false,
+                        aiRecommendationMessage = null,
+                    )
                     AiRecommendationResult.NoEngine -> state.copy(
                         recommendations = emptyList(),
                         recommendationTopGenres = emptyList(),

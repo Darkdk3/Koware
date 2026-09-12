@@ -29,6 +29,7 @@ object SettingsAiScreen : SearchableSettings {
     override fun getAdditionalResetPreferences(): List<tachiyomi.core.common.preference.Preference<*>> {
         val prefs = remember { Injekt.get<TranslationPreferences>() }
         return listOf(
+            prefs.aiFeaturesEnabled(),
             prefs.aiFeatureEngineId(),
             prefs.aiFeatureUseSeparateApiKey(),
             prefs.aiFeatureApiKey(),
@@ -77,6 +78,11 @@ object SettingsAiScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(TDMR.strings.pref_category_ai_features),
                 preferenceItems = listOf(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = prefs.aiFeaturesEnabled(),
+                        title = "AI features",
+                        subtitle = "Master switch for AI-powered features (recommendations, etc.). Translation keeps working.",
+                    ),
                     Preference.PreferenceItem.ListPreference(
                         preference = prefs.aiFeatureEngineId(),
                         title = stringResource(TDMR.strings.pref_ai_features_engine),
