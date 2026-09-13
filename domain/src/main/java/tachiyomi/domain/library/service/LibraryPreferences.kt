@@ -317,6 +317,15 @@ class LibraryPreferences(
     )
 
     /**
+     * When true, a thin 1dp outline/border is drawn around every library grid item,
+     * similar to Hayai's outline feature. Helps visually distinguish items in the grid.
+     */
+    val showLibraryItemOutline: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_show_library_item_outline",
+        false,
+    )
+
+    /**
      * When false, bottom navigation bar labels only show under the currently selected tab,
      * instead of under every tab all the time. Default true preserves existing behavior.
      */

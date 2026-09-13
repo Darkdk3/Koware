@@ -63,6 +63,7 @@ fun LibraryContent(
     isCategoryLoading: (Category) -> Boolean = { false },
     uiStyle: eu.kanade.domain.ui.model.UiStyle = eu.kanade.domain.ui.model.UiStyle.LEGACY,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     Column(
         modifier = Modifier.padding(
@@ -136,6 +137,7 @@ fun LibraryContent(
                 paginationEnabled = paginationEnabled,
                 uiStyle = uiStyle,
                 chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                showLibraryItemOutline = showLibraryItemOutline,
                 onCategoryFirstVisible = onCategoryFirstVisible,
                 onLoadMore = onLoadMore,
                 getLoadMoreKey = getLoadMoreKey,

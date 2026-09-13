@@ -394,6 +394,10 @@ private fun ColumnScope.DisplayPage(
                 pref = viewModel.libraryPreferences.showAuthorArtistSubtitle,
             )
         }
+        CheckboxItem(
+            label = "Show item outline",
+            pref = viewModel.libraryPreferences.showLibraryItemOutline,
+        )
     }
 
     HeadingItem(MR.strings.overlay_header)
