@@ -80,8 +80,9 @@ fun rememberCoverRatio(manga: Manga, enabled: Boolean): Float? {
                     // Step 1: Try reading bounds from Coil's disk cache without decoding pixels
                     var dimensions: Pair<Int, Int>? = null
                     val diskCache = context.imageLoader.diskCache
-                    if (diskCache != null) {
-                        val snapshot = diskCache.openSnapshot(manga.asMangaCover().url)
+                    val coverUrl = manga.asMangaCover().url
+                    if (diskCache != null && coverUrl != null) {
+                        val snapshot = diskCache.openSnapshot(coverUrl)
                         if (snapshot != null) {
                             dimensions = decodeBoundsFromFile(snapshot.data.toFile())
                             snapshot.close()
