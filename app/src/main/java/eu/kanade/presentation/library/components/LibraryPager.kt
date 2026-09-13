@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import eu.kanade.core.preference.PreferenceMutableState
-import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryDisplayMode
@@ -51,7 +50,6 @@ fun LibraryPager(
     showAuthorArtistSubtitle: Boolean = false,
     freeformCoverGrid: Boolean = false,
     freeformCoverGridStaggered: Boolean = false,
-    uiStyle: UiStyle = UiStyle.LEGACY,
     paginationEnabled: Boolean = false,
     onCategoryFirstVisible: (Category) -> Unit = {},
     onLoadMore: (Category) -> Unit = {},
@@ -64,7 +62,6 @@ fun LibraryPager(
         verticalAlignment = Alignment.Top,
     ) { page ->
         if (page !in ((state.currentPage - 1)..(state.currentPage + 1))) {
-            // To make sure only one offscreen page is being composed
             return@HorizontalPager
         }
         val category = getCategoryForPage(page)
@@ -100,14 +97,12 @@ fun LibraryPager(
         } else {
             null
         }
-        // Generation key (paginated) drives sentinel re-fire; item count otherwise.
         val loadMoreKey = if (paginationEnabled) getLoadMoreKey(category) else items.size.toLong()
 
         val displayMode by getDisplayMode(page)
         val columns by if (displayMode != LibraryDisplayMode.List) {
             val configuration = LocalConfiguration.current
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
             remember(isLandscape) { getColumnsForOrientation(isLandscape) }
         } else {
             remember { mutableIntStateOf(0) }
@@ -164,7 +159,6 @@ fun LibraryPager(
                     showAuthorArtistSubtitle = showAuthorArtistSubtitle,
                     freeformCoverGrid = freeformCoverGrid,
                     freeformCoverGridStaggered = freeformCoverGridStaggered,
-                    uiStyle = uiStyle,
                     onLoadMore = onLoadMoreForCategory,
                     loadMoreKey = loadMoreKey,
                 )

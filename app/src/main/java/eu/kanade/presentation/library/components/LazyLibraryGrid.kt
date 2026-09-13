@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import eu.kanade.domain.ui.model.UiStyle
 import androidx.compose.ui.unit.dp
 import tachiyomi.presentation.core.components.FastScrollLazyVerticalGrid
 import tachiyomi.presentation.core.util.plus
@@ -23,19 +22,14 @@ internal fun LazyLibraryGrid(
     modifier: Modifier = Modifier,
     columns: Int,
     contentPadding: PaddingValues,
-    uiStyle: UiStyle = UiStyle.LEGACY,
     content: LazyGridScope.() -> Unit,
 ) {
     FastScrollLazyVerticalGrid(
         columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
         modifier = modifier,
-        contentPadding = contentPadding + PaddingValues(if (uiStyle == UiStyle.MODERN) 14.dp else 8.dp),
-        verticalArrangement = Arrangement.spacedBy(
-            if (uiStyle == UiStyle.MODERN) 14.dp else CommonMangaItemDefaults.GridVerticalSpacer,
-        ),
-        horizontalArrangement = Arrangement.spacedBy(
-            if (uiStyle == UiStyle.MODERN) 14.dp else CommonMangaItemDefaults.GridHorizontalSpacer,
-        ),
+        contentPadding = contentPadding + PaddingValues(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         content = content,
     )
 }
@@ -51,17 +45,14 @@ internal fun LazyLibraryStaggeredGrid(
     modifier: Modifier = Modifier,
     columns: Int,
     contentPadding: PaddingValues,
-    uiStyle: UiStyle = UiStyle.LEGACY,
     content: LazyStaggeredGridScope.() -> Unit,
 ) {
     LazyVerticalStaggeredGrid(
         columns = if (columns == 0) StaggeredGridCells.Adaptive(128.dp) else StaggeredGridCells.Fixed(columns),
         modifier = modifier,
-        contentPadding = contentPadding + PaddingValues(if (uiStyle == UiStyle.MODERN) 14.dp else 8.dp),
-        verticalItemSpacing = if (uiStyle == UiStyle.MODERN) 14.dp else CommonMangaItemDefaults.GridVerticalSpacer,
-        horizontalArrangement = Arrangement.spacedBy(
-            if (uiStyle == UiStyle.MODERN) 14.dp else CommonMangaItemDefaults.GridHorizontalSpacer,
-        ),
+        contentPadding = contentPadding + PaddingValues(14.dp),
+        verticalItemSpacing = 14.dp,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
         content = content,
     )
 }
