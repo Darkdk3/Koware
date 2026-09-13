@@ -61,6 +61,8 @@ fun LibraryContent(
     onLoadMore: (Category) -> Unit = {},
     getLoadMoreKey: (Category) -> Long = { 0 },
     isCategoryLoading: (Category) -> Boolean = { false },
+    uiStyle: eu.kanade.domain.ui.model.UiStyle = eu.kanade.domain.ui.model.UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     Column(
         modifier = Modifier.padding(
@@ -132,6 +134,8 @@ fun LibraryContent(
                 freeformCoverGrid = freeformCoverGrid,
                 freeformCoverGridStaggered = freeformCoverGridStaggered,
                 paginationEnabled = paginationEnabled,
+                uiStyle = uiStyle,
+                chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                 onCategoryFirstVisible = onCategoryFirstVisible,
                 onLoadMore = onLoadMore,
                 getLoadMoreKey = getLoadMoreKey,

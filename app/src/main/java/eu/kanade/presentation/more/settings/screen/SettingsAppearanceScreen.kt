@@ -544,6 +544,25 @@ object SettingsAppearanceScreen : SearchableSettings {
                     subtitle = "Only applies when freeform cover grid is enabled. Arranges grid items in a masonry-style staggered layout to pack covers tightly",
                     enabled = freeformCoverGrid,
                 ),
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Chapter counter opacity",
+                ) {
+                    val chapterCounterOpacityPercent by libraryPreferences.chapterCounterOpacityPercent.collectAsState()
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Chapter counter opacity: $chapterCounterOpacityPercent%",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        androidx.compose.material3.Slider(
+                            value = chapterCounterOpacityPercent.toFloat(),
+                            valueRange = 0f..100f,
+                            steps = 19,
+                            onValueChange = {
+                                libraryPreferences.chapterCounterOpacityPercent.set(it.roundToInt())
+                            },
+                        )
+                    }
+                },
             ),
         )
     }
