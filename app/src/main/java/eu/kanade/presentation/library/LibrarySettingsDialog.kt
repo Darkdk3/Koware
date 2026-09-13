@@ -440,6 +440,15 @@ private fun ColumnScope.DisplayPage(
         label = stringResource(MR.strings.action_display_show_number_of_items),
         pref = viewModel.libraryPreferences.categoryNumberOfItems,
     )
+    val chapterCounterOpacityPercent by viewModel.libraryPreferences.chapterCounterOpacityPercent.collectAsState()
+    SliderItem(
+        value = chapterCounterOpacityPercent,
+        valueRange = 0..100,
+        label = "Chapter counter opacity",
+        valueString = "${chapterCounterOpacityPercent}%",
+        onChange = viewModel.libraryPreferences.chapterCounterOpacityPercent::set,
+        pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)

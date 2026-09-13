@@ -5,6 +5,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import tachiyomi.presentation.core.components.Badge
@@ -21,9 +23,12 @@ internal fun DownloadsBadge(count: Int) {
 }
 
 @Composable
-internal fun UnreadBadge(count: Long) {
+internal fun UnreadBadge(count: Long, opacityPercent: Int = 100) {
     if (count > 0) {
-        Badge(text = "$count")
+        Badge(
+            text = "$count",
+            modifier = Modifier.alpha(opacityPercent / 100f),
+        )
     }
 }
 

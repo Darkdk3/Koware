@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
+import eu.kanade.domain.ui.model.UiStyle
 
 @Composable
 internal fun LibraryCompactGrid(
@@ -24,6 +25,8 @@ internal fun LibraryCompactGrid(
     freeformCoverGrid: Boolean = false,
     onLoadMore: (() -> Unit)? = null,
     loadMoreKey: Long = 0,
+    uiStyle: UiStyle = UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     LazyLibraryGrid(
         modifier = Modifier.fillMaxSize(),
@@ -50,7 +53,7 @@ internal fun LibraryCompactGrid(
                 ),
                 coverBadgeStart = {
                     DownloadsBadge(count = libraryItem.badges.downloadCount)
-                    UnreadBadge(count = libraryItem.badges.unreadCount)
+                    UnreadBadge(count = libraryItem.badges.unreadCount, opacityPercent = chapterCounterOpacityPercent)
                 },
                 coverBadgeEnd = {
                     LanguageBadge(
@@ -66,6 +69,8 @@ internal fun LibraryCompactGrid(
                     null
                 },
                 freeformCoverRatio = freeformCoverRatio,
+                uiStyle = uiStyle,
+                chapterCounterOpacityPercent = chapterCounterOpacityPercent,
             )
         }
 
