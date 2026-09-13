@@ -62,6 +62,7 @@ import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.components.material.Scaffold
+import uy.kohesive.injekt.Injekt
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.screens.EmptyScreenAction
@@ -124,7 +125,9 @@ data object LibraryTab : Tab {
                 settingsViewModel.libraryPreferences.freeformCoverGridStaggered.get(),
             )
         val uiPreferences = remember { Injekt.get<eu.kanade.domain.ui.UiPreferences>() }
-        val uiStyle by uiPreferences.uiStyle.collectAsState()
+        val uiStyle by uiPreferences.uiStyle.changes().collectAsState(
+            uiPreferences.uiStyle.get(),
+        )
         val chapterCounterOpacityPercent by settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.changes().collectAsState(
             settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.get(),
         )
