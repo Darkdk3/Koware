@@ -11,6 +11,8 @@ import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.ui.browse.discover.AiRecommendationResult
 import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
 import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.update
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
@@ -94,16 +96,18 @@ class DiscoverMangaViewModel(
             val mode = state.value.browseMode
 
             val perSourceLists = sources.map { source ->
-                val page = runCatching { fetchPage(source, mode, page = 1) }.getOrNull()
-                pageCursors[source.id] = SourcePageCursor(
-                    nextPage = 2,
-                    hasNextPage = page?.hasNextPage == true,
-                )
-                (page?.mangas ?: emptyList()).map { sManga ->
-                    val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = false))
-                    DiscoverMangaEntry(source, localManga)
+                async {
+                    val page = runCatching { fetchPage(source, mode, page = 1) }.getOrNull()
+                    pageCursors[source.id] = SourcePageCursor(
+                        nextPage = 2,
+                        hasNextPage = page?.hasNextPage == true,
+                    )
+                    (page?.mangas ?: emptyList()).map { sManga ->
+                        val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = false))
+                        DiscoverMangaEntry(source, localManga)
+                    }
                 }
-            }
+            }.awaitAll()
             val merged = interleave(perSourceLists)
 
             mutableState.update {
@@ -187,17 +191,19 @@ class DiscoverMangaViewModel(
             val mode = state.value.browseMode
 
             val newLists = sources.map { source ->
-                val cursor = pageCursors[source.id]!!
-                val page = runCatching { fetchPage(source, mode, cursor.nextPage) }.getOrNull()
-                pageCursors[source.id] = SourcePageCursor(
-                    nextPage = cursor.nextPage + 1,
-                    hasNextPage = page?.hasNextPage == true,
-                )
-                (page?.mangas ?: emptyList()).map { sManga ->
-                    val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = false))
-                    DiscoverMangaEntry(source, localManga)
+                async {
+                    val cursor = pageCursors[source.id]!!
+                    val page = runCatching { fetchPage(source, mode, cursor.nextPage) }.getOrNull()
+                    pageCursors[source.id] = SourcePageCursor(
+                        nextPage = cursor.nextPage + 1,
+                        hasNextPage = page?.hasNextPage == true,
+                    )
+                    (page?.mangas ?: emptyList()).map { sManga ->
+                        val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = false))
+                        DiscoverMangaEntry(source, localManga)
+                    }
                 }
-            }
+            }.awaitAll()
             val appended = interleave(newLists)
 
             mutableState.update { it.copy(items = it.items + appended, isLoadingMore = false) }
