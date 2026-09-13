@@ -164,6 +164,7 @@ private fun LibraryComfortableGridCell(
             coverData = coverData,
             coverBadgeStart = {
                 DownloadsBadge(count = libraryItem.badges.downloadCount)
+                UnreadBadge(count = libraryItem.badges.unreadCount, opacityPercent = chapterCounterOpacityPercent)
             },
             coverBadgeEnd = {
                 LanguageBadge(
