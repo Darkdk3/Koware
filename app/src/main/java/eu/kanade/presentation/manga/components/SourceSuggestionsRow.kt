@@ -27,8 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import eu.kanade.presentation.library.components.MangaComfortableGridItem
 import tachiyomi.domain.manga.model.Manga
-import tachiyomi.domain.manga.model.MangaCover
+import tachiyomi.domain.manga.model.MangaCover as MangaCoverModel
 
 /**
  * "More from this source" section on the manga details screen.
@@ -115,7 +116,7 @@ fun SourceSuggestionsRow(
                     MangaComfortableGridItem(
                         isSelected = false,
                         title = manga.title,
-                        coverData = MangaCover(
+                        coverData = MangaCoverModel(
                             mangaId = manga.id,
                             sourceId = manga.source,
                             isMangaFavorite = manga.favorite,
