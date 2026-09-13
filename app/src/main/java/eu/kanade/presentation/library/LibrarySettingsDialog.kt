@@ -373,9 +373,8 @@ private fun ColumnScope.DisplayPage(
         )
     }
 
-    // Freeform cover options apply to every grid display mode; the staggered layout and the
-    // author/artist subtitle only make sense for the comfortable grid (its cells have a title
-    // block below the cover).
+    // Freeform cover options apply to every grid display mode. The author/artist subtitle only
+    // applies to Comfortable Grid, while the staggered layout packs any freeform grid tightly.
     if (displayMode != LibraryDisplayMode.List) {
         val freeformCoverGrid by viewModel.libraryPreferences.freeformCoverGrid.collectAsState()
         HeadingItem(if (displayMode == LibraryDisplayMode.ComfortableGrid) "Comfortable grid" else "Grid")
@@ -383,7 +382,7 @@ private fun ColumnScope.DisplayPage(
             label = "Freeform cover grid",
             pref = viewModel.libraryPreferences.freeformCoverGrid,
         )
-        if (freeformCoverGrid && displayMode == LibraryDisplayMode.ComfortableGrid) {
+        if (freeformCoverGrid) {
             CheckboxItem(
                 label = "Staggered layout",
                 pref = viewModel.libraryPreferences.freeformCoverGridStaggered,

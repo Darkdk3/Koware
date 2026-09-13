@@ -287,6 +287,7 @@ fun MangaModernGridItem(
     val coverShape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
+            .fillMaxWidth()
             .clip(cardShape)
             .background(MaterialTheme.colorScheme.surface)
             .then(
@@ -300,7 +301,7 @@ fun MangaModernGridItem(
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
-            .padding(8.dp),
+            .padding(4.dp),
     ) {
         Column {
             Box(

@@ -34,8 +34,8 @@ import tachiyomi.domain.manga.model.MangaCover as MangaCoverModel
 /**
  * "More from this source" section on the manga details screen.
  *
- * When loading (`null`) shows a skeleton row with placeholder covers so the section
- * doesn't pop in abruptly. When empty after loading, hides completely.
+ * When loading (`null`) shows a labeled skeleton row, making it clear that source results
+ * are still being fetched. When empty after loading, the section hides completely.
  *
  * A thin [HorizontalDivider] is rendered above the header to separate this section
  * from the description/tags — mirroring the divider above the AI shelf in the
@@ -164,6 +164,11 @@ private fun SourceSuggestionsLoadingRow() {
                     .width(14.dp)
                     .height(14.dp),
                 strokeWidth = 1.5.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "Finding titles…",
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

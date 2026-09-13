@@ -3,6 +3,7 @@ package eu.kanade.presentation.library.components
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.LibraryItem
@@ -22,53 +23,92 @@ internal fun LibraryCompactGrid(
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
     freeformCoverGrid: Boolean = false,
+    freeformCoverGridStaggered: Boolean = false,
     onLoadMore: (() -> Unit)? = null,
     loadMoreKey: Long = 0,
 ) {
-    LazyLibraryGrid(
-        modifier = Modifier.fillMaxSize(),
-        columns = columns,
-        contentPadding = contentPadding,
-    ) {
-        globalSearchItem(searchQuery, onGlobalSearchClicked)
-
-        items(
-            items = items,
-            contentType = { "library_compact_grid_item" },
-        ) { libraryItem ->
-            val manga = libraryItem.libraryManga.manga
-            val freeformCoverRatio = rememberCoverRatio(manga = manga, enabled = freeformCoverGrid)
-            MangaCompactGridItem(
-                isSelected = manga.id in selection,
-                title = manga.title.takeIf { showTitle },
-                coverData = MangaCover(
-                    mangaId = manga.id,
-                    sourceId = manga.source,
-                    isMangaFavorite = manga.favorite,
-                    url = manga.thumbnailUrl,
-                    lastModified = manga.coverLastModified,
-                ),
-                coverBadgeStart = {
-                    DownloadsBadge(count = libraryItem.badges.downloadCount)
-                    UnreadBadge(count = libraryItem.badges.unreadCount)
-                },
-                coverBadgeEnd = {
-                    LanguageBadge(
-                        isLocal = libraryItem.badges.isLocal,
-                        sourceLanguage = libraryItem.badges.sourceLanguage,
-                    )
-                },
-                onLongClick = { onLongClick(libraryItem.libraryManga) },
-                onClick = { onClick(libraryItem.libraryManga) },
-                onClickContinueReading = if (onClickContinueReading != null && libraryItem.unreadCount > 0) {
-                    { onClickContinueReading(libraryItem.libraryManga) }
-                } else {
-                    null
-                },
-                freeformCoverRatio = freeformCoverRatio,
-            )
+    if (freeformCoverGrid && freeformCoverGridStaggered) {
+        LazyLibraryStaggeredGrid(
+            modifier = Modifier.fillMaxSize(),
+            columns = columns,
+            contentPadding = contentPadding,
+        ) {
+            globalSearchItem(searchQuery, onGlobalSearchClicked)
+            items(items = items, contentType = { "library_compact_grid_item" }) { libraryItem ->
+                LibraryCompactGridCell(
+                    libraryItem = libraryItem,
+                    showTitle = showTitle,
+                    selection = selection,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    onClickContinueReading = onClickContinueReading,
+                    freeformCoverGrid = true,
+                )
+            }
+            loadMoreSentinel(loadMoreKey, onLoadMore)
         }
-
-        loadMoreSentinel(loadMoreKey, onLoadMore)
+    } else {
+        LazyLibraryGrid(
+            modifier = Modifier.fillMaxSize(),
+            columns = columns,
+            contentPadding = contentPadding,
+        ) {
+            globalSearchItem(searchQuery, onGlobalSearchClicked)
+            items(items = items, contentType = { "library_compact_grid_item" }) { libraryItem ->
+                LibraryCompactGridCell(
+                    libraryItem = libraryItem,
+                    showTitle = showTitle,
+                    selection = selection,
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                    onClickContinueReading = onClickContinueReading,
+                    freeformCoverGrid = freeformCoverGrid,
+                )
+            }
+            loadMoreSentinel(loadMoreKey, onLoadMore)
+        }
     }
+}
+
+@Composable
+private fun LibraryCompactGridCell(
+    libraryItem: LibraryItem,
+    showTitle: Boolean,
+    selection: Set<Long>,
+    onClick: (LibraryManga) -> Unit,
+    onLongClick: (LibraryManga) -> Unit,
+    onClickContinueReading: ((LibraryManga) -> Unit)?,
+    freeformCoverGrid: Boolean,
+) {
+    val manga = libraryItem.libraryManga.manga
+    val freeformCoverRatio = rememberCoverRatio(manga = manga, enabled = freeformCoverGrid)
+    MangaCompactGridItem(
+        isSelected = manga.id in selection,
+        title = manga.title.takeIf { showTitle },
+        coverData = MangaCover(
+            mangaId = manga.id,
+            sourceId = manga.source,
+            isMangaFavorite = manga.favorite,
+            url = manga.thumbnailUrl,
+            lastModified = manga.coverLastModified,
+        ),
+        coverBadgeStart = {
+            DownloadsBadge(count = libraryItem.badges.downloadCount)
+            UnreadBadge(count = libraryItem.badges.unreadCount)
+        },
+        coverBadgeEnd = {
+            LanguageBadge(
+                isLocal = libraryItem.badges.isLocal,
+                sourceLanguage = libraryItem.badges.sourceLanguage,
+            )
+        },
+        onLongClick = { onLongClick(libraryItem.libraryManga) },
+        onClick = { onClick(libraryItem.libraryManga) },
+        onClickContinueReading = if (onClickContinueReading != null && libraryItem.unreadCount > 0) {
+            { onClickContinueReading(libraryItem.libraryManga) }
+        } else {
+            null
+        },
+        freeformCoverRatio = freeformCoverRatio,
+    )
 }

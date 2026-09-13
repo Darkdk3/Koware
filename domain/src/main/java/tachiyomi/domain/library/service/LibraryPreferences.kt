@@ -307,11 +307,9 @@ class LibraryPreferences(
     )
 
     /**
-     * Only meaningful when [freeformCoverGrid] is on. Switches the comfortable grid from the
-     * standard row-major LazyVerticalGrid (uniform row heights, gaps under shorter covers) to a
-     * masonry-style staggered grid that packs each column independently. Off by default since it
-     * drops fast-scroll support, which the staggered grid scope doesn't share with the standard
-     * one.
+     * Only meaningful when [freeformCoverGrid] is on. Switches a row-major grid (which leaves
+     * gaps under shorter covers) to a masonry-style staggered grid that packs each column
+     * independently. Off by default since the staggered grid scope has no fast-scroll support.
      */
     val freeformCoverGridStaggered: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_freeform_cover_grid_staggered",
