@@ -352,7 +352,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
             this.title = title
             this.cover_url = coverUrl.orEmpty()
             remote_id = hashPageId(pageId)
-            tracking_url = pageId
+            tracking_url = pageIdToNotionUrl(pageId)
         }
     }
 
@@ -361,7 +361,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         val existingPageId = findExistingPage(track.title)
 
         if (existingPageId != null) {
-            track.tracking_url = existingPageId
+            track.tracking_url = pageIdToNotionUrl(existingPageId)
             track.remote_id = hashPageId(existingPageId)
             // Adopt whatever is already in Notion for this row.
             return refresh(track)
@@ -436,7 +436,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         response.close()
         val pageId = created["id"]?.jsonPrimitive?.content.orEmpty()
 
-        track.tracking_url = pageId
+        track.tracking_url = pageIdToNotionUrl(pageId)
         track.remote_id = hashPageId(pageId)
         track.status = initialStatus
 
@@ -700,7 +700,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         return TrackSearch.create(id).apply {
             title = extractTitle(properties)
             remote_id = hashPageId(pageId)
-            tracking_url = pageId
+            tracking_url = pageIdToNotionUrl(pageId)
             cover_url = schema?.keyFor(COVER_PROPERTY)?.let { coverKey ->
                 properties?.get(coverKey)?.jsonObject?.get("url")
                     ?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -722,9 +722,22 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         }
     }
 
-    /** tracking_url holds the real Notion page id (see the comment in bind() above). */
+    /** Converts a Notion page ID into a shareable notion.so URL. */
+    private fun pageIdToNotionUrl(pageId: String): String {
+        val stripped = pageId.replace("-", "")
+        return "https://notion.so/$stripped"
+    }
+
+    /** tracking_url holds the Notion page URL; this extracts the page id from it. */
     private fun resolvePageId(track: Track): String? {
-        return track.tracking_url.ifBlank { null }
+        val url = track.tracking_url.ifBlank { return null }
+        // Accept both a raw UUID and a full notion.so URL
+        val pageId = if (url.contains("/")) {
+            url.substringAfterLast("/").substringBefore("?").replace("-", "")
+        } else {
+            url.replace("-", "")
+        }
+        return pageId.ifBlank { null }
     }
 
     /** Notion uses JSON null for empty select/url values; .jsonObject would throw on those. */

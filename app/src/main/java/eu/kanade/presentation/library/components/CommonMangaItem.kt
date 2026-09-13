@@ -88,6 +88,7 @@ fun MangaCompactGridItem(
     freeformCoverRatio: Float? = null,
     uiStyle: UiStyle = UiStyle.LEGACY,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -103,6 +104,7 @@ fun MangaCompactGridItem(
         }
         MangaGridCover(
             aspectRatio = freeformCoverRatio ?: MangaCover.Book.ratio,
+            showOutline = showLibraryItemOutline,
             cover = {
                 MangaCover.Book(
                     modifier = coverModifier.alpha(if (isSelected) GRID_SELECTED_COVER_ALPHA else coverAlpha),
@@ -212,6 +214,7 @@ fun MangaComfortableGridItem(
     freeformCoverRatio: Float? = null,
     uiStyle: UiStyle = UiStyle.LEGACY,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -221,6 +224,7 @@ fun MangaComfortableGridItem(
         Column {
             MangaGridCover(
                 aspectRatio = freeformCoverRatio ?: MangaCover.Book.ratio,
+                showOutline = showLibraryItemOutline,
                 cover = {
                     MangaCover.Book(
                         modifier = Modifier
@@ -289,6 +293,7 @@ fun MangaModernGridItem(
     unreadCount: Long = 0,
     uiStyle: UiStyle = UiStyle.LEGACY,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     val cardShape = RoundedCornerShape(16.dp)
     val coverShape = RoundedCornerShape(12.dp)
@@ -300,6 +305,8 @@ fun MangaModernGridItem(
             .then(
                 if (isSelected) {
                     Modifier.border(2.dp, MaterialTheme.colorScheme.primary, cardShape)
+                } else if (showLibraryItemOutline) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, cardShape)
                 } else {
                     Modifier
                 },
@@ -391,6 +398,7 @@ fun MangaModernGridItem(
 private fun MangaGridCover(
     modifier: Modifier = Modifier,
     aspectRatio: Float = MangaCover.Book.ratio,
+    showOutline: Boolean = false,
     cover: @Composable BoxScope.() -> Unit = {},
     badgesStart: (@Composable RowScope.() -> Unit)? = null,
     badgesEnd: (@Composable RowScope.() -> Unit)? = null,
@@ -399,7 +407,18 @@ private fun MangaGridCover(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatio(aspectRatio),
+            .aspectRatio(aspectRatio)
+            .then(
+                if (showOutline) {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        shape = MaterialTheme.shapes.small,
+                    )
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         cover()
         content?.invoke(this)

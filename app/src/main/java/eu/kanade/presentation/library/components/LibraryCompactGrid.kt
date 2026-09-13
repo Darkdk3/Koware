@@ -29,6 +29,7 @@ internal fun LibraryCompactGrid(
     loadMoreKey: Long = 0,
     uiStyle: UiStyle = UiStyle.LEGACY,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     if (freeformCoverGrid && freeformCoverGridStaggered) {
         LazyLibraryStaggeredGrid(
@@ -48,6 +49,7 @@ internal fun LibraryCompactGrid(
                     freeformCoverGrid = true,
                     uiStyle = uiStyle,
                     chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                    showLibraryItemOutline = showLibraryItemOutline,
                 )
             }
             loadMoreSentinel(loadMoreKey, onLoadMore)
@@ -70,6 +72,7 @@ internal fun LibraryCompactGrid(
                     freeformCoverGrid = freeformCoverGrid,
                     uiStyle = uiStyle,
                     chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                    showLibraryItemOutline = showLibraryItemOutline,
                 )
             }
             loadMoreSentinel(loadMoreKey, onLoadMore)
@@ -88,6 +91,7 @@ private fun LibraryCompactGridCell(
     freeformCoverGrid: Boolean,
     uiStyle: UiStyle,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     val manga = libraryItem.libraryManga.manga
     val freeformCoverRatio = rememberCoverRatio(manga = manga, enabled = freeformCoverGrid)
@@ -121,5 +125,6 @@ private fun LibraryCompactGridCell(
         freeformCoverRatio = freeformCoverRatio,
         uiStyle = uiStyle,
         chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+        showLibraryItemOutline = showLibraryItemOutline,
     )
 }

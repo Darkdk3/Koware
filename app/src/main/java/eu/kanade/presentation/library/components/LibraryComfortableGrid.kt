@@ -30,6 +30,7 @@ internal fun LibraryComfortableGrid(
     loadMoreKey: Long = 0,
     uiStyle: UiStyle = UiStyle.LEGACY,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     // Staggered mode only makes sense - and is only offered in settings - when freeform is on.
     val useStaggeredGrid = freeformCoverGrid && freeformCoverGridStaggered
@@ -57,6 +58,7 @@ internal fun LibraryComfortableGrid(
                     freeformCoverGrid = freeformCoverGrid,
                     uiStyle = uiStyle,
                     chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                    showLibraryItemOutline = showLibraryItemOutline,
                 )
             }
 
@@ -85,6 +87,7 @@ internal fun LibraryComfortableGrid(
                     freeformCoverGrid = freeformCoverGrid,
                     uiStyle = uiStyle,
                     chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                    showLibraryItemOutline = showLibraryItemOutline,
                 )
             }
 
@@ -105,6 +108,7 @@ private fun LibraryComfortableGridCell(
     freeformCoverGrid: Boolean,
     uiStyle: UiStyle,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
 ) {
     val manga = libraryItem.libraryManga.manga
     val authorArtist = if (showAuthorArtistSubtitle) {
@@ -156,6 +160,7 @@ private fun LibraryComfortableGridCell(
             showAuthorArtistSubtitle = showAuthorArtistSubtitle,
             freeformCoverRatio = freeformCoverRatio,
             chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+            showLibraryItemOutline = showLibraryItemOutline,
         )
     } else {
         MangaComfortableGridItem(
@@ -179,6 +184,7 @@ private fun LibraryComfortableGridCell(
             showAuthorArtistSubtitle = showAuthorArtistSubtitle,
             freeformCoverRatio = freeformCoverRatio,
             chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+            showLibraryItemOutline = showLibraryItemOutline,
         )
     }
 }

@@ -132,6 +132,9 @@ data object LibraryTab : Tab {
         val chapterCounterOpacityPercent by settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.changes().collectAsState(
             settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.get(),
         )
+        val showLibraryItemOutline by settingsViewModel.libraryPreferences.showLibraryItemOutline.changes().collectAsState(
+            settingsViewModel.libraryPreferences.showLibraryItemOutline.get(),
+        )
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -285,6 +288,7 @@ data object LibraryTab : Tab {
                         isCategoryLoading = { state.paginationLoadingCategories.contains(it.id) },
                         uiStyle = uiStyle,
                         chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                        showLibraryItemOutline = showLibraryItemOutline,
                     )
                 }
             }

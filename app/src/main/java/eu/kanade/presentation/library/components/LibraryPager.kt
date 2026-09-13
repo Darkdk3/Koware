@@ -54,6 +54,7 @@ fun LibraryPager(
     paginationEnabled: Boolean = false,
     uiStyle: UiStyle = UiStyle.LEGACY,
     chapterCounterOpacityPercent: Int = 100,
+    showLibraryItemOutline: Boolean = false,
     onCategoryFirstVisible: (Category) -> Unit = {},
     onLoadMore: (Category) -> Unit = {},
     getLoadMoreKey: (Category) -> Long = { 0 },
@@ -148,6 +149,7 @@ fun LibraryPager(
                     loadMoreKey = loadMoreKey,
                     uiStyle = uiStyle,
                     chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                    showLibraryItemOutline = showLibraryItemOutline,
                 )
             }
             LibraryDisplayMode.ComfortableGrid -> {
@@ -169,6 +171,7 @@ fun LibraryPager(
                     loadMoreKey = loadMoreKey,
                     uiStyle = uiStyle,
                     chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                    showLibraryItemOutline = showLibraryItemOutline,
                 )
             }
         }
