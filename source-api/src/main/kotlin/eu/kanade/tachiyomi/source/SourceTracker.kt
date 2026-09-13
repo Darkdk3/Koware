@@ -73,7 +73,6 @@ interface SourceTracker {
  * True when [Source] implements [SourceTracker] under either classloader.
  */
 fun Source.isSourceTracker(): Boolean {
-    if (this is SourceTracker) return true
     return this::class.java.allInterfaceNames()
         .contains("eu.kanade.tachiyomi.source.SourceTracker")
 }
@@ -84,13 +83,6 @@ fun Source.isSourceTracker(): Boolean {
  * doesn't have to cast the source to its own SourceTracker class.
  */
 fun Source.sourceTrackerBoolean(propertyName: String, default: Boolean): Boolean {
-    if (this is SourceTracker) {
-        return when (propertyName) {
-            "supportsChapterTracking" -> this.supportsChapterTracking
-            "supportsFavoritesTracking" -> this.supportsFavoritesTracking
-            else -> default
-        }
-    }
     return try {
         // Try `getSupportsChapterTracking()` Kotlin property accessor first, then the bare name.
         val getter = "get" + propertyName.replaceFirstChar { it.uppercase() }
@@ -115,15 +107,6 @@ suspend fun Source.invokeSourceTrackerCallback(
     allChapters: List<SChapter>,
     categories: List<String>,
 ) {
-    if (this is SourceTracker) {
-        when (method) {
-            SourceTrackerMethod.ON_CHAPTERS_READ -> onChaptersRead(manga, changedChapters, allChapters, categories)
-            SourceTrackerMethod.ON_CHAPTERS_UNREAD -> onChaptersUnread(manga, changedChapters, allChapters, categories)
-            SourceTrackerMethod.ON_FAVORITED -> onFavorited(manga, categories)
-            SourceTrackerMethod.ON_UNFAVORITED -> onUnfavorited(manga, categories)
-        }
-        return
-    }
     suspendCoroutine<Unit> { continuation ->
         try {
             val cls = this::class.java
