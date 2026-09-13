@@ -123,6 +123,11 @@ data object LibraryTab : Tab {
             settingsViewModel.libraryPreferences.freeformCoverGridStaggered.changes().collectAsState(
                 settingsViewModel.libraryPreferences.freeformCoverGridStaggered.get(),
             )
+        val uiPreferences = remember { Injekt.get<eu.kanade.domain.ui.UiPreferences>() }
+        val uiStyle by uiPreferences.uiStyle.collectAsState()
+        val chapterCounterOpacityPercent by settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.changes().collectAsState(
+            settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.get(),
+        )
 
         val snackbarHostState = remember { SnackbarHostState() }
 
@@ -274,6 +279,8 @@ data object LibraryTab : Tab {
                         onLoadMore = viewModel::loadMoreForCategory,
                         getLoadMoreKey = { state.categoryLoadKey(it) },
                         isCategoryLoading = { state.paginationLoadingCategories.contains(it.id) },
+                        uiStyle = uiStyle,
+                        chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                     )
                 }
             }

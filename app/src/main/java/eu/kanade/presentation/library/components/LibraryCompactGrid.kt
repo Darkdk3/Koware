@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
+import eu.kanade.domain.ui.model.UiStyle
 
 @Composable
 internal fun LibraryCompactGrid(
@@ -26,6 +27,8 @@ internal fun LibraryCompactGrid(
     freeformCoverGridStaggered: Boolean = false,
     onLoadMore: (() -> Unit)? = null,
     loadMoreKey: Long = 0,
+    uiStyle: UiStyle = UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     if (freeformCoverGrid && freeformCoverGridStaggered) {
         LazyLibraryStaggeredGrid(
@@ -43,6 +46,8 @@ internal fun LibraryCompactGrid(
                     onLongClick = onLongClick,
                     onClickContinueReading = onClickContinueReading,
                     freeformCoverGrid = true,
+                    uiStyle = uiStyle,
+                    chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                 )
             }
             loadMoreSentinel(loadMoreKey, onLoadMore)
@@ -63,6 +68,8 @@ internal fun LibraryCompactGrid(
                     onLongClick = onLongClick,
                     onClickContinueReading = onClickContinueReading,
                     freeformCoverGrid = freeformCoverGrid,
+                    uiStyle = uiStyle,
+                    chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                 )
             }
             loadMoreSentinel(loadMoreKey, onLoadMore)
@@ -79,6 +86,8 @@ private fun LibraryCompactGridCell(
     onLongClick: (LibraryManga) -> Unit,
     onClickContinueReading: ((LibraryManga) -> Unit)?,
     freeformCoverGrid: Boolean,
+    uiStyle: UiStyle,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     val manga = libraryItem.libraryManga.manga
     val freeformCoverRatio = rememberCoverRatio(manga = manga, enabled = freeformCoverGrid)
@@ -94,7 +103,7 @@ private fun LibraryCompactGridCell(
         ),
         coverBadgeStart = {
             DownloadsBadge(count = libraryItem.badges.downloadCount)
-            UnreadBadge(count = libraryItem.badges.unreadCount)
+            UnreadBadge(count = libraryItem.badges.unreadCount, opacityPercent = chapterCounterOpacityPercent)
         },
         coverBadgeEnd = {
             LanguageBadge(
@@ -110,5 +119,7 @@ private fun LibraryCompactGridCell(
             null
         },
         freeformCoverRatio = freeformCoverRatio,
+        uiStyle = uiStyle,
+        chapterCounterOpacityPercent = chapterCounterOpacityPercent,
     )
 }

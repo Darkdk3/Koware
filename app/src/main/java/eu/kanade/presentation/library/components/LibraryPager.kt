@@ -28,6 +28,12 @@ import tachiyomi.domain.library.model.LibraryDisplayMode
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.screens.EmptyScreen
+import eu.kanade.domain.ui.model.UiStyle
+import tachiyomi.domain.category.model.Category
+import tachiyomi.domain.library.model.LibraryDisplayMode
+import tachiyomi.domain.library.model.LibraryManga
+import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.util.plus
 
 @Composable
@@ -51,6 +57,8 @@ fun LibraryPager(
     freeformCoverGrid: Boolean = false,
     freeformCoverGridStaggered: Boolean = false,
     paginationEnabled: Boolean = false,
+    uiStyle: UiStyle = UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
     onCategoryFirstVisible: (Category) -> Unit = {},
     onLoadMore: (Category) -> Unit = {},
     getLoadMoreKey: (Category) -> Long = { 0 },
@@ -125,6 +133,7 @@ fun LibraryPager(
                     showUrl = showUrlInList,
                     onLoadMore = onLoadMoreForCategory,
                     loadMoreKey = loadMoreKey,
+                    uiStyle = uiStyle,
                 )
             }
             LibraryDisplayMode.CompactGrid, LibraryDisplayMode.CoverOnlyGrid -> {
@@ -143,6 +152,8 @@ fun LibraryPager(
                     freeformCoverGridStaggered = freeformCoverGridStaggered,
                     onLoadMore = onLoadMoreForCategory,
                     loadMoreKey = loadMoreKey,
+                    uiStyle = uiStyle,
+                    chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                 )
             }
             LibraryDisplayMode.ComfortableGrid -> {
@@ -162,6 +173,8 @@ fun LibraryPager(
                     freeformCoverGridStaggered = freeformCoverGridStaggered,
                     onLoadMore = onLoadMoreForCategory,
                     loadMoreKey = loadMoreKey,
+                    uiStyle = uiStyle,
+                    chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                 )
             }
         }

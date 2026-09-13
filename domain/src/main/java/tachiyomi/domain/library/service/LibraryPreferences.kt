@@ -369,6 +369,12 @@ class LibraryPreferences(
      * Manga details screen appearance - both default false, preserving the existing look
      * unless explicitly turned on.
      */
+    /** Opacity of the chapter counter, as a percentage (0-100). */
+    val chapterCounterOpacityPercent: Preference<Int> = preferenceStore.getInt(
+        "pref_chapter_counter_opacity_percent",
+        100,
+    )
+
     val mangaDetailsHideBackdrop: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_manga_details_hide_backdrop",
         false,

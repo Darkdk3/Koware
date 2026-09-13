@@ -51,6 +51,7 @@ import tachiyomi.presentation.core.components.BadgeGroup
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.selectedBackground
 import tachiyomi.domain.manga.model.MangaCover as MangaCoverModel
+import eu.kanade.domain.ui.model.UiStyle
 
 object CommonMangaItemDefaults {
     val GridHorizontalSpacer = 4.dp
@@ -85,6 +86,8 @@ fun MangaCompactGridItem(
     coverBadgeStart: @Composable (RowScope.() -> Unit)? = null,
     coverBadgeEnd: @Composable (RowScope.() -> Unit)? = null,
     freeformCoverRatio: Float? = null,
+    uiStyle: UiStyle = UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -207,6 +210,8 @@ fun MangaComfortableGridItem(
     authorArtist: String? = null,
     showAuthorArtistSubtitle: Boolean = false,
     freeformCoverRatio: Float? = null,
+    uiStyle: UiStyle = UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     GridItemSelectable(
         isSelected = isSelected,
@@ -282,6 +287,8 @@ fun MangaModernGridItem(
     showAuthorArtistSubtitle: Boolean = false,
     freeformCoverRatio: Float? = null,
     unreadCount: Long = 0,
+    uiStyle: UiStyle = UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     val cardShape = RoundedCornerShape(16.dp)
     val coverShape = RoundedCornerShape(12.dp)
@@ -301,7 +308,7 @@ fun MangaModernGridItem(
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
-            .padding(4.dp),
+            .padding(if (uiStyle == UiStyle.MODERN) 8.dp else 4.dp),
     ) {
         Column {
             Box(
@@ -335,10 +342,11 @@ fun MangaModernGridItem(
                 }
                 if (unreadCount > 0) {
                     Badge(
-                        text = "$unreadCount new",
+                        text = "$unreadCount",
                         modifier = Modifier
                             .padding(6.dp)
-                            .align(Alignment.BottomStart),
+                            .align(Alignment.BottomStart)
+                            .alpha(chapterCounterOpacityPercent / 100f),
                         color = MaterialTheme.colorScheme.primary,
                         textColor = MaterialTheme.colorScheme.onPrimary,
                         shape = RoundedCornerShape(999.dp),

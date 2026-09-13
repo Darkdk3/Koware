@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
+import eu.kanade.domain.ui.model.UiStyle
 
 @Composable
 internal fun LibraryComfortableGrid(
@@ -27,6 +28,8 @@ internal fun LibraryComfortableGrid(
     freeformCoverGridStaggered: Boolean = false,
     onLoadMore: (() -> Unit)? = null,
     loadMoreKey: Long = 0,
+    uiStyle: UiStyle = UiStyle.LEGACY,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     // Staggered mode only makes sense - and is only offered in settings - when freeform is on.
     val useStaggeredGrid = freeformCoverGrid && freeformCoverGridStaggered
@@ -52,6 +55,8 @@ internal fun LibraryComfortableGrid(
                     titleMaxLines = titleMaxLines,
                     showAuthorArtistSubtitle = showAuthorArtistSubtitle,
                     freeformCoverGrid = freeformCoverGrid,
+                    uiStyle = uiStyle,
+                    chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                 )
             }
 
@@ -78,6 +83,8 @@ internal fun LibraryComfortableGrid(
                     titleMaxLines = titleMaxLines,
                     showAuthorArtistSubtitle = showAuthorArtistSubtitle,
                     freeformCoverGrid = freeformCoverGrid,
+                    uiStyle = uiStyle,
+                    chapterCounterOpacityPercent = chapterCounterOpacityPercent,
                 )
             }
 
@@ -96,6 +103,8 @@ private fun LibraryComfortableGridCell(
     titleMaxLines: Int,
     showAuthorArtistSubtitle: Boolean,
     freeformCoverGrid: Boolean,
+    uiStyle: UiStyle,
+    chapterCounterOpacityPercent: Int = 100,
 ) {
     val manga = libraryItem.libraryManga.manga
     val authorArtist = if (showAuthorArtistSubtitle) {
@@ -124,26 +133,52 @@ private fun LibraryComfortableGridCell(
         null
     }
 
-    MangaModernGridItem(
-        isSelected = manga.id in selection,
-        title = manga.title,
-        coverData = coverData,
-        coverBadgeStart = {
-            DownloadsBadge(count = libraryItem.badges.downloadCount)
-        },
-        coverBadgeEnd = {
-            LanguageBadge(
-                isLocal = libraryItem.badges.isLocal,
-                sourceLanguage = libraryItem.badges.sourceLanguage,
-            )
-        },
-        unreadCount = libraryItem.badges.unreadCount,
-        onLongClick = { onLongClick(libraryItem.libraryManga) },
-        onClick = { onClick(libraryItem.libraryManga) },
-        onClickContinueReading = onClickContinue,
-        titleMaxLines = titleMaxLines,
-        authorArtist = authorArtist,
-        showAuthorArtistSubtitle = showAuthorArtistSubtitle,
-        freeformCoverRatio = freeformCoverRatio,
-    )
+    if (uiStyle == UiStyle.MODERN) {
+        MangaModernGridItem(
+            isSelected = manga.id in selection,
+            title = manga.title,
+            coverData = coverData,
+            coverBadgeStart = {
+                DownloadsBadge(count = libraryItem.badges.downloadCount)
+            },
+            coverBadgeEnd = {
+                LanguageBadge(
+                    isLocal = libraryItem.badges.isLocal,
+                    sourceLanguage = libraryItem.badges.sourceLanguage,
+                )
+            },
+            unreadCount = libraryItem.badges.unreadCount,
+            onLongClick = { onLongClick(libraryItem.libraryManga) },
+            onClick = { onClick(libraryItem.libraryManga) },
+            onClickContinueReading = onClickContinue,
+            titleMaxLines = titleMaxLines,
+            authorArtist = authorArtist,
+            showAuthorArtistSubtitle = showAuthorArtistSubtitle,
+            freeformCoverRatio = freeformCoverRatio,
+            chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+        )
+    } else {
+        MangaComfortableGridItem(
+            isSelected = manga.id in selection,
+            title = manga.title,
+            coverData = coverData,
+            coverBadgeStart = {
+                DownloadsBadge(count = libraryItem.badges.downloadCount)
+            },
+            coverBadgeEnd = {
+                LanguageBadge(
+                    isLocal = libraryItem.badges.isLocal,
+                    sourceLanguage = libraryItem.badges.sourceLanguage,
+                )
+            },
+            onLongClick = { onLongClick(libraryItem.libraryManga) },
+            onClick = { onClick(libraryItem.libraryManga) },
+            onClickContinueReading = onClickContinue,
+            titleMaxLines = titleMaxLines,
+            authorArtist = authorArtist,
+            showAuthorArtistSubtitle = showAuthorArtistSubtitle,
+            freeformCoverRatio = freeformCoverRatio,
+            chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+        )
+    }
 }
