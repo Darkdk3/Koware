@@ -293,7 +293,7 @@ class LibraryPreferences(
      */
     val showAuthorArtistSubtitle: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_show_author_artist_subtitle",
-        false,
+        true,
     )
 
     /**
@@ -303,7 +303,7 @@ class LibraryPreferences(
      */
     val freeformCoverGrid: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_freeform_cover_grid",
-        false,
+        true,
     )
 
     /**
@@ -313,7 +313,7 @@ class LibraryPreferences(
      */
     val freeformCoverGridStaggered: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_freeform_cover_grid_staggered",
-        false,
+        true,
     )
 
     /**
