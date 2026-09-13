@@ -294,6 +294,7 @@ fun MangaModernGridItem(
     val coverShape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
+            .fillMaxWidth()
             .clip(cardShape)
             .background(MaterialTheme.colorScheme.surface)
             .then(

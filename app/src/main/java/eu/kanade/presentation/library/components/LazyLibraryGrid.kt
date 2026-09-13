@@ -27,9 +27,9 @@ internal fun LazyLibraryGrid(
     FastScrollLazyVerticalGrid(
         columns = if (columns == 0) GridCells.Adaptive(128.dp) else GridCells.Fixed(columns),
         modifier = modifier,
-        contentPadding = contentPadding + PaddingValues(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = contentPadding + PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )
 }
@@ -50,9 +50,9 @@ internal fun LazyLibraryStaggeredGrid(
     LazyVerticalStaggeredGrid(
         columns = if (columns == 0) StaggeredGridCells.Adaptive(128.dp) else StaggeredGridCells.Fixed(columns),
         modifier = modifier,
-        contentPadding = contentPadding + PaddingValues(14.dp),
-        verticalItemSpacing = 14.dp,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = contentPadding + PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        verticalItemSpacing = 8.dp,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         content = content,
     )
 }
