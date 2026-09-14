@@ -84,13 +84,26 @@ class ExtensionStoreRepositoryImpl(
                     .map { store ->
                         async {
                             val resolved = normalizeIfStub(store)
-                            service.getExtensions(resolved)
-                                .onSuccess { syncContentType(resolved, it) }
-                                .onFailure {
-                                    this@ExtensionStoreRepositoryImpl.logcat(LogPriority.ERROR, it) {
-                                        "Failed to fetch extensions for store '${resolved.name} (${resolved.indexUrl})'"
+                            val result = service.getExtensions(resolved)
+                            result.onSuccess { extensions ->
+                                syncContentType(resolved, extensions)
+                            }
+                            // If the store is tagged as novel, ensure all its
+                            // extensions are treated as novel even if the store
+                            // index didn't carry the per-extension flag.
+                            result.map { extensions ->
+                                if (resolved.isNovel) {
+                                    extensions.map { ext ->
+                                        if (!ext.isNovel) ext.copy(isNovel = true) else ext
                                     }
+                                } else {
+                                    extensions
                                 }
+                            }.onFailure {
+                                this@ExtensionStoreRepositoryImpl.logcat(LogPriority.ERROR, it) {
+                                    "Failed to fetch extensions for store '${resolved.name} (${resolved.indexUrl})'"
+                                }
+                            }
                         }
                     }
                     .awaitAll()

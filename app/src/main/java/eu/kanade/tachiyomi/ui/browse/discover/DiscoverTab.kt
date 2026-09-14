@@ -212,7 +212,7 @@ private fun DiscoverScreenContent(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(items, key = { it.manga.id }) { entry ->
+                items(items, key = { "novel_${it.source.id}_${it.manga.id}" }) { entry ->
                     Column {
                         MangaComfortableGridItem(
                             isSelected = false,
@@ -339,7 +339,7 @@ private fun AiRecommendationsShelf(
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(recommendations, key = { "rec_${it.manga.id}" }) { entry ->
+                    items(recommendations, key = { "novel_rec_${it.source.id}_${it.manga.id}" }) { entry ->
                         val heuristicMatch = remember(entry.manga.id, topGenres) {
                             matchScore(entry.manga.genre.orEmpty(), topGenres)
                         }
