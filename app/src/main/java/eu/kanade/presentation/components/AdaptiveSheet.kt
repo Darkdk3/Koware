@@ -87,14 +87,21 @@ fun AdaptiveSheet(
         LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
         LibraryPreferences.NavBarBackgroundStyle.Transparent,
         LibraryPreferences.NavBarBackgroundStyle.Frosted,
+        LibraryPreferences.NavBarBackgroundStyle.Grainy,
         -> opacityPercent / 100f
     }
     val sheetHazeState = if (
-        backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
+        backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
+        backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy
     ) {
         hazeState
     } else {
         null
+    }
+    val sheetNoiseFactor = if (backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy) {
+        0.65f
+    } else {
+        0f
     }
 
     Dialog(
@@ -109,6 +116,7 @@ fun AdaptiveSheet(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             containerAlpha = containerAlpha,
             hazeState = sheetHazeState,
+            noiseFactor = sheetNoiseFactor,
         ) {
             content()
         }

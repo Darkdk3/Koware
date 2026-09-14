@@ -232,7 +232,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.sheetBackgroundStyle,
                     entries = LibraryPreferences.NavBarBackgroundStyle.entries.associateWith { it.name },
                     title = "Sheet background style",
-                    subtitle = "Solid, transparent, or frosted (blurred) background for sheets and dialogs",
+                    subtitle = "Solid, transparent, frosted (blurred), or grainy background for sheets and dialogs",
                 ),
                 Preference.PreferenceItem.CustomPreference(
                     title = "Sheet opacity",
@@ -276,7 +276,6 @@ object SettingsAppearanceScreen : SearchableSettings {
         val backgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
         val opacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
         val opacityEnabled = backgroundStyle != LibraryPreferences.NavBarBackgroundStyle.Solid
-        val frostEnabled = backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
 
         return Preference.PreferenceGroup(
             title = "Navigation bar appearance",
@@ -363,7 +362,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = libraryPreferences.navBarBackgroundStyle,
                     entries = LibraryPreferences.NavBarBackgroundStyle.entries.associateWith { it.name },
                     title = "Nav bar background style",
-                    subtitle = "Solid, transparent, or frosted (blurred) background",
+                    subtitle = "Solid, transparent, frosted (blurred), or grainy background",
                 ),
                 Preference.PreferenceItem.CustomPreference(
                     title = "Nav bar opacity",

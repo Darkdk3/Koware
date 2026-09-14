@@ -172,7 +172,7 @@ class MainActivity : BaseActivity() {
             val hazeState = remember { HazeState() }
             val navBarStyle by preferences.navigationBarStyle.collectAsState()
             val navBarOpacityPercent by preferences.navigationBarOpacity.collectAsState()
-            val navBarCornerRadius by preferences.navigationBarCornerRadius.collectAsState()
+            val navBarCornerRadius by libraryPreferences.navBarCornerRadiusDp.collectAsState()
 
             LaunchedEffect(isSystemInDarkTheme, statusBarBackgroundColor) {
                 // Draw edge-to-edge and set system bars color to transparent
@@ -239,7 +239,11 @@ class MainActivity : BaseActivity() {
                         // Draw navigation bar scrim when needed
                         if (remember { isNavigationBarNeedsScrim() }) {
                             val navBarShape = remember(navBarCornerRadius) {
-                                RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
+                                if (navBarCornerRadius <= 0) {
+                                    RoundedCornerShape(topStart = 50, topEnd = 50)
+                                } else {
+                                    RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
+                                }
                             }
                             val navBarAlpha = navBarOpacityPercent / 100f
                             val navBarSurfaceColor = MaterialTheme.colorScheme.surface

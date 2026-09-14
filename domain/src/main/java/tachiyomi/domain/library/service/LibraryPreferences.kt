@@ -497,14 +497,16 @@ class LibraryPreferences(
 
     /**
      * Background rendering style shared by the floating nav bar and (where applicable) sheets.
-     * - Solid: fully opaque background, uses [navBarOpacityPercent]/opacity is ignored.
+     * - Solid: fully opaque background, opacity is ignored.
      * - Transparent: flat color at [navBarOpacityPercent] opacity, no blur.
      * - Frosted: blurred backdrop (via Haze) at [navBarOpacityPercent] opacity.
+     * - Grainy: blurred backdrop with visible noise/grain at [navBarOpacityPercent] opacity.
      */
     enum class NavBarBackgroundStyle {
         Solid,
         Transparent,
         Frosted,
+        Grainy,
     }
 
     companion object {
