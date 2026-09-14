@@ -66,6 +66,7 @@ class MangaRecommendationsViewModel(
     private val sourceManager: SourceManager = Injekt.get()
     private val trackerManager: TrackerManager = Injekt.get()
     private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations()
+    private val translationPreferences: tachiyomi.domain.translation.service.TranslationPreferences = Injekt.get()
 
     init { load() }
 
@@ -82,7 +83,11 @@ class MangaRecommendationsViewModel(
 
             val aiCandidatePool = loadAiCandidatePool(source as? CatalogueSource, manga)
 
-            val aiResult = if (aiCandidatePool.isNotEmpty()) {
+            val aiResult = if (
+                translationPreferences.aiFeaturesEnabled().get() &&
+                translationPreferences.aiRecommendationsMangaDetailEnabled().get() &&
+                aiCandidatePool.isNotEmpty()
+            ) {
                 runCatching {
                     getAiRecommendations.await(aiCandidatePool)
                 }.getOrElse {

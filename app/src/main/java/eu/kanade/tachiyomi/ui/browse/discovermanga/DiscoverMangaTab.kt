@@ -169,6 +169,7 @@ private fun DiscoverScreenContent(
     // modes is always available rather than disappearing while content loads.
     val translationPreferences = remember { Injekt.get<TranslationPreferences>() }
     val aiFeaturesEnabled by translationPreferences.aiFeaturesEnabled().collectAsState()
+    val aiDiscoverEnabled by translationPreferences.aiRecommendationsDiscoverEnabled().collectAsState()
     val shelfExpanded by remember {
         derivedStateOf {
             gridState.firstVisibleItemIndex == 0 && gridState.firstVisibleItemScrollOffset == 0
@@ -181,7 +182,7 @@ private fun DiscoverScreenContent(
         modifier = Modifier.fillMaxSize(),
     ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        if (aiFeaturesEnabled) {
+        if (aiFeaturesEnabled && aiDiscoverEnabled) {
             AnimatedVisibility(
                 visible = shelfExpanded,
                 enter = expandVertically(animationSpec = tween(220)) + fadeIn(animationSpec = tween(180)),
