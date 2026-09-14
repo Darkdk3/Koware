@@ -6,9 +6,11 @@ import eu.kanade.tachiyomi.network.interceptor.PerHostDynamicRateLimitIntercepto
 import eu.kanade.tachiyomi.network.interceptor.UncaughtExceptionInterceptor
 import eu.kanade.tachiyomi.network.interceptor.UserAgentInterceptor
 import okhttp3.Cache
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
@@ -27,10 +29,11 @@ class NetworkHelper(
             .connectTimeout(30.seconds)
             .readTimeout(30.seconds)
             .callTimeout(2.minutes)
+            .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
             .cache(
                 Cache(
                     directory = File(context.cacheDir, "network_cache"),
-                    maxSize = 5L * 1024 * 1024, // 5 MiB
+                    maxSize = 25L * 1024 * 1024, // 25 MiB
                 ),
             )
             .addInterceptor(UncaughtExceptionInterceptor())
