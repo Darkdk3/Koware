@@ -47,6 +47,7 @@ import eu.kanade.presentation.track.TrackChapterSelector
 import eu.kanade.presentation.track.TrackDateSelector
 import eu.kanade.presentation.track.TrackInfoDialogHome
 import eu.kanade.presentation.track.TrackScoreSelector
+import eu.kanade.presentation.track.TrackMediaTypeSelector
 import eu.kanade.presentation.track.TrackStatusSelector
 import eu.kanade.presentation.track.TrackerSearch
 import eu.kanade.presentation.util.Screen
@@ -184,6 +185,16 @@ data class TrackInfoDialogHomeScreen(
             },
             onCopyLink = { context.copyTrackerLink(it) },
             onTogglePrivate = viewModel::togglePrivate,
+            onChangeType = { item ->
+                if (item.tracker is NotionTracker) {
+                    navigator.push(
+                        TrackMediaTypeSelectorScreen(
+                            track = item.track!!,
+                            serviceId = item.tracker.id,
+                        ),
+                    )
+                }
+            },
         )
     }
 
@@ -369,6 +380,71 @@ private data class TrackStatusSelectorScreen(
         @Immutable
         data class State(
             val selection: Long,
+        )
+    }
+}
+
+private data class TrackMediaTypeSelectorScreen(
+    private val track: Track,
+    private val serviceId: Long,
+) : Screen() {
+
+    @Composable
+    override fun Content() {
+        val navigator = LocalNavigator.currentOrThrow
+        val viewModel = viewModel<Model>(
+            factory = Model.Factory,
+            extras = CreationExtras {
+                set(Model.TRACK_KEY, track)
+                set(Model.TRACKER_KEY, Injekt.get<TrackerManager>().get(serviceId)!!)
+            },
+        )
+        val state by viewModel.state.collectAsState()
+        TrackMediaTypeSelector(
+            selection = state.selection,
+            onSelectionChange = viewModel::setSelection,
+            selections = NotionTracker.MEDIA_TYPES,
+            onConfirm = {
+                viewModel.setType()
+                navigator.pop()
+            },
+            onDismissRequest = navigator::pop,
+        )
+    }
+
+    class Model(
+        private val track: Track,
+        private val tracker: Tracker,
+    ) : StateViewModel<Model.State>(State("")) {
+
+        companion object {
+            val TRACK_KEY = CreationExtras.Key<Track>()
+            val TRACKER_KEY = CreationExtras.Key<Tracker>()
+
+            val Factory = viewModelFactory {
+                initializer {
+                    Model(
+                        track = get(TRACK_KEY)!!,
+                        tracker = get(TRACKER_KEY)!!,
+                    )
+                }
+            }
+        }
+
+        fun setSelection(selection: String) {
+            mutableState.update { it.copy(selection = selection) }
+        }
+
+        fun setType() {
+            viewModelScope.launchNonCancellable {
+                val notion = tracker as? NotionTracker ?: return@launchNonCancellable
+                notion.updateMediaType(track, state.value.selection)
+            }
+        }
+
+        @Immutable
+        data class State(
+            val selection: String,
         )
     }
 }
@@ -904,7 +980,11 @@ data class TrackerSearchScreen(
         private fun createEntry(notion: NotionTracker, title: String, onSuccess: () -> Unit) {
             viewModelScope.launchNonCancellable {
                 try {
-                    val entry = withIOContext { notion.createEntry(title) }
+                    val manga = Injekt.get<GetManga>().await(mangaId)
+                    val coverUrl = manga?.thumbnailUrl
+                    val entry = withIOContext {
+                        notion.createEntry(title, coverUrl, isNovel = isNovelSource)
+                    }
                     registerTracking(entry)
                     withUIContext { onSuccess() }
                 } catch (e: Throwable) {

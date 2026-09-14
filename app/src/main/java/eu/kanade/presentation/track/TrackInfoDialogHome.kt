@@ -78,6 +78,7 @@ fun TrackInfoDialogHome(
     onRemoved: (TrackItem) -> Unit,
     onCopyLink: (TrackItem) -> Unit,
     onTogglePrivate: (TrackItem) -> Unit,
+    onChangeType: ((TrackItem) -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -129,6 +130,7 @@ fun TrackInfoDialogHome(
                     private = item.track.private,
                     onTogglePrivate = { onTogglePrivate(item) }
                         .takeIf { supportsPrivate },
+                    onChangeType = onChangeType?.let { callback -> { callback(item) } },
                 )
             } else {
                 TrackInfoItemEmpty(
@@ -160,6 +162,7 @@ private fun TrackInfoItem(
     onCopyLink: () -> Unit,
     private: Boolean,
     onTogglePrivate: (() -> Unit)?,
+    onChangeType: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     Column {
@@ -217,6 +220,7 @@ private fun TrackInfoItem(
                 onCopyLink = onCopyLink,
                 private = private,
                 onTogglePrivate = onTogglePrivate,
+                onChangeType = onChangeType,
             )
         }
 
@@ -329,6 +333,7 @@ private fun TrackInfoItemMenu(
     onCopyLink: () -> Unit,
     private: Boolean,
     onTogglePrivate: (() -> Unit)?,
+    onChangeType: (() -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
@@ -371,6 +376,15 @@ private fun TrackInfoItemMenu(
                     },
                     onClick = {
                         onTogglePrivate()
+                        expanded = false
+                    },
+                )
+            }
+            if (onChangeType != null) {
+                DropdownMenuItem(
+                    text = { Text("Change type") },
+                    onClick = {
+                        onChangeType()
                         expanded = false
                     },
                 )
