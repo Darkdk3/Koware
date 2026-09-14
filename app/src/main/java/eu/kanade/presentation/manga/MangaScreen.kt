@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.SnackbarHost
@@ -48,6 +49,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.manga.components.ChapterHeader
@@ -547,6 +549,12 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
+                    item(key = "chapter-divider") {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
+
                     item(
                         key = MangaScreenItem.CHAPTER_HEADER,
                         contentType = MangaScreenItem.CHAPTER_HEADER,
@@ -837,6 +845,9 @@ fun MangaScreenLargeImpl(
                             onSuggestionClick = onSourceSuggestionClicked,
                             onMoreClicked = onMoreSuggestionClicked,
                             suggestionCount = state.sourceSuggestions?.size ?: 0,
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
                         )
                     }
                 },

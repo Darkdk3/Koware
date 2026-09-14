@@ -6,9 +6,13 @@ import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.data.track.TrackerManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
+import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.ui.browse.discover.AiRecommendationResult
 import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
 import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,11 +80,11 @@ class MangaRecommendationsViewModel(
 
             val suggestions = loadSourceSuggestions(source as? CatalogueSource, manga)
 
-            val aiResult = if (suggestions.isNotEmpty()) {
+            val aiCandidatePool = loadAiCandidatePool(source as? CatalogueSource, manga)
+
+            val aiResult = if (aiCandidatePool.isNotEmpty()) {
                 runCatching {
-                    getAiRecommendations.await(
-                        suggestions.map { MangaRecommendable(it, sourceName) }
-                    )
+                    getAiRecommendations.await(aiCandidatePool)
                 }.getOrElse {
                     logcat(LogPriority.ERROR, it) { "AI recs failed" }
                     AiRecommendationResult.Failed(it.message ?: "AI request failed")
@@ -136,8 +140,44 @@ class MangaRecommendationsViewModel(
             emptyList()
         }
             .filter { it.url != manga.url }
-            .take(10)
+            .take(25)
             .map { it.toDomainManga(sourceId = source.id, isNovel = manga.isNovel) }
+    }
+
+    private suspend fun loadAiCandidatePool(
+        currentSource: CatalogueSource?,
+        manga: Manga,
+    ): List<MangaRecommendable> {
+        return coroutineScope {
+            val otherSources = sourceManager.getOnlineSources()
+                .filterIsInstance<CatalogueSource>()
+                .filter { it.id != currentSource?.id && it.isNovelSource() == manga.isNovel }
+                .shuffled()
+                .take(6)
+
+            val allSources = listOfNotNull(currentSource) + otherSources
+
+            allSources.map { source ->
+                async {
+                    val sourceLabel = source.getNameForMangaInfo()
+                    runCatching {
+                        source.getSearchManga(
+                            page = 1,
+                            query = manga.title,
+                            filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                        )?.mangas.orEmpty()
+                    }.getOrElse {
+                        logcat(LogPriority.ERROR) { "Failed to search ${source.name}" }
+                        emptyList()
+                    }
+                        .filter { it.url != manga.url }
+                        .take(15)
+                        .map { it.toDomainManga(sourceId = source.id, isNovel = manga.isNovel) }
+                        .map { MangaRecommendable(it, sourceLabel) }
+                }
+            }.awaitAll().flatten()
+                .distinctBy { it.mangaTitle }
+        }
     }
 
     class Factory(private val mangaId: Long) : ViewModelProvider.Factory {
