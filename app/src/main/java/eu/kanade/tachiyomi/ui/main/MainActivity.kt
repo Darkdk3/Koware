@@ -238,13 +238,7 @@ class MainActivity : BaseActivity() {
 
                         // Draw navigation bar scrim when needed
                         if (remember { isNavigationBarNeedsScrim() }) {
-                            val navBarShape = remember(navBarCornerRadius) {
-                                if (navBarCornerRadius <= 0) {
-                                    RoundedCornerShape(topStart = 50, topEnd = 50)
-                                } else {
-                                    RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
-                                }
-                            }
+                            val navBarShape = RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
                             val navBarAlpha = navBarOpacityPercent / 100f
                             val navBarSurfaceColor = MaterialTheme.colorScheme.surface
                             val navBarSurfaceContainerColor = MaterialTheme.colorScheme.surfaceContainer
