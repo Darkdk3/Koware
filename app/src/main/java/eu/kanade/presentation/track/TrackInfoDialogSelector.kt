@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
+import eu.kanade.tachiyomi.data.track.notion.NotionTracker
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.ScrollbarLazyColumn
 import tachiyomi.presentation.core.components.WheelNumberPicker
@@ -218,6 +219,54 @@ private fun BaseSelector(
                 }
             }
         },
+    )
+}
+
+@Composable
+fun TrackMediaTypeSelector(
+    selection: String,
+    onSelectionChange: (String) -> Unit,
+    selections: List<String>,
+    onConfirm: () -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    BaseSelector(
+        title = "Type",
+        content = {
+            val state = rememberLazyListState()
+            ScrollbarLazyColumn(state = state) {
+                selections.forEach { typeName ->
+                    val isSelected = selection == typeName
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .selectable(
+                                    selected = isSelected,
+                                    onClick = { onSelectionChange(typeName) },
+                                )
+                                .fillMaxWidth()
+                                .minimumInteractiveComponentSize(),
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = null,
+                            )
+                            Text(
+                                text = typeName,
+                                style = MaterialTheme.typography.bodyLarge.merge(),
+                                modifier = Modifier.padding(start = 24.dp),
+                            )
+                        }
+                    }
+                }
+            }
+            if (state.canScrollBackward) HorizontalDivider(modifier = Modifier.align(Alignment.TopCenter))
+            if (state.canScrollForward) HorizontalDivider(modifier = Modifier.align(Alignment.BottomCenter))
+        },
+        onConfirm = onConfirm,
+        onDismissRequest = onDismissRequest,
     )
 }
 

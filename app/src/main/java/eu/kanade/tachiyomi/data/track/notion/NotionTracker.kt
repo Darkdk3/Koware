@@ -4,6 +4,7 @@ import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.BaseTracker
+import eu.kanade.tachiyomi.data.track.DeletableTracker
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.HttpException
@@ -47,7 +48,7 @@ import tachiyomi.domain.track.model.Track as DomainTrack
  * Login screen: secret field = integration secret, database field = database ID or URL.
  * Reuses BaseTracker's username/password storage the same way other trackers do.
  */
-class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
+class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
 
     private val json: Json by injectLazy()
     private val apiBase = "https://api.notion.com/v1"
@@ -272,7 +273,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
     }
 
     /** Creates a new page (row) in the database and returns it as a search result. */
-    suspend fun createEntry(title: String, coverUrl: String? = null): TrackSearch {
+    suspend fun createEntry(title: String, coverUrl: String? = null, isNovel: Boolean = false): TrackSearch {
         val schema = requireNotNull(ensureSchemaLoaded()) {
             "Notion isn't connected. Go to Settings -> Tracking and log in first."
         }
@@ -280,7 +281,18 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         val typeKey = schema.keyFor(TYPE_PROPERTY)
         val statusKey = schema.keyFor(STATUS_PROPERTY)
         val chapterKey = schema.keyFor(CHAPTER_PROPERTY)
-        val defaultType = defaultMediaType()
+        val resolvedType = resolveMediaType(isNovel)
+
+        // Check for duplicates before creating: match by exact title (case-insensitive)
+        val existingPageId = findExistingPage(title)
+        if (existingPageId != null) {
+            return TrackSearch.create(id).apply {
+                this.title = title
+                this.cover_url = coverUrl.orEmpty()
+                remote_id = hashPageId(existingPageId)
+                tracking_url = pageIdToNotionUrl(existingPageId)
+            }
+        }
 
         val body = buildJsonObject {
             putJsonObject("parent") {
@@ -298,10 +310,10 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
                         )
                     }
                 }
-                if (typeKey != null) {
+                if (typeKey != null && resolvedType.isNotBlank()) {
                     putJsonObject(typeKey) {
                         putJsonObject("select") {
-                            if (defaultType.isNotBlank()) put("name", defaultType)
+                            put("name", resolvedType)
                         }
                     }
                 }
@@ -317,13 +329,6 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
                         put("number", 0.0)
                     }
                 }
-                if (coverUrl.isNullOrBlank().not()) {
-                    schema.keyFor(COVER_PROPERTY)?.let { coverKey ->
-                        putJsonObject(coverKey) {
-                            put("url", coverUrl)
-                        }
-                    }
-                }
             }
         }.toString().toRequestBody("application/json".toMediaType())
 
@@ -332,7 +337,8 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         response.close()
         val pageId = created["id"]?.jsonPrimitive?.content.orEmpty()
 
-        if (coverUrl.isNullOrBlank().not()) {
+        // Set cover as an external image on the page (Notion displays this as the page banner)
+        if (!coverUrl.isNullOrBlank()) {
             runCatching {
                 val coverBody = buildJsonObject {
                     putJsonObject("cover") {
@@ -351,6 +357,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         return TrackSearch.create(id).apply {
             this.title = title
             this.cover_url = coverUrl.orEmpty()
+            this.publishing_type = resolvedType
             remote_id = hashPageId(pageId)
             tracking_url = pageIdToNotionUrl(pageId)
         }
@@ -375,6 +382,10 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         val scoreKey = schema.keyFor(SCORE_PROPERTY)
         val totalChaptersKey = schema.keyFor(TOTAL_CHAPTERS_PROPERTY)
         val coverUrl = (track as? TrackSearch)?.cover_url
+        val isNovel = (track as? TrackSearch)?.publishing_type?.let {
+            it.equals("novel", ignoreCase = true) || it.equals("light novel", ignoreCase = true) || it.equals("book", ignoreCase = true)
+        } ?: false
+        val resolvedType = resolveMediaType(isNovel)
 
         val body = buildJsonObject {
             putJsonObject("parent") {
@@ -392,10 +403,10 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
                         )
                     }
                 }
-                if (typeKey != null) {
+                if (typeKey != null && resolvedType.isNotBlank()) {
                     putJsonObject(typeKey) {
                         putJsonObject("select") {
-                            if (defaultMediaType().isNotBlank()) put("name", defaultMediaType())
+                            put("name", resolvedType)
                         }
                     }
                 }
@@ -421,13 +432,6 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
                         put("number", track.total_chapters.toDouble())
                     }
                 }
-                if (coverUrl.isNullOrBlank().not()) {
-                    schema.keyFor(COVER_PROPERTY)?.let { coverKey ->
-                        putJsonObject(coverKey) {
-                            put("url", coverUrl)
-                        }
-                    }
-                }
             }
         }.toString().toRequestBody("application/json".toMediaType())
 
@@ -440,8 +444,8 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         track.remote_id = hashPageId(pageId)
         track.status = initialStatus
 
-        // Page-level cover, shown at the top of the row in Notion.
-        if (coverUrl.isNullOrBlank().not()) {
+        // Set cover as an external image on the page (Notion displays this as the page banner)
+        if (!coverUrl.isNullOrBlank()) {
             runCatching {
                 val coverBody = buildJsonObject {
                     putJsonObject("cover") {
@@ -534,6 +538,49 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         return track
     }
 
+    /**
+     * Archives (soft-deletes) the Notion page so it no longer appears in the database.
+     * Implements [DeletableTracker] so the "Remove from database" checkbox works.
+     */
+    override suspend fun delete(track: tachiyomi.domain.track.model.Track) {
+        ensureSchemaLoaded() ?: return
+        val pageId = resolvePageId(track) ?: return
+        runCatching {
+            val body = buildJsonObject {
+                put("archived", true)
+            }.toString().toRequestBody("application/json".toMediaType())
+            client.newCall(patchRequest("$apiBase/pages/$pageId", authHeaders(), body)).awaitSuccess().close()
+        }.onFailure {
+            logcat(LogPriority.ERROR, it) { "Notion: failed to archive page $pageId" }
+        }
+    }
+
+    /**
+     * Updates the Type property on a Notion page.
+     * @param track the tracked entry whose Type to change
+     * @param typeName one of [MEDIA_TYPES] (e.g. "Novel", "Manga")
+     */
+    suspend fun updateMediaType(track: tachiyomi.domain.track.model.Track, typeName: String) {
+        ensureSchemaLoaded() ?: return
+        val pageId = resolvePageId(track) ?: return
+        val schema = schemaCache ?: return
+        val typeKey = schema.keyFor(TYPE_PROPERTY) ?: return
+        runCatching {
+            val body = buildJsonObject {
+                putJsonObject("properties") {
+                    putJsonObject(typeKey) {
+                        putJsonObject("select") {
+                            put("name", typeName)
+                        }
+                    }
+                }
+            }.toString().toRequestBody("application/json".toMediaType())
+            client.newCall(patchRequest("$apiBase/pages/$pageId", authHeaders(), body)).awaitSuccess().close()
+        }.onFailure {
+            logcat(LogPriority.WARN, it) { "Notion: failed to update type for $pageId" }
+        }
+    }
+
     /** Fetches every page in the database, paginated, returning them as search results. */
     private suspend fun fetchAllEntries(): List<TrackSearch> {
         val schema = ensureSchemaLoaded() ?: return emptyList()
@@ -572,7 +619,8 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         val schema = ensureSchemaLoaded() ?: return null
         val titleProperty = schema.titleProperty
 
-        val body = buildJsonObject {
+        // First try exact match (fast)
+        val exactBody = buildJsonObject {
             putJsonObject("filter") {
                 put("property", titleProperty)
                 putJsonObject("title") {
@@ -581,17 +629,33 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
             }
         }.toString().toRequestBody("application/json".toMediaType())
 
-        return try {
+        try {
             val response = client.newCall(
-                POST("$apiBase/databases/${getDatabaseId()}/query", authHeaders(), body),
+                POST("$apiBase/databases/${getDatabaseId()}/query", authHeaders(), exactBody),
             ).awaitSuccess()
             val root = json.parseToJsonElement(response.body.string()).jsonObject
             response.close()
-            (root["results"]?.jsonArray ?: JsonArray(emptyList()))
+            val exactMatch = (root["results"]?.jsonArray ?: JsonArray(emptyList()))
                 .firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.content
+            if (exactMatch != null) return exactMatch
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "Notion: existing-page lookup failed" }
-            null
+        }
+
+        // Fallback: fetch all titles and do case-insensitive comparison
+        val allEntries = fetchAllEntries()
+        val normalizedTitle = title.trim().lowercase(java.util.Locale.ROOT)
+        val match = allEntries.firstOrNull {
+            it.title.trim().lowercase(java.util.Locale.ROOT) == normalizedTitle
+        }
+        // Extract page ID from the tracking_url (format: https://notion.so/<pageId>)
+        return match?.tracking_url?.let { url ->
+            val pageId = if (url.contains("/")) {
+                url.substringAfterLast("/").substringBefore("?").replace("-", "")
+            } else {
+                url.replace("-", "")
+            }
+            pageId.ifBlank { null }
         }
     }
 
@@ -760,6 +824,20 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         return trackPreferences.notionDefaultMediaType.get().trim().ifBlank { DEFAULT_MEDIA_TYPE }
     }
 
+    /**
+     * Resolves the actual media type name to write to Notion.
+     * If the user preference is "Auto", it returns "Novel" for novel sources, "Manga" otherwise.
+     * For any other preference value, it returns that value directly.
+     */
+    fun resolveMediaType(isNovel: Boolean): String {
+        val pref = defaultMediaType()
+        return if (pref.equals(AUTO_MEDIA_TYPE, ignoreCase = true)) {
+            if (isNovel) "Novel" else "Manga"
+        } else {
+            pref
+        }
+    }
+
     private fun hashPageId(pageId: String): Long {
         return pageId.hashCode().toLong().let { if (it < 0) -it else it }
     }
@@ -773,10 +851,12 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion") {
         const val TOTAL_CHAPTERS_PROPERTY = "Total Chapters"
         const val COVER_PROPERTY = "Cover"
 
+        const val AUTO_MEDIA_TYPE = "Auto"
         const val DEFAULT_MEDIA_TYPE = "Manga"
 
         /** Select options written to the Type column: book, novel, manga, manhwa, etc. */
         val MEDIA_TYPES = listOf(
+            AUTO_MEDIA_TYPE,
             "Manga", "Manhwa", "Manhua", "Webtoon", "Comic",
             "Novel", "Light Novel", "Book", "One-shot", "Doujin", "Other",
         )

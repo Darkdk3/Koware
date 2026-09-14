@@ -333,11 +333,13 @@ object SettingsTrackingScreen : SearchableSettings {
                         preference = trackPreferences.notionDefaultMediaType,
                         entries = NotionTracker.MEDIA_TYPES.associateWith { it },
                         title = "Default media type",
-                        subtitle = "Saved to the Type column of new Notion entries",
+                        subtitle = "\"Auto\" detects Novel vs Manga from the source automatically",
                     ),
                     Preference.PreferenceItem.InfoPreference(
-                        "Database columns: Title, Type, Status, Chapter, Score, Total Chapters, Cover. " +
-                            "Login auto-creates any missing columns. Pick the connected database or create a new one from the login dialog.",
+                        "Your Notion database must be shared with the integration " +
+                            "(open database -> ... -> Connections -> add integration). " +
+                            "Columns: Title, Type, Status, Chapter, Score, Total Chapters, Cover. " +
+                            "Login auto-creates any missing columns. You can change Type and Status per entry from the tracking dialog.",
                     ),
                 ),
             ),
@@ -536,7 +538,9 @@ object SettingsTrackingScreen : SearchableSettings {
                 ) {
                     Text(
                         text = "1) Create an integration at notion.so/my-integrations and copy its secret. " +
-                            "2) Share your tracking database with it (open the database, ... -> Connections -> add integration). " +
+                            "2) Share your database with the integration: open the database in Notion -> " +
+                            "\"...\" menu -> Connections -> add your integration. " +
+                            "The database MUST be shared or the integration cannot read/write it. " +
                             "3) Pick the database below, or let Koware create one for you.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
