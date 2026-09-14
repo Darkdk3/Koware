@@ -43,6 +43,7 @@ fun NavigationBar(
     height: Dp = 80.dp,
     itemSpacing: Dp = 0.dp,
     hazeState: HazeState? = null,
+    noiseFactor: Float = 0f,
     content: @Composable RowScope.() -> Unit,
 ) {
     Surface(
@@ -52,7 +53,7 @@ fun NavigationBar(
         shape = shape,
         modifier = if (hazeState != null) {
             modifier.hazeEffect(state = hazeState) {
-                style = HazeStyle(backgroundColor = containerColor, tint = null)
+                style = HazeStyle(backgroundColor = containerColor, tint = null, noiseFactor = noiseFactor)
             }
         } else {
             modifier

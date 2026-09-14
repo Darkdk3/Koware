@@ -64,6 +64,7 @@ fun AdaptiveSheet(
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     containerAlpha: Float = 1f,
     hazeState: HazeState? = null,
+    noiseFactor: Float = 0f,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -75,7 +76,7 @@ fun AdaptiveSheet(
             .clip(sheetShape)
             .hazeEffect(
                 state = hazeState,
-                style = HazeStyle(tint = HazeTint(resolvedColor)),
+                style = HazeStyle(tint = HazeTint(resolvedColor), noiseFactor = noiseFactor),
             )
     } else {
         Modifier

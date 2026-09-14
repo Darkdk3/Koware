@@ -74,6 +74,7 @@ import tsundoku.telemetry.TelemetryConfig
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
+import tachiyomi.domain.library.service.LibraryPreferences
 import java.security.Security
 
 class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factory {
@@ -126,6 +127,20 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         Injekt.importModule(PreferenceModule(this))
         Injekt.importModule(AppModule(this))
         Injekt.importModule(DomainModule())
+
+        // One-time migration: force-enable new features for existing installs that never
+        // explicitly toggled these preferences (so the old stored "false" overrides the new default).
+        runCatching {
+            val libPrefs = Injekt.get<LibraryPreferences>()
+            listOf(
+                libPrefs.freeformCoverGrid,
+                libPrefs.freeformCoverGridStaggered,
+                libPrefs.showAuthorArtistSubtitle,
+            ).forEach { pref ->
+                if (!pref.isSet()) pref.set(true)
+            }
+            // showLibraryItemOutline defaults to false; no migration needed — user enables it.
+        }
 
         // Asynchronously init expensive components for a faster cold start. Must run after all
         // modules are imported

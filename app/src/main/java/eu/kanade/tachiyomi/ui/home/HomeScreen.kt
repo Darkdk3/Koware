@@ -188,14 +188,23 @@ object HomeScreen : Screen() {
                                             LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
                                             LibraryPreferences.NavBarBackgroundStyle.Transparent,
                                             LibraryPreferences.NavBarBackgroundStyle.Frosted,
+                                            LibraryPreferences.NavBarBackgroundStyle.Grainy,
                                             -> navBarOpacityPercent / 100f
                                         }
                                         val barHaze = if (
-                                            navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted
+                                            navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
+                                            navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy
                                         ) {
                                             hazeState
                                         } else {
                                             null
+                                        }
+                                        val barNoise = if (
+                                            navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy
+                                        ) {
+                                            0.65f
+                                        } else {
+                                            0f
                                         }
                                         NavigationBar(
                                             shape = barShape,
@@ -204,6 +213,7 @@ object HomeScreen : Screen() {
                                             containerColor = barColor,
                                             containerAlpha = barAlpha,
                                             hazeState = barHaze,
+                                            noiseFactor = barNoise,
                                             modifier = Modifier.fillMaxWidth(navBarWidthPercent / 100f),
                                         ) {
                                             tabs.fastForEach {
