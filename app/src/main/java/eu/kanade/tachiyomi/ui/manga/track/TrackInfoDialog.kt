@@ -438,7 +438,7 @@ private data class TrackMediaTypeSelectorScreen(
         fun setType() {
             viewModelScope.launchNonCancellable {
                 val notion = tracker as? NotionTracker ?: return@launchNonCancellable
-                notion.updateMediaType(track.toDbTrack(), state.value.selection)
+                notion.updateMediaType(track, state.value.selection)
             }
         }
 

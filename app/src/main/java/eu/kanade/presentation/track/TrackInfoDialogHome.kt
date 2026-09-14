@@ -130,8 +130,7 @@ fun TrackInfoDialogHome(
                     private = item.track.private,
                     onTogglePrivate = { onTogglePrivate(item) }
                         .takeIf { supportsPrivate },
-                    onChangeType = { onChangeType?.invoke(item) }
-                        .takeIf { onChangeType != null },
+                    onChangeType = onChangeType?.let { callback -> { callback(item) } },
                 )
             } else {
                 TrackInfoItemEmpty(

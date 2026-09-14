@@ -544,7 +544,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
      */
     override suspend fun delete(track: tachiyomi.domain.track.model.Track) {
         ensureSchemaLoaded() ?: return
-        val pageId = resolvePageId(track) ?: return
+        val pageId = resolvePageIdFromUrl(track.remoteUrl) ?: return
         runCatching {
             val body = buildJsonObject {
                 put("archived", true)
@@ -562,7 +562,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
      */
     suspend fun updateMediaType(track: tachiyomi.domain.track.model.Track, typeName: String) {
         ensureSchemaLoaded() ?: return
-        val pageId = resolvePageId(track) ?: return
+        val pageId = resolvePageIdFromUrl(track.remoteUrl) ?: return
         val schema = schemaCache ?: return
         val typeKey = schema.keyFor(TYPE_PROPERTY) ?: return
         runCatching {
@@ -794,8 +794,12 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
 
     /** tracking_url holds the Notion page URL; this extracts the page id from it. */
     private fun resolvePageId(track: Track): String? {
-        val url = track.tracking_url.ifBlank { return null }
-        // Accept both a raw UUID and a full notion.so URL
+        return resolvePageIdFromUrl(track.tracking_url)
+    }
+
+    /** Extracts a Notion page ID from a URL string. */
+    private fun resolvePageIdFromUrl(url: String): String? {
+        if (url.isBlank()) return null
         val pageId = if (url.contains("/")) {
             url.substringAfterLast("/").substringBefore("?").replace("-", "")
         } else {
