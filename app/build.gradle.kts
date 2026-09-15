@@ -257,6 +257,9 @@ dependencies {
     // RxJava
     implementation(libs.rxJava)
 
+    // ML Kit
+    implementation(libs.mlkit.text)
+
     // Networking
     implementation(libs.bundles.okhttp)
     implementation(libs.okio)
