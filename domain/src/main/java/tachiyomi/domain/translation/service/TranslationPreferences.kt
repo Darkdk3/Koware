@@ -438,6 +438,24 @@ class TranslationPreferences(
         true,
     )
 
+    /**
+     * Individual toggle: AI recommendations on the Discover feed tabs.
+     * Respects the master [aiFeaturesEnabled] switch.
+     */
+    fun aiRecommendationsDiscoverEnabled() = preferenceStore.getBoolean(
+        "ai_recommendations_discover_enabled",
+        true,
+    )
+
+    /**
+     * Individual toggle: AI recommendations on the manga detail / recommendations screen.
+     * Respects the master [aiFeaturesEnabled] switch.
+     */
+    fun aiRecommendationsMangaDetailEnabled() = preferenceStore.getBoolean(
+        "ai_recommendations_manga_detail_enabled",
+        true,
+    )
+
 
     /**
      * Which engine powers AI features (recommendations, etc.). 0L means "same as whatever

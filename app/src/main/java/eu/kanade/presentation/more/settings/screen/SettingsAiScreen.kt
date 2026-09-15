@@ -30,6 +30,8 @@ object SettingsAiScreen : SearchableSettings {
         val prefs = remember { Injekt.get<TranslationPreferences>() }
         return listOf(
             prefs.aiFeaturesEnabled(),
+            prefs.aiRecommendationsDiscoverEnabled(),
+            prefs.aiRecommendationsMangaDetailEnabled(),
             prefs.aiFeatureEngineId(),
             prefs.aiFeatureUseSeparateApiKey(),
             prefs.aiFeatureApiKey(),
@@ -80,8 +82,18 @@ object SettingsAiScreen : SearchableSettings {
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.aiFeaturesEnabled(),
-                        title = "AI features",
-                        subtitle = "Master switch for AI-powered features (recommendations, etc.). Translation keeps working.",
+                        title = "AI features (master)",
+                        subtitle = "Master switch for AI-powered features. Translation keeps working.",
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = prefs.aiRecommendationsDiscoverEnabled(),
+                        title = "Discover feed recommendations",
+                        subtitle = "Show AI-powered recommendations on the Discover tabs.",
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = prefs.aiRecommendationsMangaDetailEnabled(),
+                        title = "Manga detail recommendations",
+                        subtitle = "Show AI-powered recommendations on the manga detail screen.",
                     ),
                     Preference.PreferenceItem.ListPreference(
                         preference = prefs.aiFeatureEngineId(),
