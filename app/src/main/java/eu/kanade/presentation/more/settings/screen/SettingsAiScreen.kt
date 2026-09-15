@@ -82,18 +82,18 @@ object SettingsAiScreen : SearchableSettings {
                 preferenceItems = listOf(
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.aiFeaturesEnabled(),
-                        title = "AI features (master)",
-                        subtitle = "Master switch for AI-powered features. Translation keeps working.",
+                        title = "AI features (master) (Beta)",
+                        subtitle = "Master switch for AI-powered features. Translation keeps working. AI features may cause crashes.",
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.aiRecommendationsDiscoverEnabled(),
-                        title = "Discover feed recommendations",
-                        subtitle = "Show AI-powered recommendations on the Discover tabs.",
+                        title = "Discover feed recommendations (Beta)",
+                        subtitle = "Show AI-powered recommendations on the Discover tabs. May cause crashes — use at your own risk.",
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = prefs.aiRecommendationsMangaDetailEnabled(),
-                        title = "Manga detail recommendations",
-                        subtitle = "Show AI-powered recommendations on the manga detail screen.",
+                        title = "Manga detail recommendations (Beta)",
+                        subtitle = "Show AI-powered recommendations on the manga detail screen. May cause crashes — use at your own risk.",
                     ),
                     Preference.PreferenceItem.ListPreference(
                         preference = prefs.aiFeatureEngineId(),
