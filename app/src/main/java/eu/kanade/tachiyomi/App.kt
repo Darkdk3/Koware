@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.onEach
 import logcat.AndroidLogcatLogger
 import logcat.LogPriority
 import logcat.LogcatLogger
+import okio.Path.Companion.toOkioPath
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.migrations
 import org.conscrypt.Conscrypt
@@ -268,7 +269,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
             diskCache(
                 DiskCache.Builder()
-                    .directory(context.cacheDir.resolve("image_cache"))
+                    .directory(context.cacheDir.resolve("image_cache").toOkioPath())
                     .maxSizePercent(0.02)
                     .build(),
             )
