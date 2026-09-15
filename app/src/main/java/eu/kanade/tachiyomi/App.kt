@@ -245,11 +245,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(this).apply {
             val callFactoryLazy = lazy { Injekt.get<NetworkHelper>().client }
-            // The default fetcher handles everything that isn't a manga/novel cover (extension
-            // icons, tracker avatars, ...) - not source traffic, so exempt it from novel-source
-            // rate limiting same as the other non-source consumers (see RateLimitExemptInterceptor).
-            // MangaCoverFactory/MangaFactory below intentionally keep the raw, paced client since
-            // covers ARE source traffic.
+            // Covers are UI assets that display on screen, not background source traffic.
+            // Use the exempt client to bypass rate limiting and avoid Cloudflare interceptor
+            // interference with CDN image URLs.
             val exemptCallFactoryLazy = lazy { Injekt.get<NetworkHelper>().client.rateLimitExempt() }
             components {
                 // NetworkFetcher.Factory
@@ -260,8 +258,8 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(coil3.svg.SvgDecoder.Factory())
                 // Fetcher.Factory
                 add(BufferedSourceFetcher.Factory())
-                add(MangaCoverFetcher.MangaCoverFactory(callFactoryLazy))
-                add(MangaCoverFetcher.MangaFactory(callFactoryLazy))
+                add(MangaCoverFetcher.MangaCoverFactory(exemptCallFactoryLazy))
+                add(MangaCoverFetcher.MangaFactory(exemptCallFactoryLazy))
                 // Keyer
                 add(MangaCoverKeyer())
                 add(MangaKeyer())
