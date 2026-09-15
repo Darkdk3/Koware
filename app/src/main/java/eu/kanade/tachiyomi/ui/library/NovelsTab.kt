@@ -122,6 +122,27 @@ data object NovelsTab : Tab {
         val showUrlInList by settingsViewModel.libraryPreferences.showUrlInList.changes().collectAsState(
             settingsViewModel.libraryPreferences.showUrlInList.get(),
         )
+        val showAuthorArtistSubtitle by
+            settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.changes().collectAsState(
+                settingsViewModel.libraryPreferences.showAuthorArtistSubtitle.get(),
+            )
+        val freeformCoverGrid by settingsViewModel.libraryPreferences.freeformCoverGrid.changes().collectAsState(
+            settingsViewModel.libraryPreferences.freeformCoverGrid.get(),
+        )
+        val freeformCoverGridStaggered by
+            settingsViewModel.libraryPreferences.freeformCoverGridStaggered.changes().collectAsState(
+                settingsViewModel.libraryPreferences.freeformCoverGridStaggered.get(),
+            )
+        val uiPreferences = remember { Injekt.get<eu.kanade.domain.ui.UiPreferences>() }
+        val uiStyle by uiPreferences.uiStyle.changes().collectAsState(
+            uiPreferences.uiStyle.get(),
+        )
+        val chapterCounterOpacityPercent by settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.changes().collectAsState(
+            settingsViewModel.libraryPreferences.chapterCounterOpacityPercent.get(),
+        )
+        val showLibraryItemOutline by settingsViewModel.libraryPreferences.showLibraryItemOutline.changes().collectAsState(
+            settingsViewModel.libraryPreferences.showLibraryItemOutline.get(),
+        )
         val snackbarHostState = remember { SnackbarHostState() }
 
         // Local reload from database - doesn't fetch from sources
@@ -282,6 +303,12 @@ data object NovelsTab : Tab {
                         getItemsForCategory = { state.getItemsForCategory(it) },
                         titleMaxLines = titleMaxLines,
                         showUrlInList = showUrlInList,
+                        showAuthorArtistSubtitle = showAuthorArtistSubtitle,
+                        freeformCoverGrid = freeformCoverGrid,
+                        freeformCoverGridStaggered = freeformCoverGridStaggered,
+                        uiStyle = uiStyle,
+                        chapterCounterOpacityPercent = chapterCounterOpacityPercent,
+                        showLibraryItemOutline = showLibraryItemOutline,
                         paginationEnabled = viewModel.paginationEnabled,
                         onCategoryFirstVisible = viewModel::onCategoryFirstVisible,
                         onLoadMore = viewModel::loadMoreForCategory,
