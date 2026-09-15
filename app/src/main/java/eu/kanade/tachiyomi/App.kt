@@ -18,6 +18,7 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.allowRgb565
@@ -57,6 +58,7 @@ import kotlinx.coroutines.flow.onEach
 import logcat.AndroidLogcatLogger
 import logcat.LogPriority
 import logcat.LogcatLogger
+import okio.Path.Companion.toOkioPath
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.migrations
 import org.conscrypt.Conscrypt
@@ -264,6 +266,13 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                 add(MangaCoverKeyer())
                 add(MangaKeyer())
             }
+
+            diskCache(
+                DiskCache.Builder()
+                    .directory(context.cacheDir.resolve("image_cache").toOkioPath())
+                    .maxSizePercent(0.02)
+                    .build(),
+            )
 
             memoryCache(
                 MemoryCache.Builder()
