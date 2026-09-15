@@ -769,7 +769,7 @@ class MangaViewModel(
                             eu.kanade.tachiyomi.source.model.SManga.create().apply {
                                 title = manga.title
                                 url = manga.url
-                                thumbnail_url = manga.thumbnail_url
+                                thumbnail_url = manga.thumbnailUrl
                             },
                         )
                     }.getOrNull().orEmpty()
