@@ -184,7 +184,10 @@ class MangaCoverFetcher(
         // this fetcher. Bypassing rate limiting here matches the same interactive-vs-background
         // reasoning as MangaScreenModel's fetches, just applied to a shared, screen-agnostic
         // fetcher instead of a single call site.
-        val host = sourceLazy.value?.baseUrl?.toHttpUrlOrNull()?.host
+        //
+        // Use the actual cover image URL host (not the source base URL) so the bypass applies
+        // to CDN/image-proxy hosts that actually serve the cover bytes.
+        val host = url?.toHttpUrlOrNull()?.host
         val response = InteractiveRateLimitBypass.bypassing(host) { client.newCall(newRequest()).await() }
         if (!response.isSuccessful && response.code != HTTP_NOT_MODIFIED) {
             response.close()
