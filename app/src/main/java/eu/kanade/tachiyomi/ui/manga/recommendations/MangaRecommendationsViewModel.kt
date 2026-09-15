@@ -146,7 +146,7 @@ class MangaRecommendationsViewModel(
                 val related = runCatching {
                     source.fetchRelatedMangaList(
                         eu.kanade.tachiyomi.source.model.SManga.create().apply {
-                            name = manga.title
+                            title = manga.title
                             url = manga.url
                             thumbnail_url = manga.thumbnail_url
                         },
