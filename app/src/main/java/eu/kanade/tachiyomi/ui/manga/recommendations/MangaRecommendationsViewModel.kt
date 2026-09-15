@@ -67,6 +67,7 @@ class MangaRecommendationsViewModel(
     private val trackerManager: TrackerManager = Injekt.get()
     private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations()
     private val translationPreferences: tachiyomi.domain.translation.service.TranslationPreferences = Injekt.get()
+    private val networkToLocalManga: tachiyomi.domain.manga.interactor.NetworkToLocalManga = Injekt.get()
 
     init { load() }
 
@@ -146,7 +147,7 @@ class MangaRecommendationsViewModel(
         }
             .filter { it.url != manga.url }
             .take(25)
-            .map { it.toDomainManga(sourceId = source.id, isNovel = manga.isNovel) }
+            .map { networkToLocalManga(it.toDomainManga(sourceId = source.id, isNovel = manga.isNovel)) }
     }
 
     private suspend fun loadAiCandidatePool(

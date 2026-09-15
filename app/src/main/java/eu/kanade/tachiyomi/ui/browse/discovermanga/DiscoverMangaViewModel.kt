@@ -14,6 +14,7 @@ import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.update
+import java.util.concurrent.ConcurrentHashMap
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
 import tachiyomi.core.common.util.lang.launchIO
@@ -65,7 +66,7 @@ class DiscoverMangaViewModel(
 ) : StateViewModel<DiscoverMangaScreenState>(DiscoverMangaScreenState()) {
 
     private data class SourcePageCursor(val nextPage: Int, val hasNextPage: Boolean)
-    private val pageCursors = mutableMapOf<Long, SourcePageCursor>()
+    private val pageCursors = ConcurrentHashMap<Long, SourcePageCursor>()
 
     init {
         loadDiscoverFeed()
@@ -190,9 +191,9 @@ class DiscoverMangaViewModel(
             mutableState.update { it.copy(isLoadingMore = true) }
             val mode = state.value.browseMode
 
-            val newLists = sources.map { source ->
+            val newLists = sources.mapNotNull { source ->
                 async {
-                    val cursor = pageCursors[source.id]!!
+                    val cursor = pageCursors[source.id] ?: return@async null
                     val page = runCatching { fetchPage(source, mode, cursor.nextPage) }.getOrNull()
                     pageCursors[source.id] = SourcePageCursor(
                         nextPage = cursor.nextPage + 1,
@@ -203,7 +204,7 @@ class DiscoverMangaViewModel(
                         DiscoverMangaEntry(source, localManga)
                     }
                 }
-            }.awaitAll()
+            }.awaitAll().filterNotNull()
             val appended = interleave(newLists)
 
             mutableState.update { it.copy(items = it.items + appended, isLoadingMore = false) }

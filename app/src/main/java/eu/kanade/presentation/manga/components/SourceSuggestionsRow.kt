@@ -111,7 +111,7 @@ fun SourceSuggestionsRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(suggestions, key = { "sug_${it.source}_${it.url.takeIf { !it.isNullOrEmpty() } ?: it.thumbnailUrl.takeIf { !it.isNullOrEmpty() } ?: it.id}" }) { manga ->
+            items(suggestions, key = { "${it.source}_${it.id}" }) { manga ->
                 Box(modifier = Modifier.width(110.dp)) {
                     MangaComfortableGridItem(
                         isSelected = false,
