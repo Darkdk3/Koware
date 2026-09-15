@@ -68,6 +68,7 @@ class MangaRecommendationsViewModel(
     private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations()
     private val translationPreferences: tachiyomi.domain.translation.service.TranslationPreferences = Injekt.get()
     private val networkToLocalManga: tachiyomi.domain.manga.interactor.NetworkToLocalManga = Injekt.get()
+    private val libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences = Injekt.get()
 
     init { load() }
 
@@ -135,16 +136,45 @@ class MangaRecommendationsViewModel(
 
     private suspend fun loadSourceSuggestions(source: CatalogueSource?, manga: Manga): List<Manga> {
         if (source == null) return emptyList()
-        return runCatching {
-            source.getSearchManga(
-                page = 1,
-                query = manga.title,
-                filters = eu.kanade.tachiyomi.source.model.FilterList(),
-            )?.mangas.orEmpty()
-        }.getOrElse {
-            logcat(LogPriority.ERROR, it) { "Failed to load source suggestions" }
-            emptyList()
+
+        val useSourceRelated = libraryPreferences.useSourceRelatedMangas.get()
+        val disableSearchFallback = libraryPreferences.disableRelatedMangasBySearch.get()
+
+        val results: List<eu.kanade.tachiyomi.source.model.SManga> = buildList {
+            // 1. Source provides its own related/recommended list
+            if (useSourceRelated && source.supportsRelatedMangas) {
+                val related = runCatching {
+                    source.fetchRelatedMangaList(
+                        eu.kanade.tachiyomi.source.model.SManga.create().apply {
+                            name = manga.title
+                            url = manga.url
+                            thumbnail_url = manga.thumbnail_url
+                        },
+                    )
+                }.getOrElse {
+                    logcat(LogPriority.ERROR, it) { "Failed to load source related mangas" }
+                    emptyList()
+                }
+                addAll(related)
+            }
+
+            // 2. If the source-website list was empty (or skipped), try smart-search
+            if (isEmpty() && !disableSearchFallback) {
+                val searched = runCatching {
+                    source.getSearchManga(
+                        page = 1,
+                        query = manga.title,
+                        filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                    )?.mangas.orEmpty()
+                }.getOrElse {
+                    logcat(LogPriority.ERROR, it) { "Failed to load source suggestions" }
+                    emptyList()
+                }
+                addAll(searched)
+            }
         }
+
+        return results
             .filter { it.url != manga.url }
             .take(25)
             .map { networkToLocalManga(it.toDomainManga(sourceId = source.id, isNovel = manga.isNovel)) }
