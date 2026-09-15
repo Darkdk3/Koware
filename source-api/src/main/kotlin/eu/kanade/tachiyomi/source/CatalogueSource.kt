@@ -100,4 +100,27 @@ interface CatalogueSource : Source {
      */
     @Deprecated("Use the suspend API instead", ReplaceWith("getLatestUpdates"))
     fun fetchLatestUpdates(page: Int): Observable<MangasPage> = throw UnsupportedOperationException()
+
+    /**
+     * Whether the source provides its own related/recommended manga data
+     * (e.g., "You May Also Like", "Related Series" from the source website).
+     *
+     * When true, [fetchRelatedMangaList] will be called to get results.
+     * When false, the app falls back to smart-search-based suggestions.
+     *
+     * @since Koware
+     */
+    val supportsRelatedMangas: Boolean get() = false
+
+    /**
+     * Fetch related/recommended manga for the given manga from the source website.
+     * Only called when [supportsRelatedMangas] is true.
+     *
+     * The default implementation throws; extensions that support this should override.
+     *
+     * @param manga the manga to get related titles for.
+     * @return a list of related manga, or empty if none found.
+     * @since Koware
+     */
+    suspend fun fetchRelatedMangaList(manga: SManga): List<SManga> = emptyList()
 }

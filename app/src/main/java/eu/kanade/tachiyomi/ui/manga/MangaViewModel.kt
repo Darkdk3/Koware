@@ -741,29 +741,62 @@ class MangaViewModel(
     }
 
     /**
-     * Fetches novels similar to this one from the same source, by searching using the
-     * current novel's title as the query - a real similarity search, not just "popular
-     * from this source". Each result is converted to a real local database entry as soon
-     * as it's fetched (same pattern BrowseSourceScreen already uses for listings), so the
-     * row can use the same MangaComfortableGridItem card as everywhere else in the app,
-     * and tapping a card doesn't need any async conversion step.
+     * Fetches related/recommended manga for the given manga.
+     *
+     * Strategy (mirrors Komikku's CatalogueSource.getRelatedMangaList):
+     * 1. If [LibraryPreferences.useSourceRelatedMangas] is on AND the source
+     *    declares [CatalogueSource.supportsRelatedMangas], call
+     *    [CatalogueSource.fetchRelatedMangaList] to get the source-website's own
+     *    "You May Also Like" / "Related Series" data directly.
+     * 2. If the source-website list is empty (or the pref is off), fall back to a
+     *    smart-search approach: search the source using the manga's title as query.
+     *    This fallback can be disabled via [LibraryPreferences.disableRelatedMangasBySearch].
+     *
+     * Each result is converted to a real local database entry so the row can reuse
+     * the same [MangaComfortableGridItem] card everywhere.
      */
     private fun loadSourceSuggestions(source: Source, manga: Manga) {
         viewModelScope.launchIO {
-            val results = runCatching {
-                (source as? CatalogueSource)?.getSearchManga(
-                    page = 1,
-                    query = manga.title,
-                    filters = eu.kanade.tachiyomi.source.model.FilterList(),
-                )?.mangas
-            }.getOrNull()
-                ?.filter { it.url != manga.url }
-                ?.take(10)
-                .orEmpty()
+            val catSource = source as? CatalogueSource
+            val useSourceRelated = libraryPreferences.useSourceRelatedMangas.get()
+            val disableSearchFallback = libraryPreferences.disableRelatedMangasBySearch.get()
 
-            val suggestions = results.map { sManga ->
-                networkToLocalManga(sManga.toDomainManga(sourceId = source.id, isNovel = true))
+            val results: List<eu.kanade.tachiyomi.source.model.SManga> = buildList {
+                // 1. Source provides its own related/recommended list
+                if (useSourceRelated && catSource != null && catSource.supportsRelatedMangas) {
+                    val related = runCatching {
+                        catSource.fetchRelatedMangaList(
+                            eu.kanade.tachiyomi.source.model.SManga.create().apply {
+                                title = manga.title
+                                url = manga.url
+                                thumbnail_url = manga.thumbnailUrl
+                            },
+                        )
+                    }.getOrNull().orEmpty()
+                    addAll(related)
+                }
+
+                // 2. If the source-website list was empty (or skipped), try smart-search
+                if (isEmpty() && !disableSearchFallback) {
+                    val searched = runCatching {
+                        catSource?.getSearchManga(
+                            page = 1,
+                            query = manga.title,
+                            filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                        )?.mangas
+                    }.getOrNull().orEmpty()
+                    addAll(searched)
+                }
             }
+
+            val suggestions = results
+                .filter { it.url != manga.url }
+                .take(10)
+                .map { sManga ->
+                    networkToLocalManga(
+                        sManga.toDomainManga(sourceId = source.id, isNovel = manga.isNovel),
+                    )
+                }
 
             updateSuccessState { it.copy(sourceSuggestions = suggestions) }
         }

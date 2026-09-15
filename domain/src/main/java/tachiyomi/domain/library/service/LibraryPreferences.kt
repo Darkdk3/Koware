@@ -446,6 +446,28 @@ class LibraryPreferences(
 
     val autoRefreshLibrary: Preference<Boolean> = preferenceStore.getBoolean("pref_auto_refresh_library", true)
 
+    // --- Related / recommended manga (Komikku-style source-website suggestions) ---
+
+    /**
+     * When true, the "More from this source" section first tries to fetch the source
+     * website's own related/recommended list via [CatalogueSource.fetchRelatedMangaList].
+     * When false, it always uses smart-search (title-based query on the same source).
+     */
+    val useSourceRelatedMangas: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_use_source_related_mangas",
+        true,
+    )
+
+    /**
+     * When true, disables the smart-search fallback for "More from this source".
+     * Only meaningful when [useSourceRelatedMangas] is true: if the source-website
+     * list is empty, nothing is shown instead of falling back to a title search.
+     */
+    val disableRelatedMangasBySearch: Preference<Boolean> = preferenceStore.getBoolean(
+        "pref_disable_related_mangas_by_search",
+        false,
+    )
+
     val swipeToStartAction: Preference<ChapterSwipeAction> = preferenceStore.getEnum(
         "pref_chapter_swipe_end_action",
         ChapterSwipeAction.ToggleBookmark,
