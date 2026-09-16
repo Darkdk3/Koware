@@ -11,15 +11,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DragHandle
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -32,8 +29,13 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
+import eu.kanade.presentation.components.AdaptiveSheet
+import eu.kanade.presentation.util.isTabletUi
+import tachiyomi.domain.library.service.LibraryPreferences
+import tachiyomi.presentation.core.util.LocalHazeState
+import tachiyomi.presentation.core.util.collectAsState
+import uy.kohesive.injekt.Injekt
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomBarEditorSheet(
     items: List<BottomBarItemState>,
@@ -44,18 +46,49 @@ fun BottomBarEditorSheet(
     itemInfo: @Composable (BottomBarItem) -> Pair<ImageVector, String>,
 ) {
     val mutableItems = remember(items) { items.toMutableStateList() }
+    val isTabletUi = isTabletUi()
+    val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+    val backgroundStyle by libraryPreferences.sheetBackgroundStyle.collectAsState()
+    val opacityPercent by libraryPreferences.sheetOpacityPercent.collectAsState()
+    val hazeState = LocalHazeState.current
+
+    val containerAlpha = when (backgroundStyle) {
+        LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
+        LibraryPreferences.NavBarBackgroundStyle.Transparent,
+        LibraryPreferences.NavBarBackgroundStyle.Frosted,
+        LibraryPreferences.NavBarBackgroundStyle.Grainy,
+        -> opacityPercent / 100f
+    }
+    val sheetHazeState = if (
+        backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
+        backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy
+    ) {
+        hazeState
+    } else {
+        null
+    }
+    val sheetNoiseFactor = if (backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy) {
+        0.65f
+    } else {
+        0f
+    }
 
     val lazyListState = rememberLazyListState()
     val reorderState = rememberReorderableLazyListState(lazyListState) { from, to ->
         mutableItems.add(to.index, mutableItems.removeAt(from.index))
     }
 
-    ModalBottomSheet(
+    AdaptiveSheet(
+        isTabletUi = isTabletUi,
+        enableImplicitDismiss = true,
         onDismissRequest = {
             onItemsChange(mutableItems.toList())
             onDismiss()
         },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerAlpha = containerAlpha,
+        hazeState = sheetHazeState,
+        noiseFactor = sheetNoiseFactor,
     ) {
         Text(
             text = "Customize Toolbar",

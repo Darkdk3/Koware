@@ -151,10 +151,12 @@ fun NovelReaderAppBars(
     onTtsPreviousParagraph: () -> Unit = {},
     onTtsNextParagraph: () -> Unit = {},
 
-    isEditing: Boolean = false,
-    onToggleEdit: () -> Unit = {},
-    isWebView: Boolean = true,
-    onQuotes: () -> Unit,
+     isEditing: Boolean = false,
+     onToggleEdit: () -> Unit = {},
+     isWebView: Boolean = true,
+     onQuotes: () -> Unit,
+     onClickChapterList: () -> Unit = {},
+     onClickWebView: () -> Unit = {},
 
     // Toolbar customization
     bottomBarItems: List<BottomBarItemState>,
@@ -646,6 +648,30 @@ private fun NovelReaderBottomBar(
                             )
                         }
                     }
+
+                    // Chapter list
+                    BottomBarItem.CHAPTER_LIST -> IconButton(
+                        onClick = onClickChapterList,
+                        modifier = Modifier.size(buttonSize),
+                    ) {
+                        Icon(
+                            Icons.Outlined.Visibility,
+                            contentDescription = stringResource(MR.strings.action_chapters),
+                            modifier = Modifier.size(iconSize),
+                        )
+                    }
+
+                    // Web view
+                    BottomBarItem.WEB_VIEW -> IconButton(
+                        onClick = onClickWebView,
+                        modifier = Modifier.size(buttonSize),
+                    ) {
+                        Icon(
+                            Icons.Outlined.OpenInBrowser,
+                            contentDescription = stringResource(MR.strings.action_open_in_web_view),
+                            modifier = Modifier.size(iconSize),
+                        )
+                    }
                 }
             }
         }
@@ -727,6 +753,8 @@ internal fun bottomBarItemInfo(
     BottomBarItem.ORIENTATION -> orientation.icon to stringResource(MR.strings.rotation_type)
     BottomBarItem.SETTINGS -> Icons.Outlined.Settings to stringResource(MR.strings.action_settings)
     BottomBarItem.EDIT -> Icons.Outlined.Edit to stringResource(MR.strings.action_edit)
+    BottomBarItem.CHAPTER_LIST -> Icons.Outlined.Visibility to stringResource(MR.strings.action_chapters)
+    BottomBarItem.WEB_VIEW -> Icons.Outlined.OpenInBrowser to stringResource(MR.strings.action_open_in_web_view)
 }
 
 @Composable

@@ -291,6 +291,8 @@ class ReaderViewModel @JvmOverloads constructor(
             .map(::ReaderChapter)
     }
 
+    val allChapters: List<ReaderChapter> get() = chapterList
+
     private val pendingTranslationAheadChapterIds = mutableSetOf<Long>()
 
     private val incognitoMode: Boolean by lazy { getIncognitoState.await(manga?.source) }
@@ -1426,6 +1428,10 @@ class ReaderViewModel @JvmOverloads constructor(
         mutableState.update { it.copy(dialog = Dialog.TranslationLanguageSelect) }
     }
 
+    fun toggleChapterList() {
+        mutableState.update { it.copy(isChapterListVisible = !it.isChapterListVisible, dialog = null) }
+    }
+
     fun closeDialog() {
         mutableState.update { it.copy(dialog = null) }
     }
@@ -1624,6 +1630,11 @@ class ReaderViewModel @JvmOverloads constructor(
          * Whether translation is enabled for the current chapter.
          */
         val isTranslating: Boolean = false,
+
+        /**
+         * Whether the chapter list overlay is visible.
+         */
+        val isChapterListVisible: Boolean = false,
 
         /**
          * Viewer used to display the pages (pager, webtoon, ...).

@@ -17,6 +17,8 @@ enum class BottomBarItem(val id: String) {
     SETTINGS("settings"),
     EDIT("edit"),
     QUOTES("quotes"),
+    CHAPTER_LIST("chapter_list"),
+    WEB_VIEW("web_view"),
 }
 
 data class BottomBarItemState(
@@ -36,6 +38,8 @@ val DefaultBottomBarItems = listOf(
     BottomBarItemState(BottomBarItem.QUOTES, defaultEnabled = true),
     BottomBarItemState(BottomBarItem.ORIENTATION, defaultEnabled = false),
     BottomBarItemState(BottomBarItem.SETTINGS, defaultEnabled = true),
+    BottomBarItemState(BottomBarItem.CHAPTER_LIST, defaultEnabled = false),
+    BottomBarItemState(BottomBarItem.WEB_VIEW, defaultEnabled = false),
     BottomBarItemState(BottomBarItem.EDIT, defaultEnabled = false),
     BottomBarItemState(BottomBarItem.NEXT_CHAPTER, defaultEnabled = true),
 )

@@ -81,6 +81,7 @@ import eu.kanade.presentation.reader.appbars.QuotesSheet
 import eu.kanade.presentation.reader.appbars.ReaderAppBars
 import eu.kanade.presentation.reader.appbars.bottomBarItemInfo
 import eu.kanade.presentation.reader.components.ChapterNavigatorType
+import eu.kanade.presentation.reader.components.ReaderChapterList
 import eu.kanade.presentation.reader.deserializeStatusBarOrder
 import eu.kanade.presentation.reader.settings.ReaderSettingsDialog
 import eu.kanade.presentation.util.formatChapterNumber
@@ -568,6 +569,20 @@ class ReaderActivity : BaseActivity() {
                         .then(if (statusBarAtBottom) Modifier else Modifier.statusBarsPadding()),
                 )
             }
+
+            if (state.isChapterListVisible) {
+                ReaderChapterList(
+                    manga = state.manga,
+                    chapters = viewModel.allChapters,
+                    currentChapter = state.currentChapter,
+                    onDismiss = viewModel::toggleChapterList,
+                    onChapterClick = { readerChapter ->
+                        loadChapter(readerChapter.chapter)
+                        viewModel.toggleChapterList()
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         val onDismissRequest = viewModel::closeDialog
@@ -664,6 +679,11 @@ class ReaderActivity : BaseActivity() {
         // Handle back button when quotes sheet is open
         androidx.activity.compose.BackHandler(enabled = showQuotesSheet) {
             showQuotesSheet = false
+        }
+
+        // Handle back button when chapter list is open
+        androidx.activity.compose.BackHandler(enabled = state.isChapterListVisible) {
+            viewModel.toggleChapterList()
         }
 
         if (showQuotesState.value) {
@@ -1264,13 +1284,15 @@ class ReaderActivity : BaseActivity() {
                     }
                 },
 
-                isWebView = state.viewer is NovelWebViewViewer,
-                bottomBarItems = bottomBarItems,
-                onQuotes = ::onQuotesClicked,
-                ttsOverlayBottomPadding = ttsOverlayBottomPadding,
-                onTopBarHeight = onTopBarHeight,
-                onBottomBarHeight = onBottomBarHeight,
-            )
+                 isWebView = state.viewer is NovelWebViewViewer,
+                 bottomBarItems = bottomBarItems,
+                 onQuotes = ::onQuotesClicked,
+                 onClickChapterList = viewModel::toggleChapterList,
+                 onClickWebView = ::openChapterInWebView,
+                 ttsOverlayBottomPadding = ttsOverlayBottomPadding,
+                 onTopBarHeight = onTopBarHeight,
+                 onBottomBarHeight = onBottomBarHeight,
+             )
 
             androidx.activity.compose.BackHandler(enabled = isEditing && state.hasUnsavedChanges) {
                 showEditSaveDialog = true
@@ -1409,6 +1431,8 @@ class ReaderActivity : BaseActivity() {
                     menuToggleToast = toast(if (enabled) MR.strings.on else MR.strings.off)
                 },
                 onClickSettings = viewModel::openSettingsDialog,
+                onClickChapterList = viewModel::toggleChapterList,
+                onClickWebView = ::openChapterInWebView,
             )
         }
     }
