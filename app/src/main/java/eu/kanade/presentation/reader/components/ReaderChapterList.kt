@@ -65,7 +65,7 @@ fun ReaderChapterList(
             ) {
                 items(
                     items = chapters ?: emptyList(),
-                    key = { chapter -> chapter.chapter.url + chapter.chapter.sourceId },
+                    key = { chapter -> chapter.chapter.url + chapter.chapter.mangaId },
                 ) { readerChapter ->
                     val isCurrent = readerChapter == currentChapter
                     Surface(

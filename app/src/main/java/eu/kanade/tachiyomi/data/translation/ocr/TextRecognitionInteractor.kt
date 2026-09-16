@@ -6,10 +6,10 @@ import android.graphics.RectF
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizerOptions
 import com.google.mlkit.vision.text.chinese.TextRecognizerOptions as ChineseOptions
 import com.google.mlkit.vision.text.japanese.TextRecognizerOptions as JapaneseOptions
 import com.google.mlkit.vision.text.korean.TextRecognizerOptions as KoreanOptions
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -33,7 +33,7 @@ class TextRecognitionInteractor(private val context: Context) {
     suspend fun recognize(bitmap: Bitmap): List<DetectedBlock> = withContext(Dispatchers.IO) {
         val inputImage = InputImage.fromBitmap(bitmap, 0)
         val results = coroutineScope {
-            val latinDeferred = async { recognizeWith(inputImage, TextRecognizerOptions.Builder().build()) }
+            val latinDeferred = async { recognizeWith(inputImage, TextRecognizerOptions.DEFAULT_OPTIONS) }
             val japaneseDeferred = async { recognizeWith(inputImage, JapaneseOptions.Builder().build()) }
             val chineseDeferred = async { recognizeWith(inputImage, ChineseOptions.Builder().build()) }
             val koreanDeferred = async { recognizeWith(inputImage, KoreanOptions.Builder().build()) }

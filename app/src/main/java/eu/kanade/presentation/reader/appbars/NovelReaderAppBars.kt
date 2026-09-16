@@ -660,7 +660,7 @@ private fun NovelReaderBottomBar(
                     ) {
                         Icon(
                             Icons.Outlined.Visibility,
-                            contentDescription = stringResource("Chapters"),
+                            contentDescription = stringResource(MR.strings.chapters),
                             modifier = Modifier.size(iconSize),
                         )
                     }
@@ -671,7 +671,7 @@ private fun NovelReaderBottomBar(
                         modifier = Modifier.size(buttonSize),
                     ) {
                         Icon(
-                            Icons.Outlined.Public,
+                            Icons.Outlined.Web,
                             contentDescription = stringResource(MR.strings.action_open_in_web_view),
                             modifier = Modifier.size(iconSize),
                         )
@@ -757,8 +757,8 @@ internal fun bottomBarItemInfo(
     BottomBarItem.ORIENTATION -> orientation.icon to stringResource(MR.strings.rotation_type)
     BottomBarItem.SETTINGS -> Icons.Outlined.Settings to stringResource(MR.strings.action_settings)
     BottomBarItem.EDIT -> Icons.Outlined.Edit to stringResource(MR.strings.action_edit)
-    BottomBarItem.CHAPTER_LIST -> Icons.Outlined.Visibility to stringResource("Chapters")
-    BottomBarItem.WEB_VIEW -> Icons.Outlined.Public to stringResource(MR.strings.action_open_in_web_view)
+    BottomBarItem.CHAPTER_LIST -> Icons.Outlined.Visibility to stringResource(MR.strings.chapters)
+    BottomBarItem.WEB_VIEW -> Icons.Outlined.Web to stringResource(MR.strings.action_open_in_web_view)
 }
 
 @Composable
