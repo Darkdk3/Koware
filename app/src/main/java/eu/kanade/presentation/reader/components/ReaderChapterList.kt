@@ -65,7 +65,7 @@ fun ReaderChapterList(
             ) {
                 items(
                     items = chapters ?: emptyList(),
-                    key = { chapter -> chapter.chapter.id },
+                    key = { chapter -> chapter.chapter.id ?: 0L },
                 ) { readerChapter ->
                     val isCurrent = readerChapter == currentChapter
                     Surface(
