@@ -35,6 +35,7 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.presentation.core.util.LocalHazeState
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 @Composable
 fun BottomBarEditorSheet(

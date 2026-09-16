@@ -312,6 +312,8 @@ fun NovelReaderAppBars(
                         isWebView = isWebView,
                         onToggleEdit = onToggleEdit,
                         onQuotes = onQuotes,
+                        onClickChapterList = onClickChapterList,
+                        onClickWebView = onClickWebView,
                     )
                 }
             }
@@ -656,7 +658,7 @@ private fun NovelReaderBottomBar(
                     ) {
                         Icon(
                             Icons.Outlined.Visibility,
-                            contentDescription = stringResource(MR.strings.action_chapters),
+                            contentDescription = stringResource("Chapters"),
                             modifier = Modifier.size(iconSize),
                         )
                     }
@@ -667,7 +669,7 @@ private fun NovelReaderBottomBar(
                         modifier = Modifier.size(buttonSize),
                     ) {
                         Icon(
-                            Icons.Outlined.OpenInBrowser,
+                            Icons.Outlined.Language,
                             contentDescription = stringResource(MR.strings.action_open_in_web_view),
                             modifier = Modifier.size(iconSize),
                         )
@@ -753,8 +755,8 @@ internal fun bottomBarItemInfo(
     BottomBarItem.ORIENTATION -> orientation.icon to stringResource(MR.strings.rotation_type)
     BottomBarItem.SETTINGS -> Icons.Outlined.Settings to stringResource(MR.strings.action_settings)
     BottomBarItem.EDIT -> Icons.Outlined.Edit to stringResource(MR.strings.action_edit)
-    BottomBarItem.CHAPTER_LIST -> Icons.Outlined.Visibility to stringResource(MR.strings.action_chapters)
-    BottomBarItem.WEB_VIEW -> Icons.Outlined.OpenInBrowser to stringResource(MR.strings.action_open_in_web_view)
+    BottomBarItem.CHAPTER_LIST -> Icons.Outlined.Visibility to stringResource("Chapters")
+    BottomBarItem.WEB_VIEW -> Icons.Outlined.Language to stringResource(MR.strings.action_open_in_web_view)
 }
 
 @Composable

@@ -48,7 +48,7 @@ fun ReaderChapterList(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(MR.strings.action_chapters),
+                    text = stringResource("Chapters"),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
