@@ -257,12 +257,6 @@ dependencies {
     // RxJava
     implementation(libs.rxJava)
 
-    // ML Kit
-    implementation(libs.mlkit.text)
-    implementation(libs.mlkit.text.chinese)
-    implementation(libs.mlkit.text.japanese)
-    implementation(libs.mlkit.text.korean)
-
     // Networking
     implementation(libs.bundles.okhttp)
     implementation(libs.okio)

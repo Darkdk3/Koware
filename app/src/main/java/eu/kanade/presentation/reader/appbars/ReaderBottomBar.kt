@@ -68,7 +68,7 @@ fun ReaderBottomBar(
 
         IconButton(onClick = onClickWebView) {
             Icon(
-                imageVector = Icons.Outlined.Web,
+                imageVector = Icons.Outlined.Language,
                 contentDescription = stringResource(MR.strings.action_open_in_web_view),
             )
         }

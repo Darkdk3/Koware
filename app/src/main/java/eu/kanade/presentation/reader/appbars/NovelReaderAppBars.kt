@@ -671,7 +671,7 @@ private fun NovelReaderBottomBar(
                         modifier = Modifier.size(buttonSize),
                     ) {
                         Icon(
-                            Icons.Outlined.Web,
+                            Icons.Outlined.Language,
                             contentDescription = stringResource(MR.strings.action_open_in_web_view),
                             modifier = Modifier.size(iconSize),
                         )
@@ -758,7 +758,7 @@ internal fun bottomBarItemInfo(
     BottomBarItem.SETTINGS -> Icons.Outlined.Settings to stringResource(MR.strings.action_settings)
     BottomBarItem.EDIT -> Icons.Outlined.Edit to stringResource(MR.strings.action_edit)
     BottomBarItem.CHAPTER_LIST -> Icons.Outlined.Visibility to stringResource(MR.strings.chapters)
-    BottomBarItem.WEB_VIEW -> Icons.Outlined.Web to stringResource(MR.strings.action_open_in_web_view)
+    BottomBarItem.WEB_VIEW -> Icons.Outlined.Language to stringResource(MR.strings.action_open_in_web_view)
 }
 
 @Composable

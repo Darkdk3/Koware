@@ -35,7 +35,6 @@ composeWebview = "0.33.6"
 conscrypt = "2.6.1"
 directionalViewPager = "1.0.0"
 diskLruCache = "2.0.2"
-mlkitText = "16.0.1"
 firebase-bom = "34.17.0"
 firebase-crashlytics = "3.0.7"
 google-services = "4.5.0"
@@ -135,10 +134,6 @@ directionalViewPager = { module = "com.github.tachiyomiorg:DirectionalViewPager"
 diskLruCache = { module = "com.jakewharton:disklrucache", version.ref = "diskLruCache" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
-mlkit-text = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }
-mlkit-text-chinese = { module = "com.google.mlkit:text-recognition-chinese", version.ref = "mlkitText" }
-mlkit-text-japanese = { module = "com.google.mlkit:text-recognition-japanese", version.ref = "mlkitText" }
-mlkit-text-korean = { module = "com.google.mlkit:text-recognition-korean", version.ref = "mlkitText" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
 haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 image-decoder = { module = "com.github.mihonapp:image-decoder", version.ref = "image-decoder" }
