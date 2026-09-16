@@ -78,7 +78,7 @@ fun ReaderChapterList(
                         color = if (isCurrent) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
-                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surface
                         },
                         shape = MaterialTheme.shapes.small,
                     ) {
