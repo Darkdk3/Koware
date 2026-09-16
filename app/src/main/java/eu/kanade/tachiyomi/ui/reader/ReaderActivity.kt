@@ -576,8 +576,7 @@ class ReaderActivity : BaseActivity() {
                     chapters = viewModel.allChapters,
                     currentChapter = state.currentChapter,
                     onDismiss = viewModel::toggleChapterList,
-                    onChapterClick = { readerChapter ->
-                        loadChapter(readerChapter.chapter)
+                    onChapterClick = {
                         viewModel.toggleChapterList()
                     },
                     modifier = Modifier.fillMaxSize(),

@@ -1,6 +1,5 @@
 package eu.kanade.presentation.reader.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,12 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
-import tachiyomi.i18n.MR
-import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.domain.manga.model.Manga
+import tachiyomi.presentation.core.components.material.padding
 
 @Composable
 fun ReaderChapterList(
@@ -48,14 +45,14 @@ fun ReaderChapterList(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource("Chapters"),
+                    text = "Chapters",
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 IconButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = stringResource(MR.strings.action_close),
+                        contentDescription = "Close",
                         tint = MaterialTheme.colorScheme.onBackground,
                     )
                 }
@@ -69,8 +66,8 @@ fun ReaderChapterList(
                 items(
                     items = chapters ?: emptyList(),
                     key = { chapter -> chapter.chapter.url + chapter.chapter.sourceId },
-                ) { chapter ->
-                    val isCurrent = chapter == currentChapter
+                ) { readerChapter ->
+                    val isCurrent = readerChapter == currentChapter
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -82,15 +79,15 @@ fun ReaderChapterList(
                         },
                         shape = MaterialTheme.shapes.small,
                     ) {
-                        androidx.compose.material3.IconButton(
-                            onClick = { onChapterClick(chapter) },
+                        IconButton(
+                            onClick = { onChapterClick(readerChapter) },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text(
-                                    text = chapter.chapter.name ?: stringResource(MR.strings.unknown),
+                                    text = readerChapter.chapter.name ?: "Unknown",
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onBackground,
                                     modifier = Modifier.weight(1f),

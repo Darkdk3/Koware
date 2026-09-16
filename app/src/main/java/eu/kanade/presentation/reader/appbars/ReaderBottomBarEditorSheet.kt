@@ -1,6 +1,8 @@
 package eu.kanade.presentation.reader.appbars
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,8 +44,6 @@ fun BottomBarEditorSheet(
     items: List<BottomBarItemState>,
     onItemsChange: (List<BottomBarItemState>) -> Unit,
     onDismiss: () -> Unit,
-    // Pass in a lambda to resolve display info per item (icon + label)
-    // so this composable stays generic and free of reader-specific context
     itemInfo: @Composable (BottomBarItem) -> Pair<ImageVector, String>,
 ) {
     val mutableItems = remember(items) { items.toMutableStateList() }
@@ -91,62 +91,63 @@ fun BottomBarEditorSheet(
         hazeState = sheetHazeState,
         noiseFactor = sheetNoiseFactor,
     ) {
-        Text(
-            text = "Customize Toolbar",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
+        Column {
+            Text(
+                text = "Customize Toolbar",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
 
-        LazyColumn(
-            state = lazyListState,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            items(mutableItems, key = { it.item.id }) { itemState ->
-                ReorderableItem(reorderState, key = itemState.item.id) { isDragging ->
-                    val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp)
-                    val (icon, label) = itemInfo(itemState.item)
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                items(mutableItems, key = { it.item.id }) { itemState ->
+                    ReorderableItem(reorderState, key = itemState.item.id) { isDragging ->
+                        val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp)
+                        val (icon, label) = itemInfo(itemState.item)
 
-                    Surface(shadowElevation = elevation) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.DragHandle,
-                                contentDescription = "Drag to reorder",
+                        Surface(shadowElevation = elevation) {
+                            Row(
                                 modifier = Modifier
-                                    .draggableHandle()
-                                    .padding(end = 12.dp),
-                            )
-                            Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 12.dp))
-                            Text(label, modifier = Modifier.weight(1f))
-                            Switch(
-                                checked = itemState.enabled,
-                                onCheckedChange = { checked ->
-                                    val idx = mutableItems.indexOf(itemState)
-                                    if (idx != -1) mutableItems[idx] = itemState.copy(enabled = checked)
-                                },
-                            )
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.DragHandle,
+                                    contentDescription = "Drag to reorder",
+                                    modifier = Modifier
+                                        .draggableHandle()
+                                        .padding(end = 12.dp),
+                                )
+                                Icon(icon, contentDescription = null, modifier = Modifier.padding(end = 12.dp))
+                                Text(label, modifier = Modifier.weight(1f))
+                                Switch(
+                                    checked = itemState.enabled,
+                                    onCheckedChange = { checked ->
+                                        val idx = mutableItems.indexOf(itemState)
+                                        if (idx != -1) mutableItems[idx] = itemState.copy(enabled = checked)
+                                    },
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        TextButton(
-            onClick = {
-                mutableItems.clear()
-                mutableItems.addAll(DefaultBottomBarItems.map { it.copy(enabled = it.defaultEnabled) })
-            },
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(bottom = 8.dp),
-        ) {
-            Text(stringResource(MR.strings.label_default))
-        }
+            TextButton(
+                onClick = {
+                    mutableItems.clear()
+                    mutableItems.addAll(DefaultBottomBarItems.map { it.copy(enabled = it.defaultEnabled) })
+                },
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Text(stringResource(MR.strings.label_default))
+            }
 
-        Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
+        }
     }
 }
