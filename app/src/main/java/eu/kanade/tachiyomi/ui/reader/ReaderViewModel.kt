@@ -1436,7 +1436,7 @@ class ReaderViewModel @JvmOverloads constructor(
         mutableState.update { it.copy(dialog = null) }
     }
 
-    private val textRecognitionInteractor = eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor()
+    private val textRecognitionInteractor by lazy { eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor() }
 
     /**
      * Toggles the live OCR translation overlay.

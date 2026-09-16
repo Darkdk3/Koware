@@ -3,9 +3,9 @@ package eu.kanade.tachiyomi.data.translation.ocr
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.Text as MLText
+import com.google.mlkit.vision.text.TextRecognition as MLTextRecognition
+import com.google.mlkit.vision.text.TextRecognizer as MLTextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
@@ -16,14 +16,14 @@ import kotlinx.coroutines.tasks.await
 
 class TextRecognitionInteractor {
 
-    private val latinRecognizer: TextRecognizer =
-        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    private val japaneseRecognizer: TextRecognizer =
-        TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
-    private val chineseRecognizer: TextRecognizer =
-        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-    private val koreanRecognizer: TextRecognizer =
-        TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+    private val latinRecognizer: MLTextRecognizer =
+        MLTextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private val japaneseRecognizer: MLTextRecognizer =
+        MLTextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
+    private val chineseRecognizer: MLTextRecognizer =
+        MLTextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    private val koreanRecognizer: MLTextRecognizer =
+        MLTextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
 
     private val recognitionCache = java.util.Collections.synchronizedMap(
         object : LinkedHashMap<Int, List<TextRecognitionResult>>(30, 0.75f, true) {
@@ -47,37 +47,37 @@ class TextRecognitionInteractor {
             try {
                 latinRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList<Text.TextBlock>()
+                emptyList<MLText.TextBlock>()
             }
         }
         val japaneseJob = async {
             try {
                 japaneseRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList<Text.TextBlock>()
+                emptyList<MLText.TextBlock>()
             }
         }
         val chineseJob = async {
             try {
                 chineseRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList<Text.TextBlock>()
+                emptyList<MLText.TextBlock>()
             }
         }
         val koreanJob = async {
             try {
                 koreanRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList<Text.TextBlock>()
+                emptyList<MLText.TextBlock>()
             }
         }
 
-        val allBlocks: List<Text.TextBlock> = latinJob.await() +
+        val allBlocks: List<MLText.TextBlock> = latinJob.await() +
             japaneseJob.await() +
             chineseJob.await() +
             koreanJob.await()
 
-        val uniqueBlocks = mutableListOf<Text.TextBlock>()
+        val uniqueBlocks = mutableListOf<MLText.TextBlock>()
         for (block in allBlocks) {
             var isDuplicate = false
             var duplicateIndexToReplace = -1
