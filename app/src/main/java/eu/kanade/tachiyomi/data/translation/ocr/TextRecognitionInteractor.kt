@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.data.translation.ocr
 import android.graphics.Bitmap
 import android.graphics.Rect
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
@@ -46,43 +47,45 @@ class TextRecognitionInteractor {
             try {
                 latinRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList()
+                emptyList<Text.TextBlock>()
             }
         }
         val japaneseJob = async {
             try {
                 japaneseRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList()
+                emptyList<Text.TextBlock>()
             }
         }
         val chineseJob = async {
             try {
                 chineseRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList()
+                emptyList<Text.TextBlock>()
             }
         }
         val koreanJob = async {
             try {
                 koreanRecognizer.process(image).await().textBlocks
             } catch (_: Exception) {
-                emptyList()
+                emptyList<Text.TextBlock>()
             }
         }
 
-        val allBlocks = latinJob.await() + japaneseJob.await() + chineseJob.await() + koreanJob.await()
+        val allBlocks: List<Text.TextBlock> = latinJob.await() +
+            japaneseJob.await() +
+            chineseJob.await() +
+            koreanJob.await()
 
-        // Deduplicate overlapping text blocks, keeping the longer text
-        val uniqueBlocks = mutableListOf<com.google.mlkit.vision.text.Text.TextBlock>()
+        val uniqueBlocks = mutableListOf<Text.TextBlock>()
         for (block in allBlocks) {
             var isDuplicate = false
             var duplicateIndexToReplace = -1
 
             for (idx in uniqueBlocks.indices) {
                 val existing = uniqueBlocks[idx]
-                val existingBox = existing.boundingBox
-                val newBox = block.boundingBox
+                val existingBox: Rect? = existing.boundingBox
+                val newBox: Rect? = block.boundingBox
                 if (existingBox != null && newBox != null) {
                     val intersectionLeft = maxOf(existingBox.left, newBox.left)
                     val intersectionTop = maxOf(existingBox.top, newBox.top)
@@ -121,7 +124,6 @@ class TextRecognitionInteractor {
             }
         }
 
-        // Merge nearby text blocks belonging to the same bubble
         val mergedResults = mutableListOf<TextRecognitionResult>()
         val visited = BooleanArray(uniqueBlocks.size)
 
@@ -129,8 +131,7 @@ class TextRecognitionInteractor {
             if (visited[i]) continue
             visited[i] = true
             val currentBlock = uniqueBlocks[i]
-            var currentText = currentBlock.text
-            val currentBox = currentBlock.boundingBox?.let { Rect(it) } ?: Rect(0, 0, 0, 0)
+            val currentBox: Rect = currentBlock.boundingBox?.let { Rect(it) } ?: Rect(0, 0, 0, 0)
             val cluster = mutableListOf(i)
 
             var expanded = true
@@ -139,7 +140,7 @@ class TextRecognitionInteractor {
                 for (j in uniqueBlocks.indices) {
                     if (visited[j]) continue
                     val targetBlock = uniqueBlocks[j]
-                    val targetBox = targetBlock.boundingBox ?: continue
+                    val targetBox: Rect = targetBlock.boundingBox ?: continue
 
                     val horizontalDist = maxOf(
                         0,
@@ -169,16 +170,13 @@ class TextRecognitionInteractor {
                 }
             }
 
-            // Sort cluster items logically based on layout direction
             val sortedClusterIndices = cluster.sortedWith { idx1, idx2 ->
-                val box1 = uniqueBlocks[idx1].boundingBox ?: Rect()
-                val box2 = uniqueBlocks[idx2].boundingBox ?: Rect()
+                val box1: Rect = uniqueBlocks[idx1].boundingBox ?: Rect()
+                val box2: Rect = uniqueBlocks[idx2].boundingBox ?: Rect()
                 if (currentBox.height() > currentBox.width()) {
-                    // Vertical text: right-to-left, then top-to-bottom
                     val xCompare = box2.left.compareTo(box1.left)
                     if (xCompare != 0) xCompare else box1.top.compareTo(box2.top)
                 } else {
-                    // Horizontal text: left-to-right, then top-to-bottom
                     val yCompare = box1.top.compareTo(box2.top)
                     if (yCompare != 0) yCompare else box1.left.compareTo(box2.left)
                 }
