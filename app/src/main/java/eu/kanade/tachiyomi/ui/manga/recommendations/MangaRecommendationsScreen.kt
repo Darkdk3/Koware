@@ -130,7 +130,7 @@ private fun RecommendationsContent(
 
         // AI picks for this novel
         item { Spacer(Modifier.height(8.dp)) }
-        item { AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage) }
+            item { AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage, onMangaClick) }
 
         // Tracker recommendations — only when a non-Notion tracker is linked
         if (state.trackedOn.isNotEmpty()) {
@@ -240,6 +240,7 @@ private fun AiPicksSection(
     picks: List<Manga>,
     scores: List<Int?>,
     message: String?,
+    onMangaClick: (Manga) -> Unit,
 ) {
     Column(Modifier.padding(vertical = 4.dp)) {
         Row(
@@ -290,7 +291,7 @@ private fun AiPicksSection(
                                 coverBadgeStart = {},
                                 coverBadgeEnd = {},
                                 onLongClick = {},
-                                onClick = {},
+                                onClick = { onMangaClick(manga) },
                                 onClickContinueReading = null,
                                 titleMaxLines = 2,
                             )
