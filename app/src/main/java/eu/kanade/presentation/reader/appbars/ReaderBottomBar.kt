@@ -3,9 +3,9 @@ package eu.kanade.presentation.reader.appbars
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.OpenInBrowser
+import androidx.compose.material.icons.outlined.FormatListNumbered
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -61,14 +61,14 @@ fun ReaderBottomBar(
 
         IconButton(onClick = onClickChapterList) {
             Icon(
-                imageVector = Icons.Outlined.Visibility,
+                imageVector = Icons.Outlined.FormatListNumbered,
                 contentDescription = stringResource(MR.strings.chapters),
             )
         }
 
         IconButton(onClick = onClickWebView) {
             Icon(
-                imageVector = Icons.Outlined.Visibility,
+                imageVector = Icons.Outlined.Public,
                 contentDescription = stringResource(MR.strings.action_open_in_web_view),
             )
         }

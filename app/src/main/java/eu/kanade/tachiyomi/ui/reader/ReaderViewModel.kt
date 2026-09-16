@@ -1436,6 +1436,47 @@ class ReaderViewModel @JvmOverloads constructor(
         mutableState.update { it.copy(dialog = null) }
     }
 
+    private val textRecognitionInteractor = eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor()
+
+    /**
+     * Toggles the live OCR translation overlay.
+     * When activated, the current page bitmap is processed through ML Kit text recognition,
+     * and recognized text regions are displayed as overlays.
+     */
+    fun toggleLiveTranslation() {
+        val newState = !state.value.isLiveTranslationActive
+        mutableState.update {
+            it.copy(
+                isLiveTranslationActive = newState,
+                ocrResults = if (!newState) emptyList() else it.ocrResults,
+                translatedOcrResults = if (!newState) emptyList() else it.translatedOcrResults,
+            )
+        }
+    }
+
+    /**
+     * Processes a page bitmap through OCR and updates the state with results.
+     */
+    suspend fun processPageForOcr(bitmap: android.graphics.Bitmap) {
+        if (!state.value.isLiveTranslationActive) return
+        mutableState.update { it.copy(isOcrProcessing = true) }
+        try {
+            val results = textRecognitionInteractor.recognizeText(bitmap)
+            mutableState.update {
+                it.copy(
+                    ocrResults = results,
+                    translatedOcrResults = results.map { r -> r.text },
+                    isOcrProcessing = false,
+                    ocrImageWidth = bitmap.width,
+                    ocrImageHeight = bitmap.height,
+                )
+            }
+        } catch (e: Exception) {
+            logcat(LogPriority.ERROR, e) { "OCR processing failed" }
+            mutableState.update { it.copy(isOcrProcessing = false) }
+        }
+    }
+
     fun setBrightnessOverlayValue(value: Int) {
         mutableState.update { it.copy(brightnessOverlayValue = value) }
     }
@@ -1635,6 +1676,32 @@ class ReaderViewModel @JvmOverloads constructor(
          * Whether the chapter list overlay is visible.
          */
         val isChapterListVisible: Boolean = false,
+
+        /**
+         * Whether OCR-based live translation overlay is active.
+         */
+        val isLiveTranslationActive: Boolean = false,
+
+        /**
+         * OCR results for the current page when live translation is active.
+         */
+        val ocrResults: List<eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor.TextRecognitionResult> = emptyList(),
+
+        /**
+         * Translated text for each OCR result (same index as ocrResults).
+         */
+        val translatedOcrResults: List<String> = emptyList(),
+
+        /**
+         * Whether OCR is currently processing.
+         */
+        val isOcrProcessing: Boolean = false,
+
+        /**
+         * Dimensions of the bitmap that was OCR'd (for bounding box scaling).
+         */
+        val ocrImageWidth: Int = 0,
+        val ocrImageHeight: Int = 0,
 
         /**
          * Viewer used to display the pages (pager, webtoon, ...).

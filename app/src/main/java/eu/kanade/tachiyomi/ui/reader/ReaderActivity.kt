@@ -69,6 +69,7 @@ import eu.kanade.presentation.reader.EstimatedStatusBarHeight
 import eu.kanade.presentation.manga.rememberCoverSeedColor
 import eu.kanade.presentation.reader.NovelStatusBar
 import eu.kanade.presentation.reader.OrientationSelectDialog
+import eu.kanade.presentation.reader.OcrTranslationOverlay
 import eu.kanade.presentation.reader.ReaderContentOverlay
 import eu.kanade.presentation.reader.ReaderPageActionsDialog
 import eu.kanade.presentation.reader.ReaderPageIndicator
@@ -506,6 +507,17 @@ class ReaderActivity : BaseActivity() {
             }
 
             ContentOverlay(state = state)
+
+            if (state.isLiveTranslationActive) {
+                OcrTranslationOverlay(
+                    ocrResults = state.ocrResults,
+                    translatedResults = state.translatedOcrResults,
+                    isProcessing = state.isOcrProcessing,
+                    imageWidth = state.ocrImageWidth,
+                    imageHeight = state.ocrImageHeight,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
 
             val statusBarAtBottom = novelStatusBarPosition != "top"
             val ttsOverlayBottomPadding = if (

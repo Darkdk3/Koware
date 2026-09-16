@@ -47,7 +47,8 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.VerticalAlignTop
-import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.FormatListNumbered
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -659,7 +660,7 @@ private fun NovelReaderBottomBar(
                         modifier = Modifier.size(buttonSize),
                     ) {
                         Icon(
-                            Icons.Outlined.Visibility,
+                            Icons.Outlined.FormatListNumbered,
                             contentDescription = stringResource(MR.strings.chapters),
                             modifier = Modifier.size(iconSize),
                         )
@@ -671,7 +672,7 @@ private fun NovelReaderBottomBar(
                         modifier = Modifier.size(buttonSize),
                     ) {
                         Icon(
-                            Icons.Outlined.Visibility,
+                            Icons.Outlined.Public,
                             contentDescription = stringResource(MR.strings.action_open_in_web_view),
                             modifier = Modifier.size(iconSize),
                         )
@@ -757,8 +758,8 @@ internal fun bottomBarItemInfo(
     BottomBarItem.ORIENTATION -> orientation.icon to stringResource(MR.strings.rotation_type)
     BottomBarItem.SETTINGS -> Icons.Outlined.Settings to stringResource(MR.strings.action_settings)
     BottomBarItem.EDIT -> Icons.Outlined.Edit to stringResource(MR.strings.action_edit)
-    BottomBarItem.CHAPTER_LIST -> Icons.Outlined.Visibility to stringResource(MR.strings.chapters)
-    BottomBarItem.WEB_VIEW -> Icons.Outlined.Visibility to stringResource(MR.strings.action_open_in_web_view)
+    BottomBarItem.CHAPTER_LIST -> Icons.Outlined.FormatListNumbered to stringResource(MR.strings.chapters)
+    BottomBarItem.WEB_VIEW -> Icons.Outlined.Public to stringResource(MR.strings.action_open_in_web_view)
 }
 
 @Composable

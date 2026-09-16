@@ -335,6 +335,12 @@ dependencies {
 
     // media for tts notification
     implementation(libs.androidx.media)
+
+    // ML Kit text recognition (bundled, on-device)
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.chinese)
+    implementation(libs.mlkit.text.recognition.japanese)
+    implementation(libs.mlkit.text.recognition.korean)
 }
 
 androidComponents {
