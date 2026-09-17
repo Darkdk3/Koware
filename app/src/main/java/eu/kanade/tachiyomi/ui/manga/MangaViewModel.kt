@@ -808,7 +808,7 @@ class MangaViewModel(
             // Also search up to 4 other online sources matching this medium
             val otherSources = sourceManager.getOnlineSources()
                 .filterIsInstance<CatalogueSource>()
-                .filter { it.id != source.id && it.isNovelSource() == manga.isNovel }
+                .filter { it.id != source.id && it.isNovelSource == manga.isNovel }
                 .shuffled()
                 .take(4)
 
