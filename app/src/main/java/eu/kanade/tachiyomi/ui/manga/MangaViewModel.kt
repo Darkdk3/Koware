@@ -41,7 +41,7 @@ import eu.kanade.tachiyomi.data.translation.TranslationService
 import eu.kanade.tachiyomi.network.interceptor.InteractiveRateLimitBypass
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
-import eu.kanade.tachiyomi.source.SourceExtensions
+import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.rateLimitHost
 import eu.kanade.tachiyomi.ui.reader.quote.QuoteManager
