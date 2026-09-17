@@ -118,7 +118,17 @@ private fun RecommendationsContent(
         item { MangaHero(state.manga, state.sourceName) }
 
         // Source suggestions — "More from this source"
-        if (state.sourceSuggestions.isNotEmpty()) {
+        if (state.groupedSourceSuggestions.isNotEmpty()) {
+            state.groupedSourceSuggestions.forEach { (sourceName, list) ->
+                item { SectionHeader("More from $sourceName") }
+                item {
+                    SuggestionRow(
+                        suggestions = list,
+                        onMangaClick = onMangaClick,
+                    )
+                }
+            }
+        } else if (state.sourceSuggestions.isNotEmpty()) {
             item { SectionHeader("More from this source") }
             item {
                 SuggestionRow(
