@@ -48,6 +48,7 @@ sealed interface MangaRecommendationsUiState {
         val manga: Manga,
         val sourceName: String,
         val sourceSuggestions: List<Manga>,
+        val groupedSourceSuggestions: Map<String, List<Manga>> = emptyMap(),
         val aiPicks: List<Manga>,
         val aiScores: List<Int?>,
         val aiMessage: String?,
@@ -82,6 +83,7 @@ class MangaRecommendationsViewModel(
             val sourceName = source.getNameForMangaInfo()
 
             val suggestions = loadSourceSuggestions(source as? CatalogueSource, manga)
+            val groupedSuggestions = loadGroupedSourceSuggestions(source as? CatalogueSource, manga, suggestions)
 
             val aiCandidatePool = loadAiCandidatePool(source as? CatalogueSource, manga)
 
@@ -126,12 +128,58 @@ class MangaRecommendationsViewModel(
                 manga = manga,
                 sourceName = sourceName,
                 sourceSuggestions = suggestions,
+                groupedSourceSuggestions = groupedSuggestions,
                 aiPicks = picks,
                 aiScores = scores,
                 aiMessage = aiMessage,
                 trackedOn = trackedOn,
             )
         }
+    }
+
+    private suspend fun loadGroupedSourceSuggestions(
+        source: CatalogueSource?,
+        manga: Manga,
+        primarySuggestions: List<Manga>,
+    ): Map<String, List<Manga>> = coroutineScope {
+        val groupedResults = mutableMapOf<String, List<Manga>>()
+        if (source != null && primarySuggestions.isNotEmpty()) {
+            groupedResults[source.getNameForMangaInfo()] = primarySuggestions
+        }
+
+        // Search up to 4 other online sources matching this medium
+        val otherSources = sourceManager.getOnlineSources()
+            .filterIsInstance<CatalogueSource>()
+            .filter { it.id != source?.id && it.isNovelSource == manga.isNovel }
+            .shuffled()
+            .take(4)
+
+        otherSources.map { other ->
+            async {
+                val otherSourceName = other.getNameForMangaInfo()
+                val otherResults = runCatching {
+                    other.getSearchManga(
+                        page = 1,
+                        query = manga.title,
+                        filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                    )?.mangas.orEmpty()
+                }.getOrNull().orEmpty()
+                    .filter { it.url != manga.url }
+                    .take(10)
+                    .map { sManga ->
+                        networkToLocalManga(
+                            sManga.toDomainManga(sourceId = other.id, isNovel = manga.isNovel),
+                        )
+                    }
+                otherSourceName to otherResults
+            }
+        }.awaitAll().forEach { (sourceName, results) ->
+            if (results.isNotEmpty()) {
+                groupedResults[sourceName] = results
+            }
+        }
+
+        groupedResults
     }
 
     private suspend fun loadSourceSuggestions(source: CatalogueSource?, manga: Manga): List<Manga> {
