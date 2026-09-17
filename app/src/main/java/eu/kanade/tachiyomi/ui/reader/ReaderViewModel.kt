@@ -1452,27 +1452,6 @@ class ReaderViewModel @JvmOverloads constructor(
                 translatedOcrResults = if (!newState) emptyList() else it.translatedOcrResults,
             )
         }
-        if (newState) {
-            // Trigger OCR for current page if viewer/page is available
-            val viewer = state.value.viewer
-            when (viewer) {
-                is eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer -> {
-                    val currentPage = viewer.currentPage
-                    val bitmap = (currentPage?.view?.findViewById<android.widget.ImageView>(eu.kanade.tachiyomi.R.id.image_view)?.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    if (bitmap != null) {
-                        launchIO { processPageForOcr(bitmap) }
-                    }
-                }
-                is eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer -> {
-                    // Try to grab current visible page bitmap
-                    val page = viewer.getCurrentPage()
-                    val bitmap = (page?.view?.findViewById<android.widget.ImageView>(eu.kanade.tachiyomi.R.id.image_view)?.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap
-                    if (bitmap != null) {
-                        launchIO { processPageForOcr(bitmap) }
-                    }
-                }
-            }
-        }
     }
 
     /**
