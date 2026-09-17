@@ -71,6 +71,7 @@ object SettingsTranslationScreen : SearchableSettings {
 
         return listOf(
             getGeneralGroup(translationPreferences, engineManager),
+            getLiveTranslationGroup(translationPreferences),
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_translation_queue),
                 preferenceItems = listOf(
@@ -221,6 +222,45 @@ object SettingsTranslationScreen : SearchableSettings {
                     valueString = "$anchoringParagraphs",
                     onValueChanged = { prefs.contextualAnchoringParagraphs().set(it) },
                     enabled = anchoringEnabled && enabled,
+                ),
+            ),
+        )
+    }
+
+    @Composable
+    private fun getLiveTranslationGroup(
+        prefs: TranslationPreferences,
+    ): Preference.PreferenceGroup {
+        val enabled by prefs.liveTranslationEnabled().collectAsState()
+        val model by prefs.liveTranslationModel().collectAsState()
+
+        val modelEntries = mapOf(
+            "all" to "All Languages (Latin + CJK)",
+            "latin" to "Latin Script Only",
+            "cjk" to "CJK (Chinese, Japanese, Korean) Only",
+            "japanese" to "Japanese Only",
+            "chinese" to "Chinese Only",
+            "korean" to "Korean Only",
+        )
+
+        return Preference.PreferenceGroup(
+            title = "Live Translation (Manga OCR)",
+            preferenceItems = listOf(
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = prefs.liveTranslationEnabled(),
+                    title = "Enable Live Translation",
+                    subtitle = "Allows on-the-fly text recognition and translation on manga pages inside the reader",
+                ),
+                Preference.PreferenceItem.BasicListPreference(
+                    value = model,
+                    title = "OCR Language Model",
+                    subtitle = modelEntries[model] ?: "All Languages",
+                    entries = modelEntries,
+                    onValueChanged = { newValue ->
+                        prefs.liveTranslationModel().set(newValue)
+                        true
+                    },
+                    enabled = enabled,
                 ),
             ),
         )

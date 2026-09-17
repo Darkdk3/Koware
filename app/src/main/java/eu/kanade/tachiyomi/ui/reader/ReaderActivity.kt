@@ -1139,8 +1139,15 @@ class ReaderActivity : BaseActivity() {
                 isAutoScrolling = isAutoScrolling,
                 onToggleAutoScroll = onToggleAutoScroll,
                 hideAutoScroll = state.viewer is NovelWebViewViewer && novelPagedModeState,
-                isTranslating = state.isTranslating,
-                onToggleTranslation = viewModel::toggleTranslation,
+                isTranslating = state.isTranslating || state.isLiveTranslationActive,
+                onToggleTranslation = {
+                    val isNovelMode = state.viewer is NovelViewer || state.viewer is NovelWebViewViewer
+                    if (isNovelMode) {
+                        viewModel.toggleTranslation()
+                    } else {
+                        viewModel.toggleLiveTranslation()
+                    }
+                },
                 onLongPressTranslation = viewModel::openTranslationLanguageDialog,
                 onRetranslate = if (state.isTranslating) viewModel::retranslateCurrentChapter else null,
                 isTtsActive = isTtsActive,

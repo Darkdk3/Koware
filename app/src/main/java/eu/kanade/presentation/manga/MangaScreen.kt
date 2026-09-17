@@ -541,12 +541,26 @@ private fun MangaScreenSmallImpl(
                         key = MangaScreenItem.SOURCE_SUGGESTIONS,
                         contentType = MangaScreenItem.SOURCE_SUGGESTIONS,
                     ) {
-                        eu.kanade.presentation.manga.components.SourceSuggestionsRow(
-                            suggestions = state.sourceSuggestions,
-                            onSuggestionClick = onSourceSuggestionClicked,
-                            onMoreClicked = onMoreSuggestionClicked,
-                            suggestionCount = state.sourceSuggestions?.size ?: 0,
-                        )
+                        if (state.groupedSourceSuggestions.isNotEmpty()) {
+                            Column {
+                                state.groupedSourceSuggestions.forEach { (sourceName, list) ->
+                                    eu.kanade.presentation.manga.components.SourceSuggestionsRow(
+                                        suggestions = list,
+                                        onSuggestionClick = onSourceSuggestionClicked,
+                                        title = "More from $sourceName",
+                                        onMoreClicked = onMoreSuggestionClicked,
+                                        suggestionCount = list.size,
+                                    )
+                                }
+                            }
+                        } else {
+                            eu.kanade.presentation.manga.components.SourceSuggestionsRow(
+                                suggestions = state.sourceSuggestions,
+                                onSuggestionClick = onSourceSuggestionClicked,
+                                onMoreClicked = onMoreSuggestionClicked,
+                                suggestionCount = state.sourceSuggestions?.size ?: 0,
+                            )
+                        }
                     }
 
                     item(key = "chapter-divider") {
@@ -840,12 +854,26 @@ fun MangaScreenLargeImpl(
                             onCopyTagToClipboard = onCopyTagToClipboard,
                             onEditNotes = onEditNotesClicked,
                         )
-                        eu.kanade.presentation.manga.components.SourceSuggestionsRow(
-                            suggestions = state.sourceSuggestions,
-                            onSuggestionClick = onSourceSuggestionClicked,
-                            onMoreClicked = onMoreSuggestionClicked,
-                            suggestionCount = state.sourceSuggestions?.size ?: 0,
-                        )
+                        if (state.groupedSourceSuggestions.isNotEmpty()) {
+                            Column {
+                                state.groupedSourceSuggestions.forEach { (sourceName, list) ->
+                                    eu.kanade.presentation.manga.components.SourceSuggestionsRow(
+                                        suggestions = list,
+                                        onSuggestionClick = onSourceSuggestionClicked,
+                                        title = "More from $sourceName",
+                                        onMoreClicked = onMoreSuggestionClicked,
+                                        suggestionCount = list.size,
+                                    )
+                                }
+                            }
+                        } else {
+                            eu.kanade.presentation.manga.components.SourceSuggestionsRow(
+                                suggestions = state.sourceSuggestions,
+                                onSuggestionClick = onSourceSuggestionClicked,
+                                onMoreClicked = onMoreSuggestionClicked,
+                                suggestionCount = state.sourceSuggestions?.size ?: 0,
+                            )
+                        }
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )

@@ -33,49 +33,45 @@ class TextRecognitionInteractor {
         },
     )
 
-    suspend fun recognizeText(bitmap: Bitmap): List<TextRecognitionResult> = coroutineScope {
+    /**
+     * Recognize text in a bitmap using the selected model set.
+     *
+     * @param bitmap the page image to process
+     * @param model one of "all", "latin", "cjk", "japanese", "chinese", "korean"
+     */
+    suspend fun recognizeText(bitmap: Bitmap, model: String = "all"): List<TextRecognitionResult> = coroutineScope {
         val cacheKey = if (bitmap.generationId != 0) {
             bitmap.generationId
         } else {
-            bitmap.width * 31 + bitmap.height + bitmap.byteCount
+            bitmap.width * 31 + bitmap.height + bitmap.byteCount + model.hashCode()
         }
         recognitionCache[cacheKey]?.let { return@coroutineScope it }
 
         val image = InputImage.fromBitmap(bitmap, 0)
 
-        val latinJob = async {
-            try {
-                latinRecognizer.process(image).await().textBlocks
-            } catch (_: Exception) {
-                emptyList<MLText.TextBlock>()
-            }
-        }
-        val japaneseJob = async {
-            try {
-                japaneseRecognizer.process(image).await().textBlocks
-            } catch (_: Exception) {
-                emptyList<MLText.TextBlock>()
-            }
-        }
-        val chineseJob = async {
-            try {
-                chineseRecognizer.process(image).await().textBlocks
-            } catch (_: Exception) {
-                emptyList<MLText.TextBlock>()
-            }
-        }
-        val koreanJob = async {
-            try {
-                koreanRecognizer.process(image).await().textBlocks
-            } catch (_: Exception) {
-                emptyList<MLText.TextBlock>()
-            }
-        }
+        val useLatin = model == "all" || model == "latin"
+        val useJapanese = model == "all" || model == "japanese" || model == "cjk"
+        val useChinese = model == "all" || model == "chinese" || model == "cjk"
+        val useKorean = model == "all" || model == "korean" || model == "cjk"
 
-        val allBlocks: List<MLText.TextBlock> = latinJob.await() +
-            japaneseJob.await() +
-            chineseJob.await() +
-            koreanJob.await()
+        val latinJob = if (useLatin) async {
+            try { latinRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
+        } else null
+        val japaneseJob = if (useJapanese) async {
+            try { japaneseRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
+        } else null
+        val chineseJob = if (useChinese) async {
+            try { chineseRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
+        } else null
+        val koreanJob = if (useKorean) async {
+            try { koreanRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
+        } else null
+
+        val allBlocks: List<MLText.TextBlock> =
+            (latinJob?.await() ?: emptyList()) +
+                (japaneseJob?.await() ?: emptyList()) +
+                (chineseJob?.await() ?: emptyList()) +
+                (koreanJob?.await() ?: emptyList())
 
         val uniqueBlocks = mutableListOf<MLText.TextBlock>()
         for (block in allBlocks) {

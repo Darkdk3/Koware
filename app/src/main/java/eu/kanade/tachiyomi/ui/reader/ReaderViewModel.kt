@@ -1461,7 +1461,8 @@ class ReaderViewModel @JvmOverloads constructor(
         if (!state.value.isLiveTranslationActive) return
         mutableState.update { it.copy(isOcrProcessing = true) }
         try {
-            val results = textRecognitionInteractor.recognizeText(bitmap)
+            val model = translationPreferences.liveTranslationModel().get()
+            val results = textRecognitionInteractor.recognizeText(bitmap, model)
             mutableState.update {
                 it.copy(
                     ocrResults = results,

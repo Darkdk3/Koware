@@ -32,7 +32,7 @@ data class BottomBarItemState(
 val DefaultBottomBarItems = listOf(
     BottomBarItemState(BottomBarItem.PREV_CHAPTER, defaultEnabled = true),
     BottomBarItemState(BottomBarItem.SCROLL_TO_TOP, defaultEnabled = true),
-    BottomBarItemState(BottomBarItem.TRANSLATE, defaultEnabled = false),
+    BottomBarItemState(BottomBarItem.TRANSLATE, defaultEnabled = true),
     BottomBarItemState(BottomBarItem.AUTO_SCROLL, defaultEnabled = false),
     BottomBarItemState(BottomBarItem.TTS, defaultEnabled = true),
     BottomBarItemState(BottomBarItem.QUOTES, defaultEnabled = true),

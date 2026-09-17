@@ -45,12 +45,13 @@ import tachiyomi.domain.manga.model.MangaCover as MangaCoverModel
 fun SourceSuggestionsRow(
     suggestions: List<Manga>?,
     onSuggestionClick: (Manga) -> Unit,
-    onMoreClicked: () -> Unit = {},
+    title: String = "More from this source",
+    onMoreClicked: (() -> Unit)? = null,
     suggestionCount: Int = 0,
 ) {
     // Loading state: show skeleton row while suggestions are being fetched
     if (suggestions == null) {
-        SourceSuggestionsLoadingRow()
+        SourceSuggestionsLoadingRow(title = title)
         return
     }
 
@@ -69,41 +70,43 @@ fun SourceSuggestionsRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "More from this source",
+                text = title,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
 
             if (suggestionCount > 0) {
                 Text(
-                    text = "${suggestionCount.coerceAtMost(suggestions.size)} novels",
+                    text = "${suggestionCount.coerceAtMost(suggestions.size)} titles",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                        RoundedCornerShape(20.dp),
+            if (onMoreClicked != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                            RoundedCornerShape(20.dp),
+                        )
+                        .clickable(onClick = onMoreClicked)
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                ) {
+                    Text(
+                        text = "More",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                    .clickable(onClick = onMoreClicked)
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            ) {
-                Text(
-                    text = "More",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.width(12.dp),
-                )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(12.dp),
+                    )
+                }
             }
         }
 
@@ -141,7 +144,7 @@ fun SourceSuggestionsRow(
  * of placeholder cover rectangles so the section doesn't pop in abruptly.
  */
 @Composable
-private fun SourceSuggestionsLoadingRow() {
+private fun SourceSuggestionsLoadingRow(title: String = "More from this source") {
     Column {
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 12.dp),
@@ -154,7 +157,7 @@ private fun SourceSuggestionsLoadingRow() {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "More from this source",
+                text = title,
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )

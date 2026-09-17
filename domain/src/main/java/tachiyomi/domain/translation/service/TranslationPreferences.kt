@@ -505,4 +505,24 @@ class TranslationPreferences(
         "ai_feature_user_prompt",
         "",
     )
+
+    // ── Live Translation (Manga OCR) ──
+
+    /**
+     * Whether live translation (OCR overlay on manga pages) is available.
+     * When false the translate button in the manga reader does nothing.
+     */
+    fun liveTranslationEnabled() = preferenceStore.getBoolean(
+        "ocr_live_translation_enabled",
+        false,
+    )
+
+    /**
+     * Which OCR script recognizers to run.
+     * Values: "all", "latin", "cjk", "japanese", "chinese", "korean"
+     */
+    fun liveTranslationModel() = preferenceStore.getString(
+        "ocr_live_translation_model",
+        "all",
+    )
 }

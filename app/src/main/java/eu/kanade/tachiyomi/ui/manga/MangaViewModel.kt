@@ -41,6 +41,7 @@ import eu.kanade.tachiyomi.data.translation.TranslationService
 import eu.kanade.tachiyomi.network.interceptor.InteractiveRateLimitBypass
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
+import eu.kanade.tachiyomi.source.SourceExtensions
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.rateLimitHost
 import eu.kanade.tachiyomi.ui.reader.quote.QuoteManager
@@ -798,7 +799,47 @@ class MangaViewModel(
                     )
                 }
 
-            updateSuccessState { it.copy(sourceSuggestions = suggestions) }
+            val primarySourceName = source.getNameForMangaInfo()
+            val groupedResults = mutableMapOf<String, List<Manga>>()
+            if (suggestions.isNotEmpty()) {
+                groupedResults[primarySourceName] = suggestions
+            }
+
+            // Also search up to 4 other online sources matching this medium
+            val otherSources = sourceManager.getOnlineSources()
+                .filterIsInstance<CatalogueSource>()
+                .filter { it.id != source.id && it.isNovelSource() == manga.isNovel }
+                .shuffled()
+                .take(4)
+
+            for (other in otherSources) {
+                val otherSourceName = other.getNameForMangaInfo()
+                val otherResults = runCatching {
+                    other.getSearchManga(
+                        page = 1,
+                        query = manga.title,
+                        filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                    )?.mangas.orEmpty()
+                }.getOrNull().orEmpty()
+                    .filter { it.url != manga.url }
+                    .take(10)
+                    .map { sManga ->
+                        networkToLocalManga(
+                            sManga.toDomainManga(sourceId = other.id, isNovel = manga.isNovel),
+                        )
+                    }
+
+                if (otherResults.isNotEmpty()) {
+                    groupedResults[otherSourceName] = otherResults
+                }
+            }
+
+            updateSuccessState {
+                it.copy(
+                    sourceSuggestions = suggestions,
+                    groupedSourceSuggestions = groupedResults,
+                )
+            }
         }
     }
 
@@ -1842,6 +1883,7 @@ class MangaViewModel(
             val categories: List<Category> = emptyList(),
             val showSourceName: Boolean = true,
             val sourceSuggestions: List<Manga>? = null,
+            val groupedSourceSuggestions: Map<String, List<Manga>> = emptyMap(),
         ) : State {
             val processedChapters by lazy {
                 chapters.applyFilters(manga).toList()
