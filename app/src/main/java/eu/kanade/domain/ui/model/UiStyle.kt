@@ -12,3 +12,13 @@ enum class UiStyle(val label: String) {
     LEGACY("Legacy"),
     MODERN("Modern"),
 }
+
+enum class MangaDetailsStyle(val label: String) {
+    LEGACY("Legacy"),
+    MODERN("Modern"),
+}
+
+enum class LibraryChipsStyle(val label: String) {
+    LEGACY("Legacy"),
+    MODERN("Modern"),
+}

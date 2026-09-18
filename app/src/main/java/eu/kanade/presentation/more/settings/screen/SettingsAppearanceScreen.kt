@@ -25,6 +25,8 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import com.materialkolor.PaletteStyle
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.LibraryChipsStyle
+import eu.kanade.domain.ui.model.MangaDetailsStyle
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
 import eu.kanade.domain.ui.model.UiStyle
@@ -438,6 +440,18 @@ object SettingsAppearanceScreen : SearchableSettings {
                     entries = UiStyle.entries.associateWith { it.label },
                     title = "UI style",
                     subtitle = "Legacy keeps the original appearance. Modern applies the redesigned card-based look to the library grid and manga details, while every appearance setting stays active",
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    preference = uiPreferences.mangaDetailsStyle,
+                    entries = MangaDetailsStyle.entries.associateWith { it.label },
+                    title = "Manga details screen style",
+                    subtitle = "Choose between modern redesigned look or legacy style",
+                ),
+                Preference.PreferenceItem.ListPreference(
+                    preference = uiPreferences.libraryChipsStyle,
+                    entries = LibraryChipsStyle.entries.associateWith { it.label },
+                    title = "Library filter chips style",
+                    subtitle = "Choose between modern style or legacy library filter chips",
                 ),
             ),
         )

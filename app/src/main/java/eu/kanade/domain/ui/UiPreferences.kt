@@ -2,6 +2,8 @@ package eu.kanade.domain.ui
 
 import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.model.AppTheme
+import eu.kanade.domain.ui.model.LibraryChipsStyle
+import eu.kanade.domain.ui.model.MangaDetailsStyle
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
 import eu.kanade.domain.ui.model.UiStyle
@@ -33,6 +35,10 @@ class UiPreferences(
 
     /** Overall UI style: legacy (original) or modern (redesigned look). */
     val uiStyle: Preference<UiStyle> = preferenceStore.getEnum("pref_ui_style", UiStyle.LEGACY)
+
+    val mangaDetailsStyle: Preference<MangaDetailsStyle> = preferenceStore.getEnum("pref_manga_details_style", MangaDetailsStyle.MODERN)
+
+    val libraryChipsStyle: Preference<LibraryChipsStyle> = preferenceStore.getEnum("pref_library_chips_style", LibraryChipsStyle.MODERN)
 
     /** Material Kolor palette style used when theming from a manga's cover color. */
     val themeCoverBasedStyle: Preference<PaletteStyle> = preferenceStore.getEnum(
