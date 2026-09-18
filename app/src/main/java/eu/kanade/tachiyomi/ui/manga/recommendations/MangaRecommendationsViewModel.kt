@@ -24,6 +24,7 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.track.interactor.GetTracks
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -65,7 +66,7 @@ class MangaRecommendationsViewModel(
 
     private val getManga: GetManga = Injekt.get()
     private val sourceManager: SourceManager = Injekt.get()
-    private val trackerManager: TrackerManager = Injekt.get()
+    private val getTracks: GetTracks = Injekt.get()
     private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations()
     private val translationPreferences: tachiyomi.domain.translation.service.TranslationPreferences = Injekt.get()
     private val networkToLocalManga: tachiyomi.domain.manga.interactor.NetworkToLocalManga = Injekt.get()
@@ -120,9 +121,10 @@ class MangaRecommendationsViewModel(
                 else -> null
             }
 
-            val trackedOn = trackerManager.loggedInTrackers()
-                .filter { it.id != TrackerManager.NOTION }
-                .map { it.name }
+            val tracks = getTracks.await(mangaId)
+            val trackedOn = tracks.mapNotNull { track ->
+                trackerManager.get(track.trackerId)?.name
+            }
 
             _state.value = MangaRecommendationsUiState.Success(
                 manga = manga,
