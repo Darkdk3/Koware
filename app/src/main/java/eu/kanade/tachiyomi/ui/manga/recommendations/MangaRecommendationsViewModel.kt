@@ -67,6 +67,7 @@ class MangaRecommendationsViewModel(
     private val getManga: GetManga = Injekt.get()
     private val sourceManager: SourceManager = Injekt.get()
     private val getTracks: GetTracks = Injekt.get()
+    private val trackerManager: TrackerManager = Injekt.get()
     private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations()
     private val translationPreferences: tachiyomi.domain.translation.service.TranslationPreferences = Injekt.get()
     private val networkToLocalManga: tachiyomi.domain.manga.interactor.NetworkToLocalManga = Injekt.get()
