@@ -7,7 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Photo
 import androidx.compose.material.icons.outlined.Save
-import eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
