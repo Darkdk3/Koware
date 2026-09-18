@@ -671,6 +671,8 @@ class ReaderActivity : BaseActivity() {
                     onSetAsCover = viewModel::setAsCover,
                     onShare = viewModel::shareImage,
                     onSave = viewModel::saveImage,
+                    onToggleLiveTranslation = viewModel::toggleLiveTranslation,
+                    isLiveTranslationActive = state.isLiveTranslationActive,
                 )
             }
             null -> {}

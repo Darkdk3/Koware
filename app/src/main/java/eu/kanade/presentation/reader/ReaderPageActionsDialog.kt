@@ -6,7 +6,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Photo
-import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.Translate
+import eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,8 @@ fun ReaderPageActionsDialog(
     onSetAsCover: () -> Unit,
     onShare: (Boolean) -> Unit,
     onSave: () -> Unit,
+    onToggleLiveTranslation: (() -> Unit)? = null,
+    isLiveTranslationActive: Boolean = false,
 ) {
     var showSetCoverDialog by remember { mutableStateOf(false) }
 
@@ -65,10 +68,10 @@ fun ReaderPageActionsDialog(
             )
             ActionButton(
                 modifier = Modifier.weight(1f),
-                title = stringResource(MR.strings.action_save),
-                icon = Icons.Outlined.Save,
+                title = if (isLiveTranslationActive) "Disable OCR" else "Live OCR",
+                icon = Icons.Outlined.Translate,
                 onClick = {
-                    onSave()
+                    onToggleLiveTranslation?.invoke()
                     onDismissRequest()
                 },
             )
