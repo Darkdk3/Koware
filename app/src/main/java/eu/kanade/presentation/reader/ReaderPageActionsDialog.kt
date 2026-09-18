@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Photo
-import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.Save
 import eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
@@ -63,6 +63,15 @@ fun ReaderPageActionsDialog(
                 icon = Icons.Outlined.Share,
                 onClick = {
                     onShare(false)
+                    onDismissRequest()
+                },
+            )
+            ActionButton(
+                modifier = Modifier.weight(1f),
+                title = stringResource(MR.strings.action_save),
+                icon = Icons.Outlined.Save,
+                onClick = {
+                    onSave()
                     onDismissRequest()
                 },
             )
