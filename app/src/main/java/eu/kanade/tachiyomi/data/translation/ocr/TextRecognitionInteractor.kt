@@ -10,20 +10,32 @@ import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
 import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 
 class TextRecognitionInteractor {
 
-    private val latinRecognizer: MLTextRecognizer =
+    // Recognizers are created on first use (inside the try/catch in recognizeText) so a broken or
+    // missing language module can't take down the others, and its error is reported instead of lost.
+    private val latinRecognizer: MLTextRecognizer by lazy {
         MLTextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    private val japaneseRecognizer: MLTextRecognizer =
+    }
+
+    private val japaneseRecognizer: MLTextRecognizer by lazy {
         MLTextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
-    private val chineseRecognizer: MLTextRecognizer =
+    }
+
+    private val chineseRecognizer: MLTextRecognizer by lazy {
         MLTextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
-    private val koreanRecognizer: MLTextRecognizer =
+    }
+
+    private val koreanRecognizer: MLTextRecognizer by lazy {
         MLTextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+    }
 
     private val recognitionCache = java.util.Collections.synchronizedMap(
         object : LinkedHashMap<Int, List<TextRecognitionResult>>(30, 0.75f, true) {
@@ -35,6 +47,9 @@ class TextRecognitionInteractor {
 
     /**
      * Recognize text in a bitmap using the selected model set.
+     *
+     * Throws if every selected recognizer failed (so callers can show the real error); if only some
+     * failed, the ones that worked are used and the failures are logged.
      *
      * @param bitmap the page image to process
      * @param model one of "all", "latin", "cjk", "japanese", "chinese", "korean"
@@ -54,18 +69,24 @@ class TextRecognitionInteractor {
         val useChinese = model == "all" || model == "chinese" || model == "cjk"
         val useKorean = model == "all" || model == "korean" || model == "cjk"
 
-        val latinJob = if (useLatin) async {
-            try { latinRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
-        } else null
-        val japaneseJob = if (useJapanese) async {
-            try { japaneseRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
-        } else null
-        val chineseJob = if (useChinese) async {
-            try { chineseRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
-        } else null
-        val koreanJob = if (useKorean) async {
-            try { koreanRecognizer.process(image).await().textBlocks } catch (_: Exception) { emptyList() }
-        } else null
+        val failures = java.util.Collections.synchronizedList(mutableListOf<Throwable>())
+
+        suspend fun blocksOf(name: String, recognizer: () -> MLTextRecognizer): List<MLText.TextBlock> {
+            return try {
+                recognizer().process(image).await().textBlocks
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN, e) { "OCR: $name recognizer failed" }
+                failures.add(e)
+                emptyList()
+            }
+        }
+
+        val latinJob = if (useLatin) async { blocksOf("latin") { latinRecognizer } } else null
+        val japaneseJob = if (useJapanese) async { blocksOf("japanese") { japaneseRecognizer } } else null
+        val chineseJob = if (useChinese) async { blocksOf("chinese") { chineseRecognizer } } else null
+        val koreanJob = if (useKorean) async { blocksOf("korean") { koreanRecognizer } } else null
 
         val allBlocks: List<MLText.TextBlock> =
             (latinJob?.await() ?: emptyList()) +
@@ -73,11 +94,19 @@ class TextRecognitionInteractor {
                 (chineseJob?.await() ?: emptyList()) +
                 (koreanJob?.await() ?: emptyList())
 
+        val enabledCount = listOf(useLatin, useJapanese, useChinese, useKorean).count { it }
+        if (enabledCount > 0 && failures.size >= enabledCount) {
+            val first = failures.first()
+            throw IllegalStateException(
+                "Text recognition failed ($enabledCount recognizer(s)): ${first.message ?: first::class.simpleName}",
+                first,
+            )
+        }
+
         val uniqueBlocks = mutableListOf<MLText.TextBlock>()
         for (block in allBlocks) {
             var isDuplicate = false
             var duplicateIndexToReplace = -1
-
             for (idx in uniqueBlocks.indices) {
                 val existing = uniqueBlocks[idx]
                 val existingBox: Rect? = existing.boundingBox
@@ -87,14 +116,12 @@ class TextRecognitionInteractor {
                     val intersectionTop = maxOf(existingBox.top, newBox.top)
                     val intersectionRight = minOf(existingBox.right, newBox.right)
                     val intersectionBottom = minOf(existingBox.bottom, newBox.bottom)
-
                     if (intersectionLeft < intersectionRight && intersectionTop < intersectionBottom) {
                         val intersectionArea =
                             (intersectionRight - intersectionLeft) * (intersectionBottom - intersectionTop)
                         val existingArea =
                             (existingBox.right - existingBox.left) * (existingBox.bottom - existingBox.top)
                         val newArea = (newBox.right - newBox.left) * (newBox.bottom - newBox.top)
-
                         val overlapRatio =
                             intersectionArea.toFloat() / minOf(existingArea, newArea).toFloat()
                         if (overlapRatio > 0.5f) {
@@ -110,7 +137,6 @@ class TextRecognitionInteractor {
                     break
                 }
             }
-
             if (block.text.isNotBlank()) {
                 if (duplicateIndexToReplace != -1) {
                     uniqueBlocks[duplicateIndexToReplace] = block
@@ -122,14 +148,12 @@ class TextRecognitionInteractor {
 
         val mergedResults = mutableListOf<TextRecognitionResult>()
         val visited = BooleanArray(uniqueBlocks.size)
-
         for (i in uniqueBlocks.indices) {
             if (visited[i]) continue
             visited[i] = true
             val currentBlock = uniqueBlocks[i]
             val currentBox: Rect = currentBlock.boundingBox?.let { Rect(it) } ?: Rect(0, 0, 0, 0)
             val cluster = mutableListOf(i)
-
             var expanded = true
             while (expanded) {
                 expanded = false
@@ -137,7 +161,6 @@ class TextRecognitionInteractor {
                     if (visited[j]) continue
                     val targetBlock = uniqueBlocks[j]
                     val targetBox: Rect = targetBlock.boundingBox ?: continue
-
                     val horizontalDist = maxOf(
                         0,
                         maxOf(currentBox.left - targetBox.right, targetBox.left - currentBox.right),
@@ -146,12 +169,10 @@ class TextRecognitionInteractor {
                         0,
                         maxOf(currentBox.top - targetBox.bottom, targetBox.top - currentBox.bottom),
                     )
-
                     val currentHeight = currentBox.height()
                     val targetHeight = targetBox.height()
                     val threshold = (maxOf(currentHeight, targetHeight) * 1.5).toInt()
                         .coerceIn(30, 150)
-
                     if (horizontalDist <= threshold && verticalDist <= threshold) {
                         visited[j] = true
                         cluster.add(j)
@@ -177,11 +198,9 @@ class TextRecognitionInteractor {
                     if (yCompare != 0) yCompare else box1.left.compareTo(box2.left)
                 }
             }
-
             val mergedText = sortedClusterIndices.map {
                 uniqueBlocks[it].text.replace("\n", " ").trim()
             }.filter { it.isNotEmpty() }.joinToString(" ")
-
             mergedResults.add(
                 TextRecognitionResult(
                     text = mergedText,
