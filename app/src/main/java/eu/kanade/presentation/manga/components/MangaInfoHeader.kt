@@ -6,7 +6,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +38,6 @@ import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Close
@@ -60,7 +58,6 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -400,7 +397,7 @@ fun MangaActionRow(
             }
         }
 
-        if (trackItems.isNotEmpty()) {
+        if (trackItems.any { it.track != null }) {
             Spacer(Modifier.height(10.dp))
             Text(
                 text = "Tracked on",
@@ -409,11 +406,8 @@ fun MangaActionRow(
             )
             Spacer(Modifier.height(6.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(trackItems) { item ->
+                items(trackItems.filter { it.track != null }) { item ->
                     TrackerPill(item = item, onClick = onTrackingClicked)
-                }
-                item {
-                    AddTrackerPill(onClick = onTrackingClicked)
                 }
             }
         }
@@ -421,68 +415,37 @@ fun MangaActionRow(
 }
 
 /**
- * One linked-tracker pill for the modern action row: service name + last-synced chapter.
+ * One linked-tracker pill for the modern action row: service name + last-synced chapter,
+ * styled the same hollow/outlined way as the genre tag chips (TagsChip / SuggestionChip above)
+ * rather than a solid fill, so it matches the rest of the theme instead of standing out.
  *
  * NOTE: `item.track?.lastChapterRead` below assumes tachiyomi.domain.track.model.Track exposes
  * a `lastChapterRead: Double` field, matching the name already used elsewhere in your
  * MangaViewModel.kt (`track.lastChapterRead` appears in the tracker-update-prompt logic there).
  * If your actual Track model names this differently, this is the one line to adjust.
+ *
+ * Still text-only (tracker.name) rather than a logo icon - swapping in the real per-service
+ * icon (with a glow behind it) needs to see how your existing tracker sheet renders logos
+ * (e.g. Tracker.getLogo() or similar) so it's copied from a real source instead of guessed.
  */
 @Composable
 private fun TrackerPill(item: TrackItem, onClick: () -> Unit) {
     val track = item.track
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        modifier = Modifier.height(32.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = item.tracker.name,
-                style = MaterialTheme.typography.labelMedium,
-            )
-            if (track != null) {
+    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 0.dp) {
+        SuggestionChip(
+            onClick = onClick,
+            modifier = Modifier.height(28.dp),
+            label = {
                 Text(
-                    text = "Ch. ${track.lastChapterRead.toInt()}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+                    text = if (track != null) {
+                        "${item.tracker.name} · Ch. ${track.lastChapterRead.toInt()}"
+                    } else {
+                        item.tracker.name
+                    },
+                    style = MaterialTheme.typography.labelSmall,
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddTrackerPill(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.extraLarge,
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.height(32.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Add,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
-            )
-            Text(
-                text = "Add tracker",
-                style = MaterialTheme.typography.labelMedium,
-                color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
-            )
-        }
+            },
+        )
     }
 }
 
@@ -657,7 +620,7 @@ private fun MangaAndSourceTitlesLarge(
                 .let { m -> if (ratio != null) m.aspectRatio(ratio) else m }
                 .let { m ->
                     if (modernStyle) {
-                        m.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                        m.border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                     } else {
                         m
                     }
@@ -715,7 +678,7 @@ private fun MangaAndSourceTitlesSmall(
                 .let { m -> if (ratio != null) m.aspectRatio(ratio) else m }
                 .let { m ->
                     if (modernStyle) {
-                        m.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                        m.border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                     } else {
                         m
                     }
