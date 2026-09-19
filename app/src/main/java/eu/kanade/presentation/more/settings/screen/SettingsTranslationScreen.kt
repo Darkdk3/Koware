@@ -15,6 +15,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.tachiyomi.data.translation.TranslationEngineManager
 import kotlinx.coroutines.launch
+import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.domain.translation.model.TranslationResult
 import tachiyomi.domain.translation.service.TranslationPreferences
 import tachiyomi.domain.translation.service.TranslationPromptDefaults
@@ -27,15 +28,33 @@ import uy.kohesive.injekt.api.get
 
 object SettingsTranslationScreen : SearchableSettings {
 
+    /**
+     * Preference key for the live OCR target language.
+     * Read it from the OCR flow with:
+     *   Injekt.get<PreferenceStore>()
+     *       .getString(SettingsTranslationScreen.OCR_TARGET_LANGUAGE_KEY, "en")
+     *       .get()
+     */
+    const val OCR_TARGET_LANGUAGE_KEY = "ocr_target_language"
+
+    @Composable
+    private fun rememberOcrTargetLanguagePref(): tachiyomi.core.common.preference.Preference<String> {
+        val store = remember { Injekt.get<PreferenceStore>() }
+        return remember { store.getString(OCR_TARGET_LANGUAGE_KEY, "en") }
+    }
+
     override val supportsReset: Boolean get() = true
 
     @Composable
     override fun getAdditionalResetPreferences(): List<tachiyomi.core.common.preference.Preference<*>> {
         val prefs = remember { Injekt.get<TranslationPreferences>() }
+        val ocrTargetPref = rememberOcrTargetLanguagePref()
+
         return listOf(
             prefs.rateLimitDelayMs(),
             prefs.translationTimeoutMs(),
             prefs.maxParallelTranslations(),
+            ocrTargetPref,
         )
     }
 
@@ -52,6 +71,7 @@ object SettingsTranslationScreen : SearchableSettings {
 
         val progress by translationService.progressState.collectAsState()
         val isPaused by translationService.isPaused.collectAsState()
+
         val queueStatusText = when {
             progress.isCancelling -> stringResource(MR.strings.pref_translation_status_cancelling)
             progress.isRunning && isPaused -> stringResource(
@@ -71,7 +91,6 @@ object SettingsTranslationScreen : SearchableSettings {
 
         return listOf(
             getGeneralGroup(translationPreferences, engineManager),
-            getLiveTranslationGroup(translationPreferences),
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_translation_queue),
                 preferenceItems = listOf(
@@ -85,18 +104,6 @@ object SettingsTranslationScreen : SearchableSettings {
                 ),
             ),
             getRateLimitGroup(translationPreferences),
-            Preference.PreferenceGroup(
-                title = stringResource(TDMR.strings.pref_category_ai_features),
-                preferenceItems = listOf(
-                    Preference.PreferenceItem.TextPreference(
-                        title = stringResource(TDMR.strings.pref_category_ai_features),
-                        subtitle = stringResource(TDMR.strings.pref_ai_features_summary),
-                        onClick = {
-                            navigator.push(SettingsAiScreen)
-                        },
-                    ),
-                ),
-            ),
         ) + getEngineConfigGroups(translationPreferences, engineManager)
     }
 
@@ -109,13 +116,14 @@ object SettingsTranslationScreen : SearchableSettings {
         val selectedEngineId by prefs.selectedEngineId().collectAsState()
         val sourceLanguage by prefs.sourceLanguage().collectAsState()
         val targetLanguage by prefs.targetLanguage().collectAsState()
+        val ocrTargetPref = rememberOcrTargetLanguagePref()
+        val ocrTargetLanguage by ocrTargetPref.collectAsState()
         val chunkSize by prefs.translationChunkSize().collectAsState()
         val anchoringEnabled by prefs.contextualAnchoringEnabled().collectAsState()
         val anchoringParagraphs by prefs.contextualAnchoringParagraphs().collectAsState()
 
         val engines = engineManager.engines
         val engineEntries = engines.associate { it.id.toString() to it.name }.toMap()
-
         val selectedEngine = engines.find { it.id == selectedEngineId } ?: engines.first()
         val languageEntries = selectedEngine.supportedLanguages.associate { it.first to it.second }.toMap()
 
@@ -160,6 +168,17 @@ object SettingsTranslationScreen : SearchableSettings {
                     entries = languageEntries.filterKeys { it != "auto" }.toMap(),
                     onValueChanged = { newValue ->
                         prefs.targetLanguage().set(newValue)
+                        true
+                    },
+                    enabled = enabled,
+                ),
+                Preference.PreferenceItem.BasicListPreference(
+                    value = ocrTargetLanguage,
+                    title = "Live OCR target language",
+                    subtitle = languageEntries[ocrTargetLanguage] ?: ocrTargetLanguage,
+                    entries = languageEntries.filterKeys { it != "auto" }.toMap(),
+                    onValueChanged = { newValue ->
+                        ocrTargetPref.set(newValue)
                         true
                     },
                     enabled = enabled,
@@ -222,45 +241,6 @@ object SettingsTranslationScreen : SearchableSettings {
                     valueString = "$anchoringParagraphs",
                     onValueChanged = { prefs.contextualAnchoringParagraphs().set(it) },
                     enabled = anchoringEnabled && enabled,
-                ),
-            ),
-        )
-    }
-
-    @Composable
-    private fun getLiveTranslationGroup(
-        prefs: TranslationPreferences,
-    ): Preference.PreferenceGroup {
-        val enabled by prefs.liveTranslationEnabled().collectAsState()
-        val model by prefs.liveTranslationModel().collectAsState()
-
-        val modelEntries = mapOf(
-            "all" to "All Languages (Latin + CJK)",
-            "latin" to "Latin Script Only",
-            "cjk" to "CJK (Chinese, Japanese, Korean) Only",
-            "japanese" to "Japanese Only",
-            "chinese" to "Chinese Only",
-            "korean" to "Korean Only",
-        )
-
-        return Preference.PreferenceGroup(
-            title = "Live Translation (Manga OCR)",
-            preferenceItems = listOf(
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = prefs.liveTranslationEnabled(),
-                    title = "Enable Live Translation",
-                    subtitle = "Allows on-the-fly text recognition and translation on manga pages inside the reader",
-                ),
-                Preference.PreferenceItem.BasicListPreference(
-                    value = model,
-                    title = "OCR Language Model",
-                    subtitle = modelEntries[model] ?: "All Languages",
-                    entries = modelEntries,
-                    onValueChanged = { newValue ->
-                        prefs.liveTranslationModel().set(newValue)
-                        true
-                    },
-                    enabled = enabled,
                 ),
             ),
         )
