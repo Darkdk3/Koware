@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
 import eu.kanade.tachiyomi.source.isNovelSource
@@ -16,15 +17,19 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import mihon.domain.manga.model.toDomainManga
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
+import tachiyomi.domain.track.model.Track
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -54,6 +59,7 @@ sealed interface MangaRecommendationsUiState {
         val aiScores: List<Int?>,
         val aiMessage: String?,
         val trackedOn: List<String>,
+        val trackerSuggestions: List<Manga> = emptyList(),
     ) : MangaRecommendationsUiState
 }
 
@@ -72,6 +78,7 @@ class MangaRecommendationsViewModel(
     private val translationPreferences: tachiyomi.domain.translation.service.TranslationPreferences = Injekt.get()
     private val networkToLocalManga: tachiyomi.domain.manga.interactor.NetworkToLocalManga = Injekt.get()
     private val libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences = Injekt.get()
+    private val networkHelper: NetworkHelper = Injekt.get()
 
     init { load() }
 
@@ -127,6 +134,13 @@ class MangaRecommendationsViewModel(
                 trackerManager.get(track.trackerId)?.name
             }
 
+            val trackerSuggestions = runCatching {
+                loadTrackerSuggestions(tracks, manga, source as? CatalogueSource)
+            }.getOrElse {
+                logcat(LogPriority.ERROR, it) { "Failed to load tracker suggestions" }
+                emptyList()
+            }
+
             _state.value = MangaRecommendationsUiState.Success(
                 manga = manga,
                 sourceName = sourceName,
@@ -136,9 +150,102 @@ class MangaRecommendationsViewModel(
                 aiScores = scores,
                 aiMessage = aiMessage,
                 trackedOn = trackedOn,
+                trackerSuggestions = trackerSuggestions,
             )
         }
     }
+
+    // --- Tracker (AniList) recommendations ---------------------------------
+
+    private suspend fun loadTrackerSuggestions(
+        tracks: List<Track>,
+        manga: Manga,
+        currentSource: CatalogueSource?,
+    ): List<Manga> = coroutineScope {
+        if (currentSource == null) return@coroutineScope emptyList()
+
+        // VERIFY: property name for the AniList tracker on your TrackerManager.
+        // Common names in Tachiyomi/Mihon forks: `aniList`, `anilist`, or `ANILIST`.
+        val aniListTrackerId = trackerManager.aniList.id
+
+        // VERIFY: field name on your Track model for the tracker's remote media id.
+        // Common names: `remoteId`, `remote_id`, `mediaId`.
+        val aniListTrack = tracks.firstOrNull { it.trackerId == aniListTrackerId } ?: return@coroutineScope emptyList()
+        val remoteId = aniListTrack.remoteId
+
+        val recommendedTitles = runCatching {
+            fetchAniListRecommendationTitles(remoteId)
+        }.getOrElse {
+            logcat(LogPriority.ERROR, it) { "AniList recommendations request failed" }
+            emptyList()
+        }
+
+        if (recommendedTitles.isEmpty()) return@coroutineScope emptyList()
+
+        recommendedTitles.take(15).map { title ->
+            async {
+                runCatching {
+                    currentSource.getSearchManga(
+                        page = 1,
+                        query = title,
+                        filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                    )?.mangas?.firstOrNull()
+                }.getOrNull()
+            }
+        }.awaitAll()
+            .filterNotNull()
+            .filter { it.url != manga.url }
+            .distinctBy { it.url }
+            .map { networkToLocalManga(it.toDomainManga(sourceId = currentSource.id, isNovel = manga.isNovel)) }
+    }
+
+    private fun fetchAniListRecommendationTitles(aniListMediaId: Long): List<String> {
+        val query = """
+            query (${'$'}id: Int) {
+              Media(id: ${'$'}id, type: MANGA) {
+                recommendations(sort: RATING_DESC, perPage: 15) {
+                  nodes {
+                    mediaRecommendation {
+                      title { romaji english }
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val payload = JSONObject().apply {
+            put("query", query)
+            put("variables", JSONObject().put("id", aniListMediaId.toInt()))
+        }
+
+        val request = Request.Builder()
+            .url("https://graphql.anilist.co")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        networkHelper.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return emptyList()
+            val body = response.body?.string() ?: return emptyList()
+            val nodes = JSONObject(body)
+                .optJSONObject("data")
+                ?.optJSONObject("Media")
+                ?.optJSONObject("recommendations")
+                ?.optJSONArray("nodes")
+                ?: return emptyList()
+
+            return buildList {
+                for (i in 0 until nodes.length()) {
+                    val rec = nodes.getJSONObject(i).optJSONObject("mediaRecommendation") ?: continue
+                    val titleObj = rec.optJSONObject("title") ?: continue
+                    val title = titleObj.optString("romaji").ifBlank { titleObj.optString("english") }
+                    if (title.isNotBlank()) add(title)
+                }
+            }
+        }
+    }
+
+    // --- Existing source / AI logic (unchanged) -----------------------------
 
     private suspend fun loadGroupedSourceSuggestions(
         source: CatalogueSource?,
@@ -150,7 +257,6 @@ class MangaRecommendationsViewModel(
             groupedResults[source.getNameForMangaInfo()] = primarySuggestions
         }
 
-        // Search up to 4 other online sources matching this medium
         val otherSources = sourceManager.getOnlineSources()
             .filterIsInstance<CatalogueSource>()
             .filter { it.id != source?.id && it.isNovelSource == manga.isNovel }
@@ -192,7 +298,6 @@ class MangaRecommendationsViewModel(
         val disableSearchFallback = libraryPreferences.disableRelatedMangasBySearch.get()
 
         val results: List<eu.kanade.tachiyomi.source.model.SManga> = buildList {
-            // 1. Source provides its own related/recommended list
             if (useSourceRelated && source.supportsRelatedMangas) {
                 val related = runCatching {
                     source.fetchRelatedMangaList(
@@ -209,7 +314,6 @@ class MangaRecommendationsViewModel(
                 addAll(related)
             }
 
-            // 2. If the source-website list was empty (or skipped), try smart-search
             if (isEmpty() && !disableSearchFallback) {
                 val searched = runCatching {
                     source.getSearchManga(
