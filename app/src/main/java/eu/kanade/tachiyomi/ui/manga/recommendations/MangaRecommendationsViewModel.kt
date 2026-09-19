@@ -14,6 +14,7 @@ import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +61,7 @@ sealed interface MangaRecommendationsUiState {
         val aiMessage: String?,
         val trackedOn: List<String>,
         val trackerSuggestions: List<Manga> = emptyList(),
+        val trackerMessage: String? = null,
     ) : MangaRecommendationsUiState
 }
 
@@ -135,11 +137,11 @@ class MangaRecommendationsViewModel(
                 trackerManager.get(track.trackerId)?.name
             }
 
-            val trackerSuggestions = runCatching {
+            val trackerResult = runCatching {
                 loadTrackerSuggestions(tracks, manga, source as? CatalogueSource)
             }.getOrElse {
                 logcat(LogPriority.ERROR, it) { "Failed to load tracker suggestions" }
-                emptyList()
+                TrackerSuggestionResult(emptyList(), "Something went wrong fetching tracker recommendations.")
             }
 
             _state.value = MangaRecommendationsUiState.Success(
@@ -151,39 +153,100 @@ class MangaRecommendationsViewModel(
                 aiScores = scores,
                 aiMessage = aiMessage,
                 trackedOn = trackedOn,
-                trackerSuggestions = trackerSuggestions,
+                trackerSuggestions = trackerResult.suggestions,
+                trackerMessage = trackerResult.message,
             )
         }
     }
 
-    // --- Tracker (AniList) recommendations ---------------------------------
+    // --- Tracker recommendations (AniList + MyAnimeList) --------------------
+
+    private data class TrackerSuggestionResult(
+        val suggestions: List<Manga>,
+        val message: String?,
+    )
+
+    /**
+     * Names of trackers we know how to fetch recommendations from.
+     * NovelUpdates and Notion (and anything else) have no public
+     * recommendations API, so they're intentionally excluded rather
+     * than silently failing.
+     */
+    private enum class SupportedTracker { ANILIST, MYANIMELIST }
 
     private suspend fun loadTrackerSuggestions(
         tracks: List<Track>,
         manga: Manga,
         currentSource: CatalogueSource?,
-    ): List<Manga> = coroutineScope {
-        if (currentSource == null) return@coroutineScope emptyList()
-
-        // VERIFY: property name for the AniList tracker on your TrackerManager.
-        // Common names in Tachiyomi/Mihon forks: `aniList`, `anilist`, or `ANILIST`.
-        val aniListTrackerId = trackerManager.aniList.id
-
-        // VERIFY: field name on your Track model for the tracker's remote media id.
-        // Common names: `remoteId`, `remote_id`, `mediaId`.
-        val aniListTrack = tracks.firstOrNull { it.trackerId == aniListTrackerId } ?: return@coroutineScope emptyList()
-        val remoteId = aniListTrack.remoteId
-
-        val recommendedTitles = runCatching {
-            fetchAniListRecommendationTitles(remoteId)
-        }.getOrElse {
-            logcat(LogPriority.ERROR, it) { "AniList recommendations request failed" }
-            emptyList()
+    ): TrackerSuggestionResult = coroutineScope {
+        if (currentSource == null) {
+            return@coroutineScope TrackerSuggestionResult(
+                emptyList(),
+                "Could not search for recommendations — the source failed to load for this session.",
+            )
+        }
+        if (tracks.isEmpty()) {
+            return@coroutineScope TrackerSuggestionResult(emptyList(), null)
         }
 
-        if (recommendedTitles.isEmpty()) return@coroutineScope emptyList()
+        // VERIFY: property names for these trackers on your TrackerManager.
+        // Common names in Tachiyomi/Mihon forks: `aniList`/`anilist`, `myAnimeList`/`myanimelist`.
+        val aniListId = runCatching { trackerManager.aniList.id }.getOrNull()
+        val malId = runCatching { trackerManager.myAnimeList.id }.getOrNull()
 
-        recommendedTitles.take(15).map { title ->
+        val supportedTracks = tracks.mapNotNull { track ->
+            when (track.trackerId) {
+                aniListId -> SupportedTracker.ANILIST to track
+                malId -> SupportedTracker.MYANIMELIST to track
+                else -> null
+            }
+        }
+
+        logcat(LogPriority.DEBUG) {
+            "Recs: aniListId=$aniListId malId=$malId trackIds=${tracks.map { it.trackerId }} " +
+                "remoteIds=${tracks.map { it.remoteId }} supported=${supportedTracks.map { it.first }}"
+        }
+
+        if (supportedTracks.isEmpty()) {
+            val linkedNames = tracks.mapNotNull { trackerManager.get(it.trackerId)?.name }
+            return@coroutineScope TrackerSuggestionResult(
+                emptyList(),
+                if (linkedNames.isNotEmpty()) {
+                    "${linkedNames.joinToString(", ")} doesn't support fetching recommendations."
+                } else {
+                    null
+                },
+            )
+        }
+
+        val titleResults = supportedTracks.map { (tracker, track) ->
+            async {
+                runCatching {
+                    when (tracker) {
+                        SupportedTracker.ANILIST -> fetchWithRetry {
+                            fetchAniListRecommendationTitles(track.remoteId)
+                        }
+                        SupportedTracker.MYANIMELIST -> fetchWithRetry {
+                            fetchMalRecommendationTitles(track.remoteId)
+                        }
+                    }
+                }.getOrElse {
+                    logcat(LogPriority.ERROR, it) { "Recs: fetch failed for $tracker remoteId=${track.remoteId}" }
+                    emptyList()
+                }
+            }
+        }.awaitAll().flatten().distinct()
+
+        logcat(LogPriority.DEBUG) { "Recs: titleResults=$titleResults" }
+
+        if (titleResults.isEmpty()) {
+            return@coroutineScope TrackerSuggestionResult(
+                emptyList(),
+                "No recommendations returned by your linked trackers yet.",
+            )
+        }
+
+        val resolvedManga = titleResults.take(20).map { title ->
             async {
                 runCatching {
                     currentSource.getSearchManga(
@@ -191,16 +254,46 @@ class MangaRecommendationsViewModel(
                         query = title,
                         filters = eu.kanade.tachiyomi.source.model.FilterList(),
                     )?.mangas?.firstOrNull()
-                }.getOrNull()
+                }.getOrElse {
+                    logcat(LogPriority.ERROR, it) { "Recs: search failed for title='$title'" }
+                    null
+                }
             }
         }.awaitAll()
-            .filterNotNull()
+
+        logcat(LogPriority.DEBUG) {
+            "Recs: resolved ${resolvedManga.count { it != null }}/${resolvedManga.size} titles against source"
+        }
+
+        val filtered = resolvedManga.filterNotNull()
             .filter { it.url != manga.url }
             .distinctBy { it.url }
             .map { networkToLocalManga(it.toDomainManga(sourceId = currentSource.id, isNovel = manga.isNovel)) }
+
+        TrackerSuggestionResult(
+            suggestions = filtered,
+            message = if (filtered.isEmpty()) {
+                "Found tracker recommendations, but none matched this source's catalogue."
+            } else {
+                null
+            },
+        )
+    }
+
+    /** Retries a flaky network call once after a short delay before giving up. */
+    private suspend fun <T> fetchWithRetry(block: () -> T): T {
+        return try {
+            block()
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, e) { "Tracker fetch failed once, retrying" }
+            delay(600)
+            block()
+        }
     }
 
     private fun fetchAniListRecommendationTitles(aniListMediaId: Long): List<String> {
+        logcat(LogPriority.DEBUG) { "Recs: querying AniList media id=$aniListMediaId" }
+
         val query = """
             query (${'$'}id: Int) {
               Media(id: ${'$'}id, type: MANGA) {
@@ -226,8 +319,14 @@ class MangaRecommendationsViewModel(
             .build()
 
         networkHelper.client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return emptyList()
+            if (!response.isSuccessful) {
+                val errorBody = runCatching { response.body?.string() }.getOrNull()
+                logcat(LogPriority.DEBUG) { "Recs: AniList HTTP ${response.code} body=$errorBody" }
+                throw IllegalStateException("AniList returned HTTP ${response.code}")
+            }
             val body = response.body?.string() ?: return emptyList()
+            logcat(LogPriority.DEBUG) { "Recs: AniList raw response=$body" }
+
             val nodes = JSONObject(body)
                 .optJSONObject("data")
                 ?.optJSONObject("Media")
@@ -241,6 +340,38 @@ class MangaRecommendationsViewModel(
                     val titleObj = rec.optJSONObject("title") ?: continue
                     val title = titleObj.optString("romaji").ifBlank { titleObj.optString("english") }
                     if (title.isNotBlank()) add(title)
+                }
+            }
+        }
+    }
+
+    private fun fetchMalRecommendationTitles(malMangaId: Long): List<String> {
+        // VERIFY: your fork's MAL API client-id constant. It's used elsewhere for
+        // MAL OAuth/public calls — search the project for an existing "X-MAL-CLIENT-ID"
+        // usage (often in a MyAnimeListApi class) and reuse that same constant here
+        // instead of hardcoding a new one.
+        val malClientId = MAL_CLIENT_ID
+
+        val request = Request.Builder()
+            .url("https://api.myanimelist.net/v2/manga/$malMangaId?fields=recommendations")
+            .header("X-MAL-CLIENT-ID", malClientId)
+            .get()
+            .build()
+
+        networkHelper.client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                logcat(LogPriority.DEBUG) { "Recs: MAL HTTP ${response.code}" }
+                throw IllegalStateException("MAL returned HTTP ${response.code}")
+            }
+            val body = response.body?.string() ?: return emptyList()
+            val recs = JSONObject(body).optJSONArray("recommendations") ?: return emptyList()
+
+            return buildList {
+                for (i in 0 until recs.length()) {
+                    val title = recs.getJSONObject(i)
+                        .optJSONObject("manga")
+                        ?.optString("title")
+                    if (!title.isNullOrBlank()) add(title)
                 }
             }
         }
@@ -376,5 +507,10 @@ class MangaRecommendationsViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             MangaRecommendationsViewModel(mangaId) as T
+    }
+
+    companion object {
+        // VERIFY: replace with your fork's actual MAL client ID constant/lookup.
+        private const val MAL_CLIENT_ID = "YOUR_MAL_CLIENT_ID_HERE"
     }
 }
