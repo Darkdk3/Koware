@@ -1,6 +1,6 @@
 -dontobfuscate
 
--keep,allowoptimization class eu.kanade.**
+-keep,allowoptimization class eu.kanade.** 
 -keep,allowoptimization class tachiyomi.**
 -keep,allowoptimization class mihon.**
 
@@ -35,7 +35,7 @@
     java.lang.Object readResolve();
 }
 
-##---------------Begin: proguard configuration for RxJava 1.x  ----------
+##---------------Begin: proguard configuration for RxJava 1.x ----------
 -dontwarn sun.misc.**
 
 -keepclassmembers class rx.internal.util.unsafe.*ArrayQueue*Field* {
@@ -52,13 +52,13 @@
 }
 
 -dontnote rx.internal.util.PlatformDependent
-##---------------End: proguard configuration for RxJava 1.x  ----------
+##---------------End: proguard configuration for RxJava 1.x ----------
 
-##---------------Begin: proguard configuration for okhttp  ----------
+##---------------Begin: proguard configuration for okhttp ----------
 -keepclasseswithmembers class okhttp3.MultipartBody$Builder { *; }
-##---------------End: proguard configuration for okhttp  ----------
+##---------------End: proguard configuration for okhttp ----------
 
-##---------------Begin: proguard configuration for kotlinx.serialization  ----------
+##---------------Begin: proguard configuration for kotlinx.serialization ----------
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.** # core serialization annotations
 
@@ -82,7 +82,7 @@
 -keepclassmembers class kotlinx.serialization.** {
     <methods>;
 }
-##---------------End: proguard configuration for kotlinx.serialization  ----------
+##---------------End: proguard configuration for kotlinx.serialization ----------
 
 # XmlUtil
 -keep public enum nl.adaptivity.xmlutil.EventType { *; }
@@ -106,3 +106,17 @@
     public <init>();
     public void destroy();
 }
+
+##---------------Begin: proguard configuration for ML Kit (live translation OCR) ----------
+# ML Kit registers its internal components through manifest metadata + reflection, and its
+# internals are looked up by name. R8 shrinking/optimizing them can leave internal fields null
+# ("Attempt to read from field 'com.google.mlkit.vision.text.internal...' on a null object reference").
+-keep class com.google.mlkit.** { *; }
+-keep interface com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_** { *; }
+-keep class com.google.android.odml.image.** { *; }
+-keep class * implements com.google.firebase.components.ComponentRegistrar { *; }
+-keep class * implements com.google.firebase.components.ComponentRegistrarProcessor { *; }
+-dontwarn com.google.mlkit.**
+-dontwarn com.google.android.gms.internal.mlkit_**
+##---------------End: proguard configuration for ML Kit ----------
