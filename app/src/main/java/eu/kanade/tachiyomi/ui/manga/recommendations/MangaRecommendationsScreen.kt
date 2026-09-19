@@ -114,8 +114,10 @@ private fun RecommendationsContent(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
+        // Hero — cover + title + source
         item { MangaHero(state.manga, state.sourceName) }
 
+        // Source suggestions — "More from this source"
         if (state.groupedSourceSuggestions.isNotEmpty()) {
             state.groupedSourceSuggestions.forEach { (sourceName, list) ->
                 item { SectionHeader("More from $sourceName") }
@@ -136,9 +138,11 @@ private fun RecommendationsContent(
             }
         }
 
+        // AI picks for this novel
         item { Spacer(Modifier.height(8.dp)) }
         item { AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage, onMangaClick) }
 
+        // Tracker recommendations — only when a tracker is linked
         if (state.trackedOn.isNotEmpty()) {
             item { Spacer(Modifier.height(8.dp)) }
             item {
