@@ -8,6 +8,7 @@ import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -34,7 +36,9 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.PersonOutline
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Close
@@ -46,6 +50,8 @@ import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
@@ -68,6 +74,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
@@ -101,6 +108,7 @@ import eu.kanade.presentation.components.DropdownMenu
 import eu.kanade.presentation.library.components.rememberCoverRatio
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.model.SManga
+import eu.kanade.tachiyomi.ui.manga.track.TrackItem
 import eu.kanade.tachiyomi.util.system.copyToClipboard
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.daysUntil
@@ -137,6 +145,9 @@ fun MangaInfoBox(
     doSearch: (query: String, global: Boolean) -> Unit,
     onCoverLoaded: (Color) -> Unit = {},
     modifier: Modifier = Modifier,
+    // New - defaults to false, so every existing call site is unaffected until MangaScreen.kt
+    // is updated to pass the real value from the appearance preference.
+    modernStyle: Boolean = false,
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val uiPreferences = remember { Injekt.get<UiPreferences>() }
@@ -198,8 +209,17 @@ fun MangaInfoBox(
                             brush = Brush.verticalGradient(colors = backdropGradientColors),
                         )
                     }
-                    .blur(backdropBlurDp.dp)
-                    .alpha(backdropOpacityPercent / 100f)
+                    // Modern style: same slider-driven blur/opacity, but with a visible floor so
+                    // the cover's color still reads through even if the user's sliders are set
+                    // very low - "more flair" per the redesign, without fighting their settings.
+                    .blur(if (modernStyle) (backdropBlurDp / 2).dp else backdropBlurDp.dp)
+                    .alpha(
+                        if (modernStyle) {
+                            (backdropOpacityPercent / 100f).coerceAtLeast(0.5f)
+                        } else {
+                            backdropOpacityPercent / 100f
+                        },
+                    )
             } else {
                 // Still needs to load for palette extraction, but shouldn't be visible.
                 Modifier.size(1.dp).alpha(0f)
@@ -212,7 +232,7 @@ fun MangaInfoBox(
                     .matchParentSize()
                     .background(
                         Brush.verticalGradient(
-                            0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            0f to MaterialTheme.colorScheme.primary.copy(alpha = if (modernStyle) 0.20f else 0.12f),
                             0.45f to Color.Transparent,
                             1f to MaterialTheme.colorScheme.background,
                         ),
@@ -235,6 +255,7 @@ fun MangaInfoBox(
                 freeformCover = freeformCover,
                 centerCover = centerCover,
                 coverSizePercent = centerCoverSizePercent,
+                modernStyle = modernStyle,
             )
         }
     }
@@ -253,6 +274,14 @@ fun MangaActionRow(
     onEditIntervalClicked: (() -> Unit)?,
     onEditCategory: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    // New - both default so every existing call site compiles unchanged.
+    modernStyle: Boolean = false,
+    /**
+     * Only used when modernStyle is on, for the "Tracked on" pill row. Populate this from
+     * MangaViewModel.State.Success once you've added the field there (see MangaViewModel.kt) -
+     * defaults to empty so the row simply doesn't render until that's wired up.
+     */
+    trackItems: List<TrackItem> = emptyList(),
 ) {
     val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
     val nextUpdateDays = remember(nextUpdate) {
@@ -264,49 +293,193 @@ fun MangaActionRow(
         }
     }
 
-    Row(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
-        MangaActionButton(
-            title = if (favorite) {
-                stringResource(MR.strings.in_library)
-            } else {
-                stringResource(MR.strings.add_to_library)
-            },
-            icon = if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-            color = if (favorite) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
-            onClick = onAddToLibraryClicked,
-            onLongClick = onEditCategory,
-        )
-        MangaActionButton(
-            title = when (nextUpdateDays) {
-                null -> stringResource(MR.strings.not_applicable)
-                0 -> stringResource(MR.strings.manga_interval_expected_update_soon)
-                else -> pluralStringResource(
-                    MR.plurals.day,
-                    count = nextUpdateDays,
-                    nextUpdateDays,
-                )
-            },
-            icon = Icons.Default.HourglassEmpty,
-            color = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
-            onClick = { onEditIntervalClicked?.invoke() },
-        )
-        MangaActionButton(
-            title = if (trackingCount == 0) {
-                stringResource(MR.strings.manga_tracking_tab)
-            } else {
-                pluralStringResource(MR.plurals.num_trackers, count = trackingCount, trackingCount)
-            },
-            icon = if (trackingCount == 0) Icons.Outlined.Sync else Icons.Outlined.Done,
-            color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
-            onClick = onTrackingClicked,
-        )
-        if (onWebViewClicked != null) {
+    if (!modernStyle) {
+        Row(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
             MangaActionButton(
-                title = stringResource(MR.strings.action_web_view),
-                icon = Icons.Outlined.Public,
-                color = defaultActionButtonColor,
-                onClick = onWebViewClicked,
-                onLongClick = onWebViewLongClicked,
+                title = if (favorite) {
+                    stringResource(MR.strings.in_library)
+                } else {
+                    stringResource(MR.strings.add_to_library)
+                },
+                icon = if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                color = if (favorite) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
+                onClick = onAddToLibraryClicked,
+                onLongClick = onEditCategory,
+            )
+            MangaActionButton(
+                title = when (nextUpdateDays) {
+                    null -> stringResource(MR.strings.not_applicable)
+                    0 -> stringResource(MR.strings.manga_interval_expected_update_soon)
+                    else -> pluralStringResource(
+                        MR.plurals.day,
+                        count = nextUpdateDays,
+                        nextUpdateDays,
+                    )
+                },
+                icon = Icons.Default.HourglassEmpty,
+                color = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
+                onClick = { onEditIntervalClicked?.invoke() },
+            )
+            MangaActionButton(
+                title = if (trackingCount == 0) {
+                    stringResource(MR.strings.manga_tracking_tab)
+                } else {
+                    pluralStringResource(MR.plurals.num_trackers, count = trackingCount, trackingCount)
+                },
+                icon = if (trackingCount == 0) Icons.Outlined.Sync else Icons.Outlined.Done,
+                color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
+                onClick = onTrackingClicked,
+            )
+            if (onWebViewClicked != null) {
+                MangaActionButton(
+                    title = stringResource(MR.strings.action_web_view),
+                    icon = Icons.Outlined.Public,
+                    color = defaultActionButtonColor,
+                    onClick = onWebViewClicked,
+                    onLongClick = onWebViewLongClicked,
+                )
+            }
+        }
+        return
+    }
+
+    // --- Modern style: one primary pill button + circular icon buttons, plus a tracker row ---
+    Column(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(
+                onClick = onAddToLibraryClicked,
+                modifier = Modifier.weight(1f),
+            ) {
+                Icon(
+                    imageVector = if (favorite) Icons.Filled.Favorite else Icons.Filled.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = if (favorite) {
+                        stringResource(MR.strings.in_library)
+                    } else {
+                        stringResource(MR.strings.add_to_library)
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FilledIconButton(onClick = { onEditIntervalClicked?.invoke() }) {
+                Icon(
+                    imageVector = Icons.Default.HourglassEmpty,
+                    contentDescription = stringResource(MR.strings.manga_interval_expected_update_soon),
+                    tint = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                )
+            }
+            FilledIconButton(onClick = onTrackingClicked) {
+                Icon(
+                    imageVector = if (trackingCount == 0) Icons.Outlined.Sync else Icons.Outlined.Done,
+                    contentDescription = stringResource(MR.strings.manga_tracking_tab),
+                    tint = if (trackingCount == 0) LocalContentColor.current else MaterialTheme.colorScheme.primary,
+                )
+            }
+            if (onWebViewClicked != null) {
+                FilledIconButton(onClick = onWebViewClicked) {
+                    Icon(
+                        imageVector = Icons.Outlined.Public,
+                        contentDescription = stringResource(MR.strings.action_web_view),
+                    )
+                }
+                // NOTE: FilledIconButton has no built-in onLongClick param the way TextButton
+                // (used in the legacy MangaActionButton below) does. If you need long-press to
+                // reopen the WebView in a specific way, wrap this button's Modifier in
+                // Modifier.combinedClickable(onClick, onLongClick) instead of using the
+                // component's own onClick lambda - onWebViewLongClicked is intentionally unused
+                // in this branch for now.
+            }
+        }
+
+        if (trackItems.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "Tracked on",
+                style = MaterialTheme.typography.labelMedium,
+                color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+            )
+            Spacer(Modifier.height(6.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(trackItems) { item ->
+                    TrackerPill(item = item, onClick = onTrackingClicked)
+                }
+                item {
+                    AddTrackerPill(onClick = onTrackingClicked)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One linked-tracker pill for the modern action row: service name + last-synced chapter.
+ *
+ * NOTE: `item.track?.lastChapterRead` below assumes tachiyomi.domain.track.model.Track exposes
+ * a `lastChapterRead: Double` field, matching the name already used elsewhere in your
+ * MangaViewModel.kt (`track.lastChapterRead` appears in the tracker-update-prompt logic there).
+ * If your actual Track model names this differently, this is the one line to adjust.
+ */
+@Composable
+private fun TrackerPill(item: TrackItem, onClick: () -> Unit) {
+    val track = item.track
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.height(32.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = item.tracker.name,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            if (track != null) {
+                Text(
+                    text = "Ch. ${track.lastChapterRead.toInt()}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddTrackerPill(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.height(32.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Add,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+            )
+            Text(
+                text = "Add tracker",
+                style = MaterialTheme.typography.labelMedium,
+                color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
             )
         }
     }
@@ -425,6 +598,7 @@ private fun ModernMangaHeader(
     freeformCover: Boolean,
     centerCover: Boolean,
     coverSizePercent: Int,
+    modernStyle: Boolean = false,
 ) {
     if (centerCover) {
         MangaAndSourceTitlesLarge(
@@ -437,6 +611,7 @@ private fun ModernMangaHeader(
             doSearch = doSearch,
             freeformCover = freeformCover,
             coverSizePercent = coverSizePercent,
+            modernStyle = modernStyle,
         )
     } else {
         MangaAndSourceTitlesSmall(
@@ -448,6 +623,7 @@ private fun ModernMangaHeader(
             onCoverClick = onCoverClick,
             doSearch = doSearch,
             freeformCover = freeformCover,
+            modernStyle = modernStyle,
         )
     }
 }
@@ -463,6 +639,7 @@ private fun MangaAndSourceTitlesLarge(
     doSearch: (query: String, global: Boolean) -> Unit,
     freeformCover: Boolean = false,
     coverSizePercent: Int = 65,
+    modernStyle: Boolean = false,
 ) {
     // Null until measured (or when freeformCover is off) - falls back to MangaCover.Book's own
     // default ratio via the `?:` below, same pattern used for the library grid's freeform mode.
@@ -476,7 +653,14 @@ private fun MangaAndSourceTitlesLarge(
         MangaCover.Book(
             modifier = Modifier
                 .fillMaxWidth(coverSizePercent / 100f)
-                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m },
+                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m }
+                .let { m ->
+                    if (modernStyle) {
+                        m.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                    } else {
+                        m
+                    }
+                },
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
                 .crossfade(true)
@@ -513,6 +697,7 @@ private fun MangaAndSourceTitlesSmall(
     onCoverClick: () -> Unit,
     doSearch: (query: String, global: Boolean) -> Unit,
     freeformCover: Boolean = false,
+    modernStyle: Boolean = false,
 ) {
     val ratio = rememberCoverRatio(manga = manga, enabled = freeformCover)
     Row(
@@ -526,7 +711,14 @@ private fun MangaAndSourceTitlesSmall(
             modifier = Modifier
                 .sizeIn(maxWidth = 100.dp)
                 .align(Alignment.Top)
-                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m },
+                .let { m -> if (ratio != null) m.aspectRatio(ratio) else m }
+                .let { m ->
+                    if (modernStyle) {
+                        m.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                    } else {
+                        m
+                    }
+                },
             data = ImageRequest.Builder(LocalContext.current)
                 .data(manga)
                 .crossfade(true)
