@@ -169,7 +169,7 @@ fun MangaScreen(
     val uiPreferences = remember { Injekt.get<UiPreferences>() }
     val uiStyle by uiPreferences.uiStyle.collectAsState()
     val mangaDetailsStyle by uiPreferences.mangaDetailsStyle.collectAsState()
-    val modernStyle = uiStyle == UiStyle.Modern && mangaDetailsStyle == MangaDetailsStyle.Modern
+    val modernStyle = uiStyle == UiStyle.MODERN && mangaDetailsStyle == MangaDetailsStyle.MODERN
 
     if (!isTabletUi) {
         MangaScreenSmallImpl(
