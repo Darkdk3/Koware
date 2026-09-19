@@ -756,6 +756,11 @@ class ReaderViewModel @JvmOverloads constructor(
             downloadNextChapters()
         }
 
+        // Live translation: re-run OCR + translation for the newly shown page.
+        if (state.value.isLiveTranslationActive) {
+            startLiveTranslation(page)
+        }
+
         eventChannel.trySend(Event.PageChanged)
     }
 
@@ -1438,44 +1443,155 @@ class ReaderViewModel @JvmOverloads constructor(
 
     private val textRecognitionInteractor by lazy { eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor() }
 
+    /** In-flight OCR + translate work for the page on screen. Cancelled on page change / toggle off. */
+    private var liveTranslationJob: kotlinx.coroutines.Job? = null
+
     /**
-     * Toggles the live OCR translation overlay.
-     * When activated, the current page bitmap is processed through ML Kit text recognition,
-     * and recognized text regions are displayed as overlays.
+     * Toggles the live OCR translation overlay. Turning it on immediately runs OCR + translation on the
+     * page being shown; turning it off cancels any in-flight work and clears the overlay.
      */
     fun toggleLiveTranslation() {
         val newState = !state.value.isLiveTranslationActive
+        if (!newState) {
+            liveTranslationJob?.cancel()
+            liveTranslationJob = null
+        }
         mutableState.update {
             it.copy(
                 isLiveTranslationActive = newState,
                 ocrResults = if (!newState) emptyList() else it.ocrResults,
                 translatedOcrResults = if (!newState) emptyList() else it.translatedOcrResults,
+                isOcrProcessing = if (!newState) false else it.isOcrProcessing,
             )
+        }
+        if (newState) {
+            // If the page-actions sheet is open, the page the user long-pressed is the one on screen.
+            val page = (state.value.dialog as? Dialog.PageActions)?.page
+                ?: getCurrentChapter()?.pages?.getOrNull(state.value.currentPage - 1)
+            if (page != null) startLiveTranslation(page)
         }
     }
 
     /**
-     * Processes a page bitmap through OCR and updates the state with results.
+     * Clears the overlay and (re)starts OCR + translation for [page]. Called on toggle and on page change.
+     */
+    private fun startLiveTranslation(page: ReaderPage) {
+        if (!state.value.isLiveTranslationActive) return
+        liveTranslationJob?.cancel()
+        // Drop boxes from the previous page right away so they don't sit on top of the new one.
+        mutableState.update {
+            it.copy(
+                ocrResults = emptyList(),
+                translatedOcrResults = emptyList(),
+                isOcrProcessing = true,
+            )
+        }
+        liveTranslationJob = viewModelScope.launchIO {
+            try {
+                val bitmap = decodePageBitmap(page)
+                if (bitmap == null) {
+                    mutableState.update { it.copy(isOcrProcessing = false) }
+                    notifyLiveTranslationError("Live translation: couldn't load this page image")
+                    return@launchIO
+                }
+                ocrAndTranslate(bitmap)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Live translation failed" }
+                mutableState.update { it.copy(isOcrProcessing = false) }
+                notifyLiveTranslationError("Live translation failed: ${e.message ?: e::class.simpleName}")
+            }
+        }
+    }
+
+    /**
+     * Decodes the page image (waiting briefly if it's still loading), downsampling very large images.
+     */
+    private suspend fun decodePageBitmap(page: ReaderPage): android.graphics.Bitmap? {
+        var waitedMs = 0
+        while (page.status != Page.State.Ready && waitedMs < 15_000) {
+            kotlinx.coroutines.delay(250)
+            waitedMs += 250
+        }
+        val openStream = page.stream ?: return null
+        return withIOContext<android.graphics.Bitmap?> {
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            openStream().use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withIOContext null
+
+            var sample = 1
+            while ((bounds.outWidth.toLong() / sample) * (bounds.outHeight.toLong() / sample) > 16_000_000L) {
+                sample *= 2
+            }
+            val options = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+            openStream().use { android.graphics.BitmapFactory.decodeStream(it, null, options) }
+        }
+    }
+
+    /**
+     * Kept for any viewer that already hands in a bitmap; now also translates.
      */
     suspend fun processPageForOcr(bitmap: android.graphics.Bitmap) {
         if (!state.value.isLiveTranslationActive) return
         mutableState.update { it.copy(isOcrProcessing = true) }
         try {
-            val model = translationPreferences.liveTranslationModel().get()
-            val results = textRecognitionInteractor.recognizeText(bitmap, model)
-            mutableState.update {
-                it.copy(
-                    ocrResults = results,
-                    translatedOcrResults = results.map { r -> r.text },
-                    isOcrProcessing = false,
-                    ocrImageWidth = bitmap.width,
-                    ocrImageHeight = bitmap.height,
-                )
-            }
+            ocrAndTranslate(bitmap)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e) { "OCR processing failed" }
             mutableState.update { it.copy(isOcrProcessing = false) }
+            notifyLiveTranslationError("Live translation failed: ${e.message ?: e::class.simpleName}")
         }
+    }
+
+    /**
+     * Runs OCR on [bitmap], publishes the boxes right away, then translates each region in turn and
+     * publishes translations as they arrive (blank entry = not translated yet).
+     */
+    private suspend fun ocrAndTranslate(bitmap: android.graphics.Bitmap) {
+        val width = bitmap.width
+        val height = bitmap.height
+
+        val model = translationPreferences.liveTranslationModel().get()
+        val results = textRecognitionInteractor.recognizeText(bitmap, model)
+        logcat(LogPriority.DEBUG) { "Live translation: OCR found ${results.size} regions (model=$model)" }
+
+        mutableState.update {
+            it.copy(
+                ocrResults = results,
+                translatedOcrResults = emptyList(),
+                ocrImageWidth = width,
+                ocrImageHeight = height,
+            )
+        }
+
+        val translated = MutableList(results.size) { "" }
+        for ((index, result) in results.withIndex()) {
+            kotlinx.coroutines.yield() // throws if this page was cancelled (page changed / toggled off)
+            val source = result.text.trim()
+            if (source.isBlank()) continue
+
+            val output = try {
+                translationService.translateChapterContent(content = source, locator = null)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Live translation: translate call failed" }
+                notifyLiveTranslationError("Live translation failed: ${e.message ?: e::class.simpleName}")
+                break
+            }
+
+            translated[index] = output.trim().ifBlank { source }
+            mutableState.update { it.copy(translatedOcrResults = translated.toList()) }
+        }
+
+        mutableState.update { it.copy(isOcrProcessing = false) }
+    }
+
+    private suspend fun notifyLiveTranslationError(message: String) {
+        withUIContext { Injekt.get<Application>().toast(message) }
     }
 
     fun setBrightnessOverlayValue(value: Int) {
@@ -1689,7 +1805,7 @@ class ReaderViewModel @JvmOverloads constructor(
         val ocrResults: List<eu.kanade.tachiyomi.data.translation.ocr.TextRecognitionInteractor.TextRecognitionResult> = emptyList(),
 
         /**
-         * Translated text for each OCR result (same index as ocrResults).
+         * Translated text for each OCR result (same index as ocrResults). Blank = not translated yet.
          */
         val translatedOcrResults: List<String> = emptyList(),
 
