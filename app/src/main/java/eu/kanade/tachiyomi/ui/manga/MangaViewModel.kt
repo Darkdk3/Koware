@@ -43,6 +43,7 @@ import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.rateLimitHost
+import eu.kanade.tachiyomi.ui.manga.track.TrackItem
 import eu.kanade.tachiyomi.ui.reader.quote.QuoteManager
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.chapter.getNextUnread
@@ -1386,6 +1387,11 @@ class MangaViewModel(
 
     // Track sheet - start
 
+    /**
+     * Updated: now also builds and publishes the full per-tracker list (trackItems), not just
+     * the count, so the modern manga-screen action row can show which service each track belongs
+     * to and what chapter it's synced to.
+     */
     private fun observeTrackers() {
         val manga = successState?.manga ?: return
 
@@ -1398,14 +1404,21 @@ class MangaViewModel(
                 val supportedTrackers = loggedInTrackers.filter { (it as? EnhancedTracker)?.accept(source!!) ?: true }
                 val supportedTrackerIds = supportedTrackers.map { it.id }.toHashSet()
                 val supportedTrackerTracks = mangaTracks.filter { it.trackerId in supportedTrackerIds }
-                supportedTrackerTracks.size to supportedTrackers.isNotEmpty()
+                val trackItems = supportedTrackers.map { tracker ->
+                    TrackItem(
+                        track = supportedTrackerTracks.find { it.trackerId == tracker.id },
+                        tracker = tracker,
+                    )
+                }
+                Triple(supportedTrackerTracks.size, supportedTrackers.isNotEmpty(), trackItems)
             }
                 .distinctUntilChanged()
-                .collectLatest { (trackingCount, hasLoggedInTrackers) ->
+                .collectLatest { (trackingCount, hasLoggedInTrackers, trackItems) ->
                     updateSuccessState {
                         it.copy(
                             trackingCount = trackingCount,
                             hasLoggedInTrackers = hasLoggedInTrackers,
+                            trackItems = trackItems,
                         )
                     }
                 }
@@ -1832,6 +1845,10 @@ class MangaViewModel(
             val availableScanlators: Set<String>,
             val excludedScanlators: Set<String>,
             val trackingCount: Int = 0,
+            // New: the actual per-tracker list backing trackingCount above, for the modern
+            // action row's "Tracked on" pills. Populated alongside trackingCount in
+            // observeTrackers() - see that function.
+            val trackItems: List<TrackItem> = emptyList(),
             val hasLoggedInTrackers: Boolean = false,
             val isRefreshingData: Boolean = false,
             val dialog: Dialog? = null,
@@ -1926,4 +1943,4 @@ sealed class ChapterList {
         val id = chapter.id
         val isDownloaded = downloadState == Download.State.DOWNLOADED
     }
-} 
+}
