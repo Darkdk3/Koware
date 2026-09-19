@@ -1,12 +1,17 @@
 package eu.kanade.presentation.manga.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Circle
@@ -19,6 +24,7 @@ import androidx.compose.material.icons.outlined.FileDownloadOff
 import androidx.compose.material.icons.outlined.RemoveDone
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
@@ -31,10 +37,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.data.download.model.Download
@@ -67,6 +75,17 @@ fun MangaChapterListItem(
     onDownloadClick: ((ChapterDownloadAction) -> Unit)?,
     onChapterSwipe: (LibraryPreferences.ChapterSwipeAction) -> Unit,
     modifier: Modifier = Modifier,
+    // --- new, all default so every existing (legacy) call site compiles unchanged ---
+    /** Drives the redesigned badge/strikethrough look. False preserves the exact original layout. */
+    modernStyle: Boolean = false,
+    /** Bare chapter number (e.g. "16"), only used for the modern-style numbered badge. */
+    chapterNumber: String? = null,
+    /**
+     * 0-100 read percentage. ONLY meaningful for novels - a manga chapter's lastPageRead is a
+     * page index, not a percentage, so it can't drive an accurate bar without also knowing the
+     * total page count. Leave this null for manga chapters (see MangaScreen.kt call site).
+     */
+    readProgressPercent: Int? = null,
 ) {
     val start = getSwipeAction(
         action = chapterSwipeStartAction,
@@ -94,6 +113,13 @@ fun MangaChapterListItem(
     ) {
         Row(
             modifier = modifier
+                .let {
+                    if (modernStyle && !read) {
+                        it.background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.medium)
+                    } else {
+                        it
+                    }
+                }
                 .selectedBackground(selected)
                 .combinedClickable(
                     onClick = onClick,
@@ -101,6 +127,33 @@ fun MangaChapterListItem(
                 )
                 .padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 12.dp),
         ) {
+            if (modernStyle) {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .background(
+                            if (!read) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = chapterNumber.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (!read) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            LocalContentColor.current.copy(alpha = DISABLED_ALPHA)
+                        },
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+            }
+
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -110,7 +163,8 @@ fun MangaChapterListItem(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     var textHeight by remember { mutableIntStateOf(0) }
-                    if (!read) {
+                    // Modern style shows unread state via the badge + row tint above instead of this dot
+                    if (!read && !modernStyle) {
                         Icon(
                             imageVector = Icons.Filled.Circle,
                             contentDescription = stringResource(MR.strings.unread),
@@ -140,7 +194,13 @@ fun MangaChapterListItem(
                     }
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.let {
+                            if (modernStyle && read) {
+                                it.copy(textDecoration = TextDecoration.LineThrough)
+                            } else {
+                                it
+                            }
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         onTextLayout = { textHeight = it.size.height },
@@ -180,6 +240,19 @@ fun MangaChapterListItem(
                             )
                         }
                     }
+                }
+
+                if (modernStyle && readProgressPercent != null) {
+                    LinearProgressIndicator(
+                        progress = { (readProgressPercent / 100f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .width(48.dp)
+                            .height(3.dp)
+                            .clip(MaterialTheme.shapes.extraSmall),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    )
                 }
             }
 
