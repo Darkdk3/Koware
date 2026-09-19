@@ -125,8 +125,8 @@ class MangaRecommendationsViewModel(
                 AiRecommendationResult.Disabled -> "AI features are turned off in Settings → AI."
                 AiRecommendationResult.NoEngine -> "Set up an AI engine in Settings → AI."
                 AiRecommendationResult.NoReadingHistory -> "Keep reading so the AI can learn your taste."
+                AiRecommendationResult.NoCandidates -> "No other manga found to compare against yet."
                 is AiRecommendationResult.Success -> null
-                else -> null
             }
 
             val tracks = getTracks.await(mangaId)
@@ -245,7 +245,7 @@ class MangaRecommendationsViewModel(
         }
     }
 
-    // --- Existing source / AI logic (unchanged) -----------------------------
+    // --- Source / AI logic ---------------------------------------------------
 
     private suspend fun loadGroupedSourceSuggestions(
         source: CatalogueSource?,
