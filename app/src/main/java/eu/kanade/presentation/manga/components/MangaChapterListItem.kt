@@ -113,13 +113,6 @@ fun MangaChapterListItem(
     ) {
         Row(
             modifier = modifier
-                .let {
-                    if (modernStyle && !read) {
-                        it.background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.medium)
-                    } else {
-                        it
-                    }
-                }
                 .selectedBackground(selected)
                 .combinedClickable(
                     onClick = onClick,
