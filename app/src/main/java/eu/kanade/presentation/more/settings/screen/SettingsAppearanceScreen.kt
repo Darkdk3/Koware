@@ -405,6 +405,11 @@ object SettingsAppearanceScreen : SearchableSettings {
         val appTheme by appThemePref.collectAsState()
         val amoledPref = uiPreferences.themeDarkAmoled
         val amoled by amoledPref.collectAsState()
+        // Read here so the manga-details-style override below can be disabled/hidden when the
+        // top-level style is Legacy - that override only makes sense as a "step back to legacy
+        // for just this screen" choice while the rest of the app (including the library) is
+        // already on Modern.
+        val uiStyle by uiPreferences.uiStyle.collectAsState()
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_theme),
             preferenceItems = listOf(
@@ -445,7 +450,15 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = uiPreferences.mangaDetailsStyle,
                     entries = MangaDetailsStyle.entries.associateWith { it.label },
                     title = "Manga details screen style",
-                    subtitle = "Choose between modern redesigned look or legacy style",
+                    subtitle = if (uiStyle == UiStyle.Modern) {
+                        "Choose between modern redesigned look or legacy style"
+                    } else {
+                        "Only applies when UI style above is set to Modern"
+                    },
+                    // Only meaningful as an override while the app-wide style is Modern; when the
+                    // top-level style is Legacy, the manga screen is already legacy regardless of
+                    // this value (see the modernStyle calculation in MangaScreen.kt).
+                    enabled = uiStyle == UiStyle.Modern,
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = uiPreferences.libraryChipsStyle,
