@@ -50,6 +50,9 @@ import androidx.compose.ui.util.fastAll
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.unit.dp
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.MangaDetailsStyle
+import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
 import eu.kanade.presentation.manga.components.ChapterHeader
@@ -158,11 +161,22 @@ fun MangaScreen(
         }
     }
 
+    // Modern/legacy manga-screen look, computed once here and threaded down to both layouts so
+    // neither has to re-read preferences separately. Two settings, same as the library's own
+    // split: the top-level UI style has to be Modern AND the manga-details-specific override
+    // (settable only when the top style is Modern - see SettingsAppearanceScreen.kt) also has
+    // to be Modern. Either one being Legacy falls back to the exact original layout.
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
+    val uiStyle by uiPreferences.uiStyle.collectAsState()
+    val mangaDetailsStyle by uiPreferences.mangaDetailsStyle.collectAsState()
+    val modernStyle = uiStyle == UiStyle.Modern && mangaDetailsStyle == MangaDetailsStyle.Modern
+
     if (!isTabletUi) {
         MangaScreenSmallImpl(
             state = state,
             snackbarHostState = snackbarHostState,
             nextUpdate = nextUpdate,
+            modernStyle = modernStyle,
             chapterSwipeStartAction = chapterSwipeStartAction,
             chapterSwipeEndAction = chapterSwipeEndAction,
             navigateUp = navigateUp,
@@ -217,6 +231,7 @@ fun MangaScreen(
             chapterSwipeStartAction = chapterSwipeStartAction,
             chapterSwipeEndAction = chapterSwipeEndAction,
             nextUpdate = nextUpdate,
+            modernStyle = modernStyle,
             navigateUp = navigateUp,
             onChapterClicked = onChapterClicked,
             onDownloadChapter = onDownloadChapter,
@@ -270,6 +285,7 @@ private fun MangaScreenSmallImpl(
     state: MangaViewModel.State.Success,
     snackbarHostState: SnackbarHostState,
     nextUpdate: Instant?,
+    modernStyle: Boolean,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
     navigateUp: () -> Unit,
@@ -490,6 +506,7 @@ private fun MangaScreenSmallImpl(
                             categories = state.categories,
                             onCoverClick = onCoverClicked,
                             doSearch = onSearch,
+                            modernStyle = modernStyle,
                         )
                     }
 
@@ -508,6 +525,8 @@ private fun MangaScreenSmallImpl(
                             onTrackingClicked = onTrackingClicked,
                             onEditIntervalClicked = onEditIntervalClicked,
                             onEditCategory = onEditCategoryClicked,
+                            modernStyle = modernStyle,
+                            trackItems = state.trackItems,
                         )
                     }
 
@@ -581,6 +600,7 @@ private fun MangaScreenSmallImpl(
                         onChapterSelected = onChapterSelected,
                         onChapterSwipe = onChapterSwipe,
                         isNovel = state.isNovel,
+                        modernStyle = modernStyle,
                     )
                 }
             }
@@ -593,6 +613,7 @@ fun MangaScreenLargeImpl(
     state: MangaViewModel.State.Success,
     snackbarHostState: SnackbarHostState,
     nextUpdate: Instant?,
+    modernStyle: Boolean,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
     navigateUp: () -> Unit,
@@ -807,6 +828,7 @@ fun MangaScreenLargeImpl(
                             categories = state.categories,
                             onCoverClick = onCoverClicked,
                             doSearch = onSearch,
+                            modernStyle = modernStyle,
                         )
                         MangaActionRow(
                             favorite = state.manga.favorite,
@@ -819,6 +841,8 @@ fun MangaScreenLargeImpl(
                             onTrackingClicked = onTrackingClicked,
                             onEditIntervalClicked = onEditIntervalClicked,
                             onEditCategory = onEditCategoryClicked,
+                            modernStyle = modernStyle,
+                            trackItems = state.trackItems,
                         )
                         val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
                         val sortMangaTags by libraryPreferences.sortMangaTags.changes().collectAsState(
@@ -890,6 +914,7 @@ fun MangaScreenLargeImpl(
                                 onChapterSelected = onChapterSelected,
                                 onChapterSwipe = onChapterSwipe,
                                 isNovel = state.isNovel,
+                                modernStyle = modernStyle,
                             )
                         }
                     }
@@ -982,6 +1007,7 @@ private fun LazyListScope.sharedChapterItems(
     onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
     isNovel: Boolean = false,
+    modernStyle: Boolean = false,
 ) {
     items(
         items = chapters,
@@ -1068,6 +1094,14 @@ private fun LazyListScope.sharedChapterItems(
                     onChapterSwipe = {
                         onChapterSwipe(item, it)
                     },
+                    modernStyle = modernStyle,
+                    chapterNumber = formatChapterNumber(item.chapter.chapterNumber),
+                    // Only novels' lastPageRead is a 0-100 percentage - see the readProgress
+                    // block above and the param doc on MangaChapterListItem. Manga chapters
+                    // always pass null here since a page index alone can't be normalized.
+                    readProgressPercent = item.chapter.lastPageRead
+                        .takeIf { isNovel && !item.chapter.read && it > 0L }
+                        ?.toInt(),
                 )
             }
         }
