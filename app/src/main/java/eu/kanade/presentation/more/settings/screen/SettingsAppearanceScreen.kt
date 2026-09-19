@@ -450,7 +450,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                     preference = uiPreferences.mangaDetailsStyle,
                     entries = MangaDetailsStyle.entries.associateWith { it.label },
                     title = "Manga details screen style",
-                    subtitle = if (uiStyle == UiStyle.Modern) {
+                    subtitle = if (uiStyle == UiStyle.MODERN) {
                         "Choose between modern redesigned look or legacy style"
                     } else {
                         "Only applies when UI style above is set to Modern"
@@ -458,7 +458,7 @@ object SettingsAppearanceScreen : SearchableSettings {
                     // Only meaningful as an override while the app-wide style is Modern; when the
                     // top-level style is Legacy, the manga screen is already legacy regardless of
                     // this value (see the modernStyle calculation in MangaScreen.kt).
-                    enabled = uiStyle == UiStyle.Modern,
+                    enabled = uiStyle == UiStyle.MODERN,
                 ),
                 Preference.PreferenceItem.ListPreference(
                     preference = uiPreferences.libraryChipsStyle,
