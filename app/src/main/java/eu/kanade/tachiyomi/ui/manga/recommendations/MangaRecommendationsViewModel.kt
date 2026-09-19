@@ -126,6 +126,7 @@ class MangaRecommendationsViewModel(
                 AiRecommendationResult.NoEngine -> "Set up an AI engine in Settings → AI."
                 AiRecommendationResult.NoReadingHistory -> "Keep reading so the AI can learn your taste."
                 AiRecommendationResult.NoCandidates -> "No other manga found to compare against yet."
+                AiRecommendationResult.NoMatches -> "No close matches found for this title."
                 is AiRecommendationResult.Success -> null
             }
 
