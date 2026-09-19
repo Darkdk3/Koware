@@ -6,10 +6,13 @@ import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.FrameLayout
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.core.view.updateMargins
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
+import eu.kanade.presentation.reader.OcrTranslationOverlay
 import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
@@ -18,9 +21,14 @@ import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.system.dpToPx
+import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import logcat.LogPriority
@@ -80,12 +88,51 @@ class WebtoonPageHolder(
      */
     private var loadJob: Job? = null
 
+    /**
+     * True once the page image is decoded and displayed. Live translation waits for this so the
+     * overlay is measured against the final size of the image.
+     */
+    private val imageReady = MutableStateFlow(false)
+
+    /**
+     * Job that watches the live translation toggle and runs OCR + translation for this page.
+     */
+    private var ocrJob: Job? = null
+
+    /**
+     * What the live translation overlay currently shows. Null means nothing is drawn.
+     */
+    private val overlayUi = mutableStateOf<WebtoonOverlayUi?>(null)
+
+    /**
+     * Compose overlay stacked on top of the page image. It never handles touches, so scrolling,
+     * zooming and taps keep working through it.
+     */
+    private val overlayView = ComposeView(context).apply {
+        layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+        translationZ = 1f
+        isClickable = false
+        isFocusable = false
+        setContent {
+            val ui = overlayUi.value
+            if (ui != null) {
+                OcrTranslationOverlay(
+                    ocrResults = ui.ocr,
+                    translatedResults = ui.translated,
+                    isProcessing = ui.processing,
+                    imageWidth = ui.width,
+                    imageHeight = ui.height,
+                )
+            }
+        }
+    }
+
     init {
         refreshLayoutParams()
-
         frame.onImageLoaded = { onImageDecoded() }
         frame.onImageLoadError = { error -> setError(error) }
         frame.onScaleChanged = { viewer.activity.hideMenu() }
+        frame.addView(overlayView)
     }
 
     /**
@@ -96,6 +143,7 @@ class WebtoonPageHolder(
         loadJob?.cancel()
         loadJob = scope.launch { loadPageAndProcessStatus() }
         refreshLayoutParams()
+        startOcrObserver()
     }
 
     private fun refreshLayoutParams() {
@@ -116,11 +164,85 @@ class WebtoonPageHolder(
     override fun recycle() {
         loadJob?.cancel()
         loadJob = null
-
+        ocrJob?.cancel()
+        ocrJob = null
+        imageReady.value = false
+        overlayUi.value = null
         removeErrorLayout()
         frame.recycle()
         progressIndicator.setProgress(0)
         progressContainer.isVisible = true
+    }
+
+    /**
+     * Starts watching the reader's translation toggle. While it is on and this page's image is
+     * displayed, the page is OCR'd, translated and drawn in the overlay. Turning it off, or
+     * recycling the holder, cancels any work in progress and clears the overlay.
+     *
+     * NOTE: "live translation is on" is read from ReaderViewModel.State.isTranslating. If your
+     * paged reader uses a different switch, change the first flow below to read that instead.
+     */
+    private fun startOcrObserver() {
+        ocrJob?.cancel()
+        imageReady.value = false
+        overlayUi.value = null
+        ocrJob = scope.launch {
+            combine(
+                viewer.activity.viewModel.state.map { it.isTranslating }.distinctUntilChanged(),
+                imageReady,
+            ) { translating, ready -> translating && ready }
+                .distinctUntilChanged()
+                .collectLatest { active ->
+                    if (active) {
+                        runOcr()
+                    } else {
+                        overlayUi.value = null
+                    }
+                }
+        }
+    }
+
+    /**
+     * Runs OCR + translation for the bound page and publishes the result to the overlay.
+     */
+    private suspend fun runOcr() {
+        val page = page ?: return
+        val streamFn = page.stream ?: return
+        val pageKey = "${page.chapter.chapter.id}:${page.index}"
+
+        val cached = WebtoonPageOcr.cached(pageKey)
+        if (cached != null) {
+            overlayUi.value = cached
+            return
+        }
+
+        overlayUi.value = WebtoonOverlayUi(
+            ocr = emptyList(),
+            translated = emptyList(),
+            processing = true,
+            width = 0,
+            height = 0,
+        )
+
+        val outcome = WebtoonPageOcr.process(
+            pageKey = pageKey,
+            loadBytes = {
+                withIOContext {
+                    streamFn().use { process(Buffer().readFrom(it)).readByteArray() }
+                }
+            },
+        )
+
+        when (outcome) {
+            is WebtoonPageOcr.Outcome.Ready -> overlayUi.value = outcome.ui
+            is WebtoonPageOcr.Outcome.Failed -> {
+                overlayUi.value = null
+                logcat(LogPriority.WARN) { "Live translation failed: ${outcome.message}" }
+                if (WebtoonPageOcr.shouldReport(outcome.message)) {
+                    context.toast(outcome.message)
+                }
+            }
+        }
     }
 
     /**
@@ -133,6 +255,7 @@ class WebtoonPageHolder(
     private suspend fun loadPageAndProcessStatus() {
         val page = page ?: return
         val loader = page.chapter.pageLoader ?: return
+
         supervisorScope {
             launchIO {
                 loader.loadPage(page)
@@ -255,6 +378,7 @@ class WebtoonPageHolder(
     private fun onImageDecoded() {
         progressContainer.isVisible = false
         removeErrorLayout()
+        imageReady.value = true
     }
 
     /**
