@@ -44,11 +44,11 @@ note : The Manga side will be a bit neglected but i will get to it . . probably
 
 * **Discover tab** — a source-pinning feed of latest/popular novels across your pinned sources 
 * **Source suggestions** — "more from this source" recommendations on each novel's details page (super boot strapped)
-* **Notion Tracking 
-* ** Live Manga OCR translation 
-* ** Some Ai slop aswell 
-* ** Reading Progress bar (only when modern style is activated)
-* Custom Ui stuff 
+* **Notion Tracking** 
+* **Live Manga OCR translation**  
+* **Some Ai slop aswell**
+* **Reading Progress bar** (only when modern style is activated)
+* **Custom Ui stuff**
 * Plus much more coming...probably (if don't drop dead) ^^
 
 
