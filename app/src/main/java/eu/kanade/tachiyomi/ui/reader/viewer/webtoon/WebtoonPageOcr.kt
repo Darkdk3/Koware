@@ -38,8 +38,10 @@ data class WebtoonOverlayUi(
 /**
  * OCR + translation for a single (very tall) webtoon page.
  *
- * Tall pages are cut into overlapping tiles so ML Kit never sees a huge bitmap, and only one page
- * is processed at a time. Results are cached per page, so scrolling back doesn't redo any work.
+ * Tall pages are cut into overlapping tiles so ML Kit never sees a huge bitmap. The work is a
+ * two-stage pipeline: OCR (CPU) runs one page at a time, and translation (network) runs one page
+ * at a time, so while page N is being translated page N+1 is already being OCR'd. Results are
+ * cached per page (enough for a whole chapter), so scrolling back doesn't redo any work.
  */
 object WebtoonPageOcr {
 
@@ -54,12 +56,14 @@ object WebtoonPageOcr {
     private const val TILE_HEIGHT = 1800
     private const val TILE_OVERLAP = 200
     private const val MAX_TILE_WIDTH = 2400
-    private const val CACHE_SIZE = 40
+    private const val CACHE_SIZE = 150
     private const val REPORT_INTERVAL_MS = 8000L
 
     private val interactor by lazy { TextRecognitionInteractor() }
     private val translator by lazy { OcrTranslator() }
-    private val mutex = Mutex()
+
+    private val ocrMutex = Mutex()
+    private val translateMutex = Mutex()
 
     private val ocrCache = object : LinkedHashMap<String, OcrPage>(CACHE_SIZE, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, OcrPage>?): Boolean =
@@ -96,7 +100,8 @@ object WebtoonPageOcr {
     suspend fun process(pageKey: String, loadBytes: suspend () -> ByteArray?): Outcome =
         withContext(Dispatchers.IO) {
             try {
-                mutex.withLock { processLocked(pageKey, loadBytes) }
+                cached(pageKey)?.let { return@withContext Outcome.Ready(it) }
+                processPipelined(pageKey, loadBytes)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -105,18 +110,20 @@ object WebtoonPageOcr {
             }
         }
 
-    private suspend fun processLocked(pageKey: String, loadBytes: suspend () -> ByteArray?): Outcome {
-        cached(pageKey)?.let { return Outcome.Ready(it) }
-
+    private suspend fun processPipelined(pageKey: String, loadBytes: suspend () -> ByteArray?): Outcome {
         val prefs = Injekt.get<TranslationPreferences>()
         val model = modelFor(prefs.sourceLanguage().get())
         val ocrKey = "$pageKey|$model"
 
-        var ocrPage = synchronized(ocrCache) { ocrCache[ocrKey] }
-        if (ocrPage == null) {
-            val bytes = loadBytes() ?: return Outcome.Failed("Couldn't read the page image")
-            ocrPage = recognize(bytes, model) ?: return Outcome.Failed("Couldn't decode the page image for OCR")
-            synchronized(ocrCache) { ocrCache[ocrKey] = ocrPage }
+        // Stage 1: OCR. If another caller already OCR'd this page while we waited, it's a cache hit.
+        val ocrPage: OcrPage = ocrMutex.withLock {
+            synchronized(ocrCache) { ocrCache[ocrKey] } ?: run {
+                val bytes = loadBytes() ?: return Outcome.Failed("Couldn't read the page image")
+                val recognized = recognize(bytes, model)
+                    ?: return Outcome.Failed("Couldn't decode the page image for OCR")
+                synchronized(ocrCache) { ocrCache[ocrKey] = recognized }
+                recognized
+            }
         }
 
         if (ocrPage.results.isEmpty()) {
@@ -125,19 +132,24 @@ object WebtoonPageOcr {
             return Outcome.Ready(ui)
         }
 
-        return when (val result = translator.translate(ocrPage.results)) {
-            is OcrTranslator.Result.Success -> {
-                val ui = WebtoonOverlayUi(
-                    ocr = ocrPage.results,
-                    translated = result.texts,
-                    processing = false,
-                    width = ocrPage.width,
-                    height = ocrPage.height,
-                )
-                synchronized(uiCache) { uiCache[uiKey(pageKey)] = ui }
-                Outcome.Ready(ui)
+        // Stage 2: translate. Meanwhile the next page can already be in stage 1.
+        return translateMutex.withLock {
+            cached(pageKey)?.let { return@withLock Outcome.Ready(it) }
+
+            when (val result = translator.translate(ocrPage.results)) {
+                is OcrTranslator.Result.Success -> {
+                    val ui = WebtoonOverlayUi(
+                        ocr = ocrPage.results,
+                        translated = result.texts,
+                        processing = false,
+                        width = ocrPage.width,
+                        height = ocrPage.height,
+                    )
+                    synchronized(uiCache) { uiCache[uiKey(pageKey)] = ui }
+                    Outcome.Ready(ui)
+                }
+                is OcrTranslator.Result.Failure -> Outcome.Failed(result.message)
             }
-            is OcrTranslator.Result.Failure -> Outcome.Failed(result.message)
         }
     }
 
@@ -179,7 +191,6 @@ object WebtoonPageOcr {
                 if (bottom >= height) break
                 top = bottom - TILE_OVERLAP
             }
-
             logcat(LogPriority.DEBUG) { "$TAG: ${merged.size} text regions on ${width}x$height page (model=$model)" }
             return OcrPage(width, height, merged)
         } finally {
