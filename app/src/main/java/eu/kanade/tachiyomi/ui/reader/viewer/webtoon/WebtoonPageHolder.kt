@@ -131,6 +131,7 @@ class WebtoonPageHolder(
                     if (active) {
                         runLiveTranslation()
                     } else {
+                        WebtoonChapterOcr.stop()
                         clearOverlay()
                     }
                 }
@@ -260,31 +261,7 @@ class WebtoonPageHolder(
         }
     }
 
-    private fun process(imageSource: BufferedSource): BufferedSource {
-        if (viewer.config.dualPageRotateToFit) {
-            return rotateDualPage(imageSource)
-        }
-
-        if (viewer.config.dualPageSplit) {
-            val isDoublePage = ImageUtil.isWideImage(imageSource)
-            if (isDoublePage) {
-                val upperSide = if (viewer.config.dualPageInvert) ImageUtil.Side.LEFT else ImageUtil.Side.RIGHT
-                return ImageUtil.splitAndMerge(imageSource, upperSide)
-            }
-        }
-
-        return imageSource
-    }
-
-    private fun rotateDualPage(imageSource: BufferedSource): BufferedSource {
-        val isDoublePage = ImageUtil.isWideImage(imageSource)
-        return if (isDoublePage) {
-            val rotation = if (viewer.config.dualPageRotateToFitInvert) -90f else 90f
-            ImageUtil.rotateImage(imageSource, rotation)
-        } else {
-            imageSource
-        }
-    }
+    private fun process(imageSource: BufferedSource): BufferedSource = processForDisplay(viewer, imageSource)
 
     /**
      * Called when the page has an error.
@@ -374,6 +351,9 @@ class WebtoonPageHolder(
         val streamFn = page.stream ?: return
         val pageKey = "${page.chapter.chapter.id}-${page.index}"
 
+        // Translate the rest of the chapter in the background (does nothing if it's already running).
+        startChapterTranslation(page)
+
         WebtoonPageOcr.cached(pageKey)?.let { cached ->
             showOverlay(cached)
             return
@@ -398,6 +378,16 @@ class WebtoonPageHolder(
                     context.toast("Live translation failed: ${outcome.message}")
                 }
             }
+        }
+    }
+
+    private fun startChapterTranslation(page: ReaderPage) {
+        val chapterId = page.chapter.chapter.id ?: return
+        val pages = page.chapter.pages ?: return
+        val viewerRef = viewer
+        WebtoonChapterOcr.start(chapterId, pages, page.index) { p ->
+            val streamFn = p.stream ?: return@start null
+            streamFn().use { processForDisplay(viewerRef, Buffer().readFrom(it)).readByteArray() }
         }
     }
 
@@ -448,4 +438,36 @@ class WebtoonPageHolder(
     }
 
     // endregion
+
+    private companion object {
+        /**
+         * Applies the dual-page split/rotate settings. Shared so that OCR of pages that are not on screen
+         * (whole-chapter translation) sees exactly the same image, and the same coordinates, as the reader.
+         */
+        fun processForDisplay(viewer: WebtoonViewer, imageSource: BufferedSource): BufferedSource {
+            if (viewer.config.dualPageRotateToFit) {
+                return rotateDualPage(viewer, imageSource)
+            }
+
+            if (viewer.config.dualPageSplit) {
+                val isDoublePage = ImageUtil.isWideImage(imageSource)
+                if (isDoublePage) {
+                    val upperSide = if (viewer.config.dualPageInvert) ImageUtil.Side.LEFT else ImageUtil.Side.RIGHT
+                    return ImageUtil.splitAndMerge(imageSource, upperSide)
+                }
+            }
+
+            return imageSource
+        }
+
+        fun rotateDualPage(viewer: WebtoonViewer, imageSource: BufferedSource): BufferedSource {
+            val isDoublePage = ImageUtil.isWideImage(imageSource)
+            return if (isDoublePage) {
+                val rotation = if (viewer.config.dualPageRotateToFitInvert) -90f else 90f
+                ImageUtil.rotateImage(imageSource, rotation)
+            } else {
+                imageSource
+            }
+        }
+    }
 }
