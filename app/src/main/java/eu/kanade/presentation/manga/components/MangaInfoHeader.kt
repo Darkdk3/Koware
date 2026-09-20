@@ -48,14 +48,16 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -341,15 +343,23 @@ fun MangaActionRow(
         return
     }
 
-    // --- Modern style: one primary pill button + circular icon buttons, plus a tracker row ---
+    // --- Modern style: one tonal primary button + outlined secondary buttons (two rows so
+    // nothing overlaps or gets clipped - "In library" and the full "N days" text both need
+    // room to breathe, and cramming all four into one row was clipping at narrow widths) ---
     Column(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
+        val nextUpdateLabel = when (nextUpdateDays) {
+            null -> stringResource(MR.strings.not_applicable)
+            0 -> stringResource(MR.strings.manga_interval_expected_update_soon)
+            else -> pluralStringResource(MR.plurals.day, count = nextUpdateDays, nextUpdateDays)
+        }
+
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             FilledTonalButton(
                 onClick = onAddToLibraryClicked,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1.6f),
             ) {
                 Icon(
                     imageVector = if (favorite) Icons.Filled.Favorite else Icons.Filled.PlayArrow,
@@ -367,28 +377,69 @@ fun MangaActionRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            FilledIconButton(onClick = { onEditIntervalClicked?.invoke() }) {
+            OutlinedButton(
+                onClick = { onEditIntervalClicked?.invoke() },
+                modifier = Modifier.weight(1.4f),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (isUserIntervalMode) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        LocalContentColor.current
+                    },
+                ),
+            ) {
                 Icon(
                     imageVector = Icons.Default.HourglassEmpty,
-                    contentDescription = stringResource(MR.strings.manga_interval_expected_update_soon),
-                    tint = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = nextUpdateLabel,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            FilledIconButton(onClick = onTrackingClicked) {
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(
+                onClick = onTrackingClicked,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (trackingCount == 0) {
+                        LocalContentColor.current
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                ),
+            ) {
                 Icon(
                     imageVector = if (trackingCount == 0) Icons.Outlined.Sync else Icons.Outlined.Done,
                     contentDescription = stringResource(MR.strings.manga_tracking_tab),
-                    tint = if (trackingCount == 0) LocalContentColor.current else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp),
                 )
+                if (trackingCount > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(text = trackingCount.toString())
+                }
             }
             if (onWebViewClicked != null) {
-                FilledIconButton(onClick = onWebViewClicked) {
+                OutlinedIconButton(
+                    onClick = onWebViewClicked,
+                    modifier = Modifier.weight(1f),
+                ) {
                     Icon(
                         imageVector = Icons.Outlined.Public,
                         contentDescription = stringResource(MR.strings.action_web_view),
                     )
                 }
-                // NOTE: FilledIconButton has no built-in onLongClick param the way TextButton
+                // NOTE: OutlinedIconButton has no built-in onLongClick param the way TextButton
                 // (used in the legacy MangaActionButton below) does. If you need long-press to
                 // reopen the WebView in a specific way, wrap this button's Modifier in
                 // Modifier.combinedClickable(onClick, onLongClick) instead of using the
