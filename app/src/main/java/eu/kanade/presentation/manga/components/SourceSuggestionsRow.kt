@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,12 +35,15 @@ import tachiyomi.domain.manga.model.MangaCover as MangaCoverModel
 /**
  * "More from this source" section on the manga details screen.
  *
- * When loading (`null`) shows a labeled skeleton row, making it clear that source results
- * are still being fetched. When empty after loading, the section hides completely.
+ * - `suggestions == null`  -> loading: shows a labeled skeleton row.
+ * - `suggestions` empty    -> loaded, nothing found: the section hides completely.
  *
- * A thin [HorizontalDivider] is rendered above the header to separate this section
- * from the description/tags — mirroring the divider above the AI shelf in the
- * Discover feed.
+ * IMPORTANT: callers must pass the nullable value straight through. Passing
+ * `state.sourceSuggestions.orEmpty()` turns "loading" into "empty" and makes the
+ * whole section disappear until the fetch finishes.
+ *
+ * @param currentManga when set, the manga being viewed is removed from its own suggestions
+ * (matched by source + url, since suggestion ids may not match the library entry).
  */
 @Composable
 fun SourceSuggestionsRow(
@@ -48,6 +52,7 @@ fun SourceSuggestionsRow(
     title: String = "More from this source",
     onMoreClicked: (() -> Unit)? = null,
     suggestionCount: Int = 0,
+    currentManga: Manga? = null,
 ) {
     // Loading state: show skeleton row while suggestions are being fetched
     if (suggestions == null) {
@@ -55,8 +60,18 @@ fun SourceSuggestionsRow(
         return
     }
 
+    val visible = remember(suggestions, currentManga) {
+        if (currentManga == null) {
+            suggestions
+        } else {
+            suggestions.filterNot {
+                it.source == currentManga.source && it.url == currentManga.url
+            }
+        }
+    }
+
     // Empty state: loaded but nothing found — hide the section entirely
-    if (suggestions.isEmpty()) return
+    if (visible.isEmpty()) return
 
     HorizontalDivider(
         modifier = Modifier.padding(horizontal = 12.dp),
@@ -74,15 +89,13 @@ fun SourceSuggestionsRow(
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
-
             if (suggestionCount > 0) {
                 Text(
-                    text = "${suggestionCount.coerceAtMost(suggestions.size)} titles",
+                    text = "${suggestionCount.coerceAtMost(visible.size)} titles",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-
             if (onMoreClicked != null) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -114,7 +127,7 @@ fun SourceSuggestionsRow(
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(suggestions, key = { "${it.source}_${it.id}" }) { manga ->
+            items(visible, key = { "${it.source}_${it.id}_${it.url}" }) { manga ->
                 Box(modifier = Modifier.width(110.dp)) {
                     MangaComfortableGridItem(
                         isSelected = false,
@@ -150,7 +163,6 @@ private fun SourceSuggestionsLoadingRow(title: String = "More from this source")
             modifier = Modifier.padding(horizontal = 12.dp),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
         )
-
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -161,7 +173,6 @@ private fun SourceSuggestionsLoadingRow(title: String = "More from this source")
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
-
             CircularProgressIndicator(
                 modifier = Modifier
                     .width(14.dp)
