@@ -39,10 +39,13 @@ import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.AttachMoney
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Done
 import androidx.compose.material.icons.outlined.DoneAll
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.Public
@@ -53,6 +56,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -497,6 +501,103 @@ private fun TrackerPill(item: TrackItem, onClick: () -> Unit) {
                 )
             },
         )
+    }
+}
+
+/**
+ * Collapsible "N of M chapters read" bar for the modern manga screen. Collapsed by default,
+ * expand state is a persisted global preference (same toggle for every manga you open) rather
+ * than per-title, per your call to keep it simple.
+ *
+ * REQUIRES a new preference in LibraryPreferences.kt, added next to the other manga-details
+ * preferences (mangaDetailsHideBackdrop etc.) - I don't have that file, so this is a best-effort
+ * guess at the shape based on how mangaDetailsHideBackdrop is already used above. Add something
+ * like:
+ *
+ *   fun mangaDetailsShowProgressBar() = preferenceStore.getBoolean(
+ *       "pref_manga_details_show_progress_bar",
+ *       false,
+ *   )
+ *
+ * matching whatever your actual mangaDetailsHideBackdrop getter looks like (function vs
+ * property, exact preferenceStore call). If the property name below doesn't resolve, that's the
+ * one line to fix - everything else in this composable is independent of the exact wording.
+ */
+@Composable
+fun ChapterProgressToggle(
+    readCount: Int,
+    totalCount: Int,
+    modifier: Modifier = Modifier,
+) {
+    val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
+    val expanded by libraryPreferences.mangaDetailsShowProgressBar.collectAsState()
+    val percent = if (totalCount > 0) (readCount * 100) / totalCount else 0
+
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickableNoIndication { libraryPreferences.mangaDetailsShowProgressBar.set(!expanded) },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.BarChart,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+                )
+                Text(
+                    text = "Progress",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+                )
+            }
+            OutlinedIconButton(
+                onClick = { libraryPreferences.mangaDetailsShowProgressBar.set(!expanded) },
+                modifier = Modifier.size(28.dp),
+            ) {
+                Icon(
+                    imageVector = if (expanded) Icons.Outlined.KeyboardArrowUp else Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(15.dp),
+                )
+            }
+        }
+
+        if (expanded) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = "$readCount of $totalCount chapters read",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+                )
+                Text(
+                    text = "$percent%",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    color = LocalContentColor.current.copy(alpha = DISABLED_ALPHA),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = { (percent / 100f).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(MaterialTheme.shapes.extraSmall),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+        }
     }
 }
 
