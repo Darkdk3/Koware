@@ -347,15 +347,16 @@ fun MangaActionRow(
         return
     }
 
-    // --- Modern style: one tonal primary button + outlined secondary buttons (two rows so
-    // nothing overlaps or gets clipped - "In library" and the full "N days" text both need
-    // room to breathe, and cramming all four into one row was clipping at narrow widths) ---
+    // --- Modern style: a single row - tonal "In library" pill, outlined "N days" and tracker
+    // count pills, and a round outlined web-view button. Buttons size to their content. ---
     Column(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
         val nextUpdateLabel = when (nextUpdateDays) {
             null -> stringResource(MR.strings.not_applicable)
             0 -> stringResource(MR.strings.manga_interval_expected_update_soon)
             else -> pluralStringResource(MR.plurals.day, count = nextUpdateDays, nextUpdateDays)
         }
+        val mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val pillPadding = PaddingValues(horizontal = 16.dp)
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -363,14 +364,14 @@ fun MangaActionRow(
         ) {
             FilledTonalButton(
                 onClick = onAddToLibraryClicked,
-                modifier = Modifier.weight(1.6f),
+                contentPadding = pillPadding,
             ) {
                 Icon(
-                    imageVector = if (favorite) Icons.Filled.Favorite else Icons.Filled.PlayArrow,
+                    imageVector = Icons.Outlined.FavoriteBorder,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = if (favorite) {
                         stringResource(MR.strings.in_library)
@@ -383,13 +384,9 @@ fun MangaActionRow(
             }
             OutlinedButton(
                 onClick = { onEditIntervalClicked?.invoke() },
-                modifier = Modifier.weight(1.4f),
+                contentPadding = pillPadding,
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = if (isUserIntervalMode) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        LocalContentColor.current
-                    },
+                    contentColor = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else mutedColor,
                 ),
             ) {
                 Icon(
@@ -397,46 +394,35 @@ fun MangaActionRow(
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = nextUpdateLabel,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
             OutlinedButton(
                 onClick = onTrackingClicked,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = if (trackingCount == 0) {
-                        LocalContentColor.current
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                ),
+                contentPadding = pillPadding,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = mutedColor),
             ) {
                 Icon(
-                    imageVector = if (trackingCount == 0) Icons.Outlined.Sync else Icons.Outlined.Done,
+                    imageVector = Icons.Outlined.Sync,
                     contentDescription = stringResource(MR.strings.manga_tracking_tab),
                     modifier = Modifier.size(16.dp),
                 )
                 if (trackingCount > 0) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(text = trackingCount.toString())
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = trackingCount.toString(), maxLines = 1)
                 }
             }
             if (onWebViewClicked != null) {
                 OutlinedIconButton(
                     onClick = onWebViewClicked,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.size(48.dp),
+                    colors = androidx.compose.material3.IconButtonDefaults.outlinedIconButtonColors(
+                        contentColor = mutedColor,
+                    ),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Public,
