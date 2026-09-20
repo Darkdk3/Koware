@@ -51,6 +51,10 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.text.textview.NovelViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonChapterOcr
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonOverlayUi
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonPageOcr
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import eu.kanade.tachiyomi.util.chapter.filterDownloaded
 import eu.kanade.tachiyomi.util.chapter.removeDuplicates
 import eu.kanade.tachiyomi.util.editCover
@@ -1455,6 +1459,7 @@ class ReaderViewModel @JvmOverloads constructor(
         if (!newState) {
             liveTranslationJob?.cancel()
             liveTranslationJob = null
+            WebtoonChapterOcr.stop()
         }
         mutableState.update {
             it.copy(
@@ -1473,28 +1478,57 @@ class ReaderViewModel @JvmOverloads constructor(
     }
 
     /**
-     * Clears the overlay and (re)starts OCR + translation for [page]. Called on toggle and on page change.
+     * (Re)starts OCR + translation for [page]. Called on toggle and on page change.
+     *
+     * Uses the same pipeline as the webtoon reader ([WebtoonPageOcr]: tiled OCR, batched translation,
+     * results cached per page) and reveals the result in one go. The whole chapter is also translated in
+     * the background, so following pages are usually ready before you get to them.
      */
     private fun startLiveTranslation(page: ReaderPage) {
         if (!state.value.isLiveTranslationActive) return
+        // Webtoon / continuous modes draw a per-page overlay inside each page view (WebtoonPageHolder),
+        // which scrolls with the page. Running this full-screen overlay as well would show it twice.
+        if (state.value.viewer is WebtoonViewer) return
+
         liveTranslationJob?.cancel()
-        // Drop boxes from the previous page right away so they don't sit on top of the new one.
+        val chapterId = page.chapter.chapter.id
+        val pageKey = "$chapterId-${page.index}"
+
+        startChapterTranslation(page)
+
+        // Already done (e.g. translated in the background)? Show it right away.
+        WebtoonPageOcr.cached(pageKey)?.let {
+            publishLiveTranslation(it)
+            return
+        }
+
+        // Drop boxes from the previous page so they don't sit on top of the new one.
         mutableState.update {
-            it.copy(
-                ocrResults = emptyList(),
-                translatedOcrResults = emptyList(),
-                isOcrProcessing = true,
-            )
+            it.copy(ocrResults = emptyList(), translatedOcrResults = emptyList(), isOcrProcessing = true)
         }
         liveTranslationJob = viewModelScope.launchIO {
             try {
-                val bitmap = decodePageBitmap(page)
-                if (bitmap == null) {
+                var waitedMs = 0
+                while (page.status != Page.State.Ready && waitedMs < 15_000) {
+                    kotlinx.coroutines.delay(250)
+                    waitedMs += 250
+                }
+                val openStream = page.stream
+                if (openStream == null) {
                     mutableState.update { it.copy(isOcrProcessing = false) }
                     notifyLiveTranslationError("Live translation: couldn't load this page image")
                     return@launchIO
                 }
-                ocrAndTranslate(bitmap)
+
+                when (val outcome = WebtoonPageOcr.process(pageKey) { withIOContext { openStream().use { it.readBytes() } } }) {
+                    is WebtoonPageOcr.Outcome.Ready -> publishLiveTranslation(outcome.ui)
+                    is WebtoonPageOcr.Outcome.Failed -> {
+                        mutableState.update { it.copy(isOcrProcessing = false) }
+                        if (WebtoonPageOcr.shouldReport(outcome.message)) {
+                            notifyLiveTranslationError("Live translation failed: ${outcome.message}")
+                        }
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1502,6 +1536,30 @@ class ReaderViewModel @JvmOverloads constructor(
                 mutableState.update { it.copy(isOcrProcessing = false) }
                 notifyLiveTranslationError("Live translation failed: ${e.message ?: e::class.simpleName}")
             }
+        }
+    }
+
+    /** Puts a finished page result into the state (boxes and translations together). */
+    private fun publishLiveTranslation(ui: WebtoonOverlayUi) {
+        if (!state.value.isLiveTranslationActive) return
+        mutableState.update {
+            it.copy(
+                ocrResults = ui.ocr,
+                translatedOcrResults = ui.translated,
+                ocrImageWidth = ui.width,
+                ocrImageHeight = ui.height,
+                isOcrProcessing = false,
+            )
+        }
+    }
+
+    /** Translates the rest of the chapter in the background (results are cached per page). */
+    private fun startChapterTranslation(page: ReaderPage) {
+        val chapterId = page.chapter.chapter.id ?: return
+        val pages = page.chapter.pages ?: return
+        WebtoonChapterOcr.start(chapterId, pages, page.index) { p ->
+            val openStream = p.stream ?: return@start null
+            withIOContext { openStream().use { it.readBytes() } }
         }
     }
 
