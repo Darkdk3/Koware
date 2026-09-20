@@ -50,6 +50,7 @@ import eu.kanade.tachiyomi.util.chapter.getNextUnread
 import eu.kanade.tachiyomi.util.removeCovers
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collectLatest
@@ -59,6 +60,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import logcat.LogPriority
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
@@ -154,6 +156,9 @@ class MangaViewModel(
 
         val IS_FROM_SOURCE_KEY = CreationExtras.Key<Boolean>()
 
+        // Upper bound for each "More from this source" network attempt.
+        private const val SUGGESTIONS_TIMEOUT_MS = 15_000L
+
         val Factory = viewModelFactory {
             initializer {
                 MangaViewModel(
@@ -196,6 +201,9 @@ class MangaViewModel(
 
     private val selectedPositions: Array<Int> = arrayOf(-1, -1) // first and last selected index in list
     private val selectedChapterIds: HashSet<Long> = HashSet()
+
+    // In-flight "More from this source" load, so a newer load can cancel an older one.
+    private var suggestionsJob: Job? = null
 
     override fun onCleared() {
         val currentManga = manga
@@ -311,7 +319,8 @@ class MangaViewModel(
             observeTrackers()
 
             // "More from this source" row - non-blocking, fire-and-forget. The row itself
-            // (SourceSuggestionsRow) just stays hidden until this resolves.
+            // (SourceSuggestionsRow) shows a skeleton while sourceSuggestions is null and stays
+            // hidden if the load finishes with nothing.
             loadSourceSuggestions(source, manga)
 
             // Fetch info-chapters when needed
@@ -335,6 +344,11 @@ class MangaViewModel(
     }
 
     fun fetchAllFromSource(manualFetch: Boolean = true, forceRefresh: Boolean = false) {
+        // A user-triggered refresh also retries the "More from this source" row, so a row that
+        // came back empty (or failed) once isn't stuck until the screen is reopened. The old list
+        // stays visible while it reloads.
+        if (manualFetch) reloadSourceSuggestions()
+
         viewModelScope.launch {
             updateSuccessState { it.copy(isRefreshingData = true) }
             try {
@@ -742,65 +756,123 @@ class MangaViewModel(
     }
 
     /**
-     * Fetches related/recommended manga for the given manga.
+     * Fetches related/recommended manga for the given manga ("More from this source" row).
      *
      * Strategy (mirrors Komikku's CatalogueSource.getRelatedMangaList):
      * 1. If [LibraryPreferences.useSourceRelatedMangas] is on AND the source
      *    declares [CatalogueSource.supportsRelatedMangas], call
      *    [CatalogueSource.fetchRelatedMangaList] to get the source-website's own
      *    "You May Also Like" / "Related Series" data directly.
-     * 2. If the source-website list is empty (or the pref is off), fall back to a
-     *    smart-search approach: search the source using the manga's title as query.
-     *    This fallback can be disabled via [LibraryPreferences.disableRelatedMangasBySearch].
+     * 2. If that is empty, and [LibraryPreferences.disableRelatedMangasBySearch] is off,
+     *    fall back through: search by title -> search by author -> the source's popular listing.
+     *    The first non-empty result wins.
+     *
+     * Every attempt has a timeout, and every failure is logged (filter logcat for "Suggestions")
+     * instead of being silently turned into an empty list. The current title is removed by
+     * comparing normalized paths, so a leading/trailing slash difference (see the URL normalizing
+     * in [toggleFavorite]) can't let it through or create a duplicate database row.
      *
      * Each result is converted to a real local database entry so the row can reuse
-     * the same [MangaComfortableGridItem] card everywhere.
+     * the same [MangaComfortableGridItem] card everywhere. The previous list stays in the state
+     * while a reload is running, so the row doesn't flicker back to its skeleton.
      */
     private fun loadSourceSuggestions(source: Source, manga: Manga) {
-        viewModelScope.launchIO {
+        suggestionsJob?.cancel()
+        suggestionsJob = viewModelScope.launchIO {
             val catSource = source as? CatalogueSource
             val useSourceRelated = libraryPreferences.useSourceRelatedMangas.get()
             val disableSearchFallback = libraryPreferences.disableRelatedMangasBySearch.get()
 
-            val results: List<eu.kanade.tachiyomi.source.model.SManga> = buildList {
-                // 1. Source provides its own related/recommended list
-                if (useSourceRelated && catSource != null && catSource.supportsRelatedMangas) {
-                    val related = runCatching {
-                        catSource.fetchRelatedMangaList(
-                            eu.kanade.tachiyomi.source.model.SManga.create().apply {
-                                title = manga.title
-                                url = manga.url
-                                thumbnail_url = manga.thumbnailUrl
-                            },
-                        )
-                    }.getOrNull().orEmpty()
-                    addAll(related)
-                }
+            fun String.normalizedPath() = trim('/')
+            val currentUrl = manga.url.normalizedPath()
 
-                // 2. If the source-website list was empty (or skipped), try smart-search
-                if (isEmpty() && !disableSearchFallback) {
-                    val searched = runCatching {
-                        catSource?.getSearchManga(
-                            page = 1,
-                            query = manga.title,
-                            filters = eu.kanade.tachiyomi.source.model.FilterList(),
-                        )?.mangas
-                    }.getOrNull().orEmpty()
-                    addAll(searched)
+            // Runs one strategy with a timeout; failures are logged and yield an empty list.
+            // The manga being viewed is always removed from the result.
+            suspend fun attempt(label: String, block: suspend () -> List<SManga>?): List<SManga> {
+                return try {
+                    withTimeoutOrNull(SUGGESTIONS_TIMEOUT_MS) { block() }
+                        ?.filter { it.url.normalizedPath() != currentUrl }
+                        .orEmpty()
+                        .also {
+                            logcat(LogPriority.DEBUG) { "Suggestions ($label) for ${source.name}: ${it.size}" }
+                        }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    logcat(LogPriority.ERROR, e) { "Suggestions ($label) failed for ${source.name}" }
+                    emptyList()
                 }
             }
 
-            val suggestions = results
-                .filter { it.url != manga.url }
-                .take(10)
-                .map { sManga ->
-                    networkToLocalManga(
-                        sManga.toDomainManga(sourceId = source.id, isNovel = manga.isNovel),
+            var found: List<SManga> = emptyList()
+
+            // 1. Source provides its own related/recommended list
+            if (useSourceRelated && catSource != null && catSource.supportsRelatedMangas) {
+                found = attempt("related") {
+                    catSource.fetchRelatedMangaList(
+                        SManga.create().apply {
+                            title = manga.title
+                            url = manga.url
+                            thumbnail_url = manga.thumbnailUrl
+                        },
                     )
                 }
+            }
+
+            // 2. Smart-search fallbacks (skipped entirely when the user disabled search fallback)
+            if (found.isEmpty() && !disableSearchFallback && catSource != null) {
+                found = attempt("title") {
+                    catSource.getSearchManga(
+                        page = 1,
+                        query = manga.title,
+                        filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                    ).mangas
+                }
+
+                val author = manga.author?.takeIf { it.isNotBlank() }
+                if (found.isEmpty() && author != null) {
+                    found = attempt("author") {
+                        catSource.getSearchManga(
+                            page = 1,
+                            query = author,
+                            filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                        ).mangas
+                    }
+                }
+
+                if (found.isEmpty()) {
+                    found = attempt("popular") {
+                        catSource.getPopularManga(page = 1).mangas
+                    }
+                }
+            }
+
+            val suggestions = try {
+                found
+                    .distinctBy { it.url.normalizedPath() }
+                    .take(10)
+                    .map { sManga ->
+                        networkToLocalManga(
+                            sManga.toDomainManga(sourceId = source.id, isNovel = manga.isNovel),
+                        )
+                    }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "Suggestions: saving results failed for ${source.name}" }
+                emptyList()
+            }
 
             updateSuccessState { it.copy(sourceSuggestions = suggestions) }
         }
+    }
+
+    /**
+     * Re-runs the "More from this source" load for the current entry (e.g. on pull-to-refresh).
+     */
+    fun reloadSourceSuggestions() {
+        val state = successState ?: return
+        loadSourceSuggestions(state.source, state.manga)
     }
 
     // Manga info - end
