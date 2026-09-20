@@ -1,3 +1,5 @@
+// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverViewModel.kt
+
 package eu.kanade.tachiyomi.ui.browse.discover
 
 import androidx.lifecycle.viewModelScope
@@ -5,10 +7,10 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.update
-import java.util.concurrent.ConcurrentHashMap
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.manga.model.toDomainManga
 import tachiyomi.core.common.util.lang.launchIO
@@ -20,23 +22,19 @@ import uy.kohesive.injekt.api.get
 
 enum class DiscoverBrowseMode { LATEST, POPULAR }
 
+/**
+ * The manga here is already a real local database entry (converted via NetworkToLocalManga
+ * as soon as it's fetched, not only when tapped) - same as how BrowseSourceScreen already
+ * handles source listings. This gives Discover a real id for cover caching/consistent card
+ * rendering, and makes tap-to-navigate trivial since the id is already known.
+ */
 data class DiscoverEntry(
     val source: CatalogueSource,
     val manga: Manga,
-) : RecommendableItem {
-    override val sourceName: String get() = source.name
-    override val mangaTitle: String get() = manga.title
-    override val mangaGenre: List<String>? get() = manga.genre
-    override val mangaAuthor: String? get() = manga.author
-}
+)
 
 data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),
-    val recommendations: List<DiscoverEntry> = emptyList(),
-    val recommendationTopGenres: List<String> = emptyList(),
-    val recommendationScores: Map<Long, Int> = emptyMap(),
-    val aiRecommendationMessage: String? = null,
-    val isLoadingRecommendations: Boolean = false,
     val isLoading: Boolean = true,
     val isLoadingMore: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -50,12 +48,17 @@ class DiscoverViewModel(
     private val sourcePreferences: SourcePreferences = Injekt.get(),
     private val jsPluginManager: JsPluginManager = Injekt.get(),
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
-    private val getAiRecommendations: GetAiRecommendations = GetAiRecommendations(),
 ) : StateViewModel<DiscoverScreenState>(DiscoverScreenState()) {
 
     private data class SourcePageCursor(val nextPage: Int, val hasNextPage: Boolean)
 
-    private val pageCursors = ConcurrentHashMap<Long, SourcePageCursor>()
+    private val pageCursors = mutableMapOf<Long, SourcePageCursor>()
+
+    // Tracked so a refresh / mode switch can cancel in-flight work. Without this, a stale
+    // loadMore() result could be appended onto a fresh list and duplicate items (=> duplicate
+    // LazyGrid keys => crash).
+    private var feedJob: Job? = null
+    private var moreJob: Job? = null
 
     init {
         loadDiscoverFeed()
@@ -78,125 +81,68 @@ class DiscoverViewModel(
     }
 
     fun loadDiscoverFeed() {
-        viewModelScope.launchIO {
-            mutableState.update { it.copy(isLoading = true) }
+        moreJob?.cancel()
+        feedJob?.cancel()
+        feedJob = viewModelScope.launchIO {
+            mutableState.update { it.copy(isLoading = true, isLoadingMore = false) }
             pageCursors.clear()
 
             val sources = pinnedNovelSources()
             val mode = state.value.browseMode
 
             val perSourceLists = sources.map { source ->
-                async {
-                    val page = runCatching { fetchPage(source, mode, page = 1) }.getOrNull()
-                    pageCursors[source.id] = SourcePageCursor(
-                        nextPage = 2,
-                        hasNextPage = page?.hasNextPage == true,
-                    )
-                    (page?.mangas ?: emptyList()).map { sManga ->
-                        val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = true))
-                        DiscoverEntry(source, localManga)
-                    }
+                val page = fetchPageOrNull(source, mode, page = 1)
+                ensureActive()
+                pageCursors[source.id] = SourcePageCursor(
+                    nextPage = 2,
+                    hasNextPage = page?.hasNextPage == true,
+                )
+                (page?.mangas ?: emptyList()).map { sManga ->
+                    val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = true))
+                    DiscoverEntry(source, localManga)
                 }
-            }.awaitAll()
-
-            val merged = interleave(perSourceLists)
-            mutableState.update {
-                it.copy(items = merged, isLoading = false, hasPinnedNovelSources = sources.isNotEmpty())
             }
 
-            loadAiRecommendations()
-        }
-    }
-
-    private fun loadAiRecommendations() {
-        viewModelScope.launchIO {
-            mutableState.update { it.copy(isLoadingRecommendations = true, aiRecommendationMessage = null) }
-            val result = runCatching { getAiRecommendations.await(state.value.items) }
-                .getOrElse { AiRecommendationResult.Failed(it.message ?: "AI request failed") }
-            mutableState.update { state ->
-                when (result) {
-                    is AiRecommendationResult.Success -> state.copy(
-                        recommendations = result.recommendations,
-                        recommendationTopGenres = result.topGenres,
-                        recommendationScores = result.recommendations.mapIndexedNotNull { index, entry ->
-                            result.scores.getOrNull(index)?.let { entry.manga.id to it }
-                        }.toMap(),
-                        isLoadingRecommendations = false,
-                        aiRecommendationMessage = null,
-                    )
-                    AiRecommendationResult.Disabled -> state.copy(
-                        recommendations = emptyList(),
-                        recommendationTopGenres = emptyList(),
-                        recommendationScores = emptyMap(),
-                        isLoadingRecommendations = false,
-                        aiRecommendationMessage = null,
-                    )
-                    AiRecommendationResult.NoEngine -> state.copy(
-                        recommendations = emptyList(),
-                        recommendationTopGenres = emptyList(),
-                        recommendationScores = emptyMap(),
-                        isLoadingRecommendations = false,
-                        aiRecommendationMessage = "Set up an AI engine in Settings \u2192 AI to get personalized recommendations.",
-                    )
-                    AiRecommendationResult.NoReadingHistory -> state.copy(
-                        recommendations = emptyList(),
-                        recommendationTopGenres = emptyList(),
-                        recommendationScores = emptyMap(),
-                        isLoadingRecommendations = false,
-                        aiRecommendationMessage = "Keep reading novels so the AI can learn your taste - recommendations will appear here.",
-                    )
-                    AiRecommendationResult.NoCandidates -> state.copy(
-                        recommendations = emptyList(),
-                        recommendationTopGenres = emptyList(),
-                        recommendationScores = emptyMap(),
-                        isLoadingRecommendations = false,
-                        aiRecommendationMessage = "Pin some novel sources first - AI recommendations will appear here once the feed has titles.",
-                    )
-                    AiRecommendationResult.NoMatches -> state.copy(
-                        recommendations = emptyList(),
-                        recommendationTopGenres = emptyList(),
-                        recommendationScores = emptyMap(),
-                        isLoadingRecommendations = false,
-                        aiRecommendationMessage = "The AI didn't find a good match this time - tap refresh to try again.",
-                    )
-                    is AiRecommendationResult.Failed -> state.copy(
-                        recommendations = emptyList(),
-                        recommendationTopGenres = emptyList(),
-                        recommendationScores = emptyMap(),
-                        isLoadingRecommendations = false,
-                        aiRecommendationMessage = "AI recommendations failed: ${result.message}",
-                    )
-                }
+            // A source can return the same entry twice; never let duplicate ids reach the grid.
+            val merged = interleave(perSourceLists).distinctBy { it.manga.id }
+            mutableState.update {
+                it.copy(items = merged, isLoading = false, hasPinnedNovelSources = sources.isNotEmpty())
             }
         }
     }
 
     fun loadMore() {
-        if (state.value.isLoading || state.value.isLoadingMore) return
+        if (state.value.isLoading || moreJob?.isActive == true) return
         val sources = pinnedNovelSources().filter { pageCursors[it.id]?.hasNextPage == true }
         if (sources.isEmpty()) return
 
-        viewModelScope.launchIO {
+        moreJob = viewModelScope.launchIO {
             mutableState.update { it.copy(isLoadingMore = true) }
             val mode = state.value.browseMode
 
-            val newLists = sources.mapNotNull { source ->
-                async {
-                    val cursor = pageCursors[source.id] ?: return@async null
-                    val page = runCatching { fetchPage(source, mode, cursor.nextPage) }.getOrNull()
-                    pageCursors[source.id] = SourcePageCursor(
-                        nextPage = cursor.nextPage + 1,
-                        hasNextPage = page?.hasNextPage == true,
-                    )
-                    (page?.mangas ?: emptyList()).map { sManga ->
-                        val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = true))
-                        DiscoverEntry(source, localManga)
-                    }
+            val newLists = sources.map { source ->
+                val cursor = pageCursors[source.id] ?: return@map emptyList<DiscoverEntry>()
+                val page = fetchPageOrNull(source, mode, cursor.nextPage)
+                ensureActive()
+                pageCursors[source.id] = SourcePageCursor(
+                    nextPage = cursor.nextPage + 1,
+                    hasNextPage = page?.hasNextPage == true,
+                )
+                (page?.mangas ?: emptyList()).map { sManga ->
+                    val localManga = networkToLocalManga(sManga.toDomainManga(source.id, isNovel = true))
+                    DiscoverEntry(source, localManga)
                 }
-            }.awaitAll().filterNotNull()
+            }
 
             val appended = interleave(newLists)
-            mutableState.update { it.copy(items = it.items + appended, isLoadingMore = false) }
+            mutableState.update { s ->
+                // Overlapping pages: skip anything already in the list (and dupes within the batch).
+                val seen = s.items.mapTo(HashSet()) { it.manga.id }
+                s.copy(
+                    items = s.items + appended.filter { seen.add(it.manga.id) },
+                    isLoadingMore = false,
+                )
+            }
         }
     }
 
@@ -209,6 +155,21 @@ class DiscoverViewModel(
         DiscoverBrowseMode.POPULAR -> source.getPopularManga(page)
     }
 
+    // Like runCatching { ... }.getOrNull(), but lets cancellation through so cancelled jobs
+    // actually stop instead of carrying on with stale data.
+    private suspend fun fetchPageOrNull(
+        source: CatalogueSource,
+        mode: DiscoverBrowseMode,
+        page: Int,
+    ) = try {
+        fetchPage(source, mode, page)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+
+    /** Trivial now - the manga is already a real local entry with a known id by fetch time. */
     fun openEntry(entry: DiscoverEntry) {
         mutableState.update { it.copy(pendingMangaId = entry.manga.id) }
     }
