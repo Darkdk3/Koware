@@ -366,8 +366,9 @@ fun MangaActionRow(
                 onClick = onAddToLibraryClicked,
                 contentPadding = pillPadding,
             ) {
+                // Hollow heart + "Add to library" when not saved; filled heart + "In library" when saved.
                 Icon(
-                    imageVector = Icons.Outlined.FavoriteBorder,
+                    imageVector = if (favorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                 )
