@@ -32,8 +32,8 @@ import kotlin.math.abs
 /**
  * Overlay that draws OCR-detected text regions on top of a manga page (live translation).
  *
- * - A region with no translation yet (blank entry in [translatedResults]) only gets a thin outline.
- * - A translated region is covered by a white box and the translation is wrapped inside it, shrinking
+ * - A region with no translation (blank entry in [translatedResults]) is not drawn at all.
+ * - A translated region is covered by a slightly transparent white box and the translation is wrapped inside it, shrinking
  *   the font until it fits. Tiny boxes are widened/heightened (around their center) so the text is
  *   always readable.
  *
@@ -55,9 +55,10 @@ fun OcrTranslationOverlay(
 
     val cleaned = remember(translatedResults) { translatedResults.map(::cleanTranslation) }
 
-    val outlineColor = Color(0xAA00BCD4)
-    val coverColor = Color(0xFAFFFFFF)
-    val borderColor = Color(0x33000000)
+    // The cover takes the bubble's own color (white for normal bubbles, gray/dark for others) and is ~87%
+    // opaque: a bit of the artwork shows through, the text itself stays solid.
+    val coverAlpha = 0.87f
+    val borderColor = Color(0x22000000)
 
     Box(modifier = modifier.fillMaxSize()) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -101,17 +102,18 @@ fun OcrTranslationOverlay(
                 val width = (box.right - box.left) * scaleX
                 val height = (box.bottom - box.top) * scaleY
 
-                val translated = cleaned.getOrNull(index)?.takeIf { it.isNotBlank() }
-                if (translated == null) {
-                    // Not translated (yet): outline only, so the original text stays readable.
-                    drawRect(
-                        color = outlineColor,
-                        topLeft = Offset(left, top),
-                        size = Size(width, height),
-                        style = Stroke(width = 2f),
-                    )
-                    return@forEachIndexed
-                }
+                // Nothing to show yet for this region: draw nothing, so results appear in one go.
+                val translated = cleaned.getOrNull(index)?.takeIf { it.isNotBlank() } ?: return@forEachIndexed
+
+                // Match the bubble: its sampled color, with black or white text for contrast.
+                val backgroundArgb = result.backgroundColor ?: android.graphics.Color.WHITE
+                val backgroundLuminance = (
+                    android.graphics.Color.red(backgroundArgb) * 299 +
+                        android.graphics.Color.green(backgroundArgb) * 587 +
+                        android.graphics.Color.blue(backgroundArgb) * 114
+                    ) / 1000
+                paint.color = if (backgroundLuminance > 140) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+                val coverColor = Color(backgroundArgb).copy(alpha = coverAlpha)
 
                 // Box we draw into: at least minBoxW wide, and tall enough for the text.
                 val boxW = maxOf(width, minBoxW)
