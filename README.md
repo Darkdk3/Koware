@@ -48,7 +48,7 @@ note : The Manga side will be a bit neglected but i will get to it . . probably
 * Live Manga OCR translation 
 * Some Ai slop aswell 
 * Reading Progress bar (only when modern style is activated)
-* **Custom Ui stuff 
+* Custom Ui stuff 
 * Plus much more coming...probably (if don't drop dead) ^^
 
 
