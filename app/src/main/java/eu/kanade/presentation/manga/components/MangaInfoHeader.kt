@@ -509,19 +509,11 @@ private fun TrackerPill(item: TrackItem, onClick: () -> Unit) {
  * expand state is a persisted global preference (same toggle for every manga you open) rather
  * than per-title, per your call to keep it simple.
  *
- * REQUIRES a new preference in LibraryPreferences.kt, added next to the other manga-details
- * preferences (mangaDetailsHideBackdrop etc.) - I don't have that file, so this is a best-effort
- * guess at the shape based on how mangaDetailsHideBackdrop is already used above. Add something
- * like:
- *
- *   fun mangaDetailsShowProgressBar() = preferenceStore.getBoolean(
- *       "pref_manga_details_show_progress_bar",
- *       false,
- *   )
- *
- * matching whatever your actual mangaDetailsHideBackdrop getter looks like (function vs
- * property, exact preferenceStore call). If the property name below doesn't resolve, that's the
- * one line to fix - everything else in this composable is independent of the exact wording.
+ * The preference is defined right here (straight from the PreferenceStore) instead of in
+ * LibraryPreferences.kt, so this file compiles without any change to that class. It is stored
+ * under the key "pref_manga_details_show_progress_bar" - if you later add a
+ * `mangaDetailsShowProgressBar` property to LibraryPreferences using the same key, the saved
+ * value carries over.
  */
 @Composable
 fun ChapterProgressToggle(
@@ -529,15 +521,18 @@ fun ChapterProgressToggle(
     totalCount: Int,
     modifier: Modifier = Modifier,
 ) {
-    val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
-    val expanded by libraryPreferences.mangaDetailsShowProgressBar.collectAsState()
+    val showProgressPref = remember {
+        Injekt.get<tachiyomi.core.common.preference.PreferenceStore>()
+            .getBoolean("pref_manga_details_show_progress_bar", false)
+    }
+    val expanded by showProgressPref.collectAsState()
     val percent = if (totalCount > 0) (readCount * 100) / totalCount else 0
 
     Column(modifier = modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickableNoIndication { libraryPreferences.mangaDetailsShowProgressBar.set(!expanded) },
+                .clickableNoIndication { showProgressPref.set(!expanded) },
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -558,7 +553,7 @@ fun ChapterProgressToggle(
                 )
             }
             OutlinedIconButton(
-                onClick = { libraryPreferences.mangaDetailsShowProgressBar.set(!expanded) },
+                onClick = { showProgressPref.set(!expanded) },
                 modifier = Modifier.size(28.dp),
             ) {
                 Icon(
