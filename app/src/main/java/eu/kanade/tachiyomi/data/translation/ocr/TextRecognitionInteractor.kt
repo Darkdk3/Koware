@@ -188,6 +188,7 @@ class TextRecognitionInteractor {
                 TextRecognitionResult(
                     text = mergedText,
                     boundingBox = expandToBubble(bitmap, currentBox),
+                    backgroundColor = sampleBackground(bitmap, currentBox),
                 ),
             )
         }
@@ -222,6 +223,7 @@ class TextRecognitionInteractor {
                 mergedResults[index] = TextRecognitionResult(
                     text = ordered.joinToString(" ") { it.text },
                     boundingBox = union,
+                    backgroundColor = existing.backgroundColor ?: item.backgroundColor,
                 )
             }
         }
@@ -323,25 +325,81 @@ class TextRecognitionInteractor {
         }
     }
 
-    /** True if a large share of the pixels on the segment are dark (bubble outline / artwork). */
+    /**
+     * Median color of a thin band just outside the text box, i.e. the bubble interior right around
+     * the text. Median (per channel) ignores the odd outline / stroke pixel that falls in the band.
+     */
+    private fun sampleBackground(bitmap: Bitmap, box: Rect): Int? {
+        if (box.width() <= 0 || box.height() <= 0) return null
+        if (bitmap.config == Bitmap.Config.HARDWARE || bitmap.isRecycled) return null
+        return try {
+            val w = bitmap.width
+            val h = bitmap.height
+            val gap = 3
+            val band = 4
+            val samples = ArrayList<Int>()
+
+            fun read(x0: Int, y0: Int, x1: Int, y1: Int) {
+                val left = x0.coerceIn(0, w - 1)
+                val right = x1.coerceIn(0, w - 1)
+                val top = y0.coerceIn(0, h - 1)
+                val bottom = y1.coerceIn(0, h - 1)
+                val rw = right - left + 1
+                val rh = bottom - top + 1
+                if (rw <= 0 || rh <= 0) return
+                val pixels = IntArray(rw * rh)
+                bitmap.getPixels(pixels, 0, rw, left, top, rw, rh)
+                for (p in pixels) samples.add(p)
+            }
+
+            read(box.left - band, box.top - gap - band, box.right + band, box.top - gap - 1) // above
+            read(box.left - band, box.bottom + gap, box.right + band, box.bottom + gap + band - 1) // below
+            read(box.left - gap - band, box.top, box.left - gap - 1, box.bottom) // left
+            read(box.right + gap, box.top, box.right + gap + band - 1, box.bottom) // right
+
+            if (samples.size < 24) return null
+            val reds = samples.map { Color.red(it) }.sorted()
+            val greens = samples.map { Color.green(it) }.sorted()
+            val blues = samples.map { Color.blue(it) }.sorted()
+            val mid = samples.size / 2
+            Color.rgb(reds[mid], greens[mid], blues[mid])
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * True if a large share of the pixels on the segment are dark (bubble outline / artwork).
+     * The segment is read with one bulk getPixels call, which is far faster than pixel-by-pixel.
+     */
     private fun isDarkLine(bitmap: Bitmap, x1: Int, y1: Int, x2: Int, y2: Int): Boolean {
-        val length = maxOf(x2 - x1, y2 - y1)
-        if (length <= 0) return false
-        val maxX = bitmap.width - 1
-        val maxY = bitmap.height - 1
+        val w = bitmap.width
+        val h = bitmap.height
+        val pixels: IntArray
+        if (y1 == y2) {
+            val y = y1.coerceIn(0, h - 1)
+            val xStart = minOf(x1, x2).coerceIn(0, w - 1)
+            val xEnd = maxOf(x1, x2).coerceIn(0, w - 1)
+            val length = xEnd - xStart + 1
+            if (length <= 0) return false
+            pixels = IntArray(length)
+            bitmap.getPixels(pixels, 0, length, xStart, y, length, 1)
+        } else {
+            val x = x1.coerceIn(0, w - 1)
+            val yStart = minOf(y1, y2).coerceIn(0, h - 1)
+            val yEnd = maxOf(y1, y2).coerceIn(0, h - 1)
+            val length = yEnd - yStart + 1
+            if (length <= 0) return false
+            pixels = IntArray(length)
+            bitmap.getPixels(pixels, 0, 1, x, yStart, 1, length)
+        }
+
         var dark = 0
-        var total = 0
-        var t = 0
-        while (t <= length) {
-            val x = (if (x1 == x2) x1 else x1 + t).coerceIn(0, maxX)
-            val y = (if (y1 == y2) y1 else y1 + t).coerceIn(0, maxY)
-            val p = bitmap.getPixel(x, y)
+        for (p in pixels) {
             val luminance = (Color.red(p) * 299 + Color.green(p) * 587 + Color.blue(p) * 114) / 1000
             if (luminance < DARK_LUMINANCE) dark++
-            total++
-            t += 3
         }
-        return total > 0 && dark.toFloat() / total > DARK_LINE_RATIO
+        return dark.toFloat() / pixels.size > DARK_LINE_RATIO
     }
 
     private fun overlapRatio(a: Rect, b: Rect): Float {
@@ -355,9 +413,14 @@ class TextRecognitionInteractor {
         return if (smaller <= 0L) 0f else intersection.toFloat() / smaller.toFloat()
     }
 
+    /**
+     * @property backgroundColor ARGB color of the area around the text (the bubble interior), sampled
+     *   from the page so the overlay can match it; null if it couldn't be sampled.
+     */
     data class TextRecognitionResult(
         val text: String,
         val boundingBox: Rect?,
+        val backgroundColor: Int? = null,
     )
 
     private companion object {
