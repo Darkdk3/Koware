@@ -529,6 +529,13 @@ private fun MangaScreenSmallImpl(
                             modernStyle = modernStyle,
                             trackItems = state.trackItems,
                         )
+                        if (modernStyle) {
+                            eu.kanade.presentation.manga.components.ChapterProgressToggle(
+                                readCount = remember(state.chapters) { state.chapters.count { it.chapter.read } },
+                                totalCount = state.chapters.size,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
                     }
 
                     item(
@@ -845,6 +852,13 @@ fun MangaScreenLargeImpl(
                             modernStyle = modernStyle,
                             trackItems = state.trackItems,
                         )
+                        if (modernStyle) {
+                            eu.kanade.presentation.manga.components.ChapterProgressToggle(
+                                readCount = remember(state.chapters) { state.chapters.count { it.chapter.read } },
+                                totalCount = state.chapters.size,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
                         val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
                         val sortMangaTags by libraryPreferences.sortMangaTags.changes().collectAsState(
                             initial = false,
