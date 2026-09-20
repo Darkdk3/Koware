@@ -41,6 +41,16 @@ data class DiscoverScreenState(
     val hasPinnedNovelSources: Boolean = true,
     val browseMode: DiscoverBrowseMode = DiscoverBrowseMode.LATEST,
     val pendingMangaId: Long? = null,
+
+    // AI recommendations shelf. DiscoverTab reads these five fields and only shows the shelf when
+    // the AI features + Discover shelf preferences are both enabled. Nothing populates them yet,
+    // so the shelf currently shows its empty-state message.
+    val recommendations: List<DiscoverEntry> = emptyList(),
+    val recommendationTopGenres: List<String> = emptyList(),
+    // manga id -> match percentage (0-100). The tab falls back to a genre heuristic when absent.
+    val recommendationScores: Map<Long, Int> = emptyMap(),
+    val aiRecommendationMessage: String? = null,
+    val isLoadingRecommendations: Boolean = false,
 )
 
 class DiscoverViewModel(
