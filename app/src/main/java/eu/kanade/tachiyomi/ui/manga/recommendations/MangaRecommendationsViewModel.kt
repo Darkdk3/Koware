@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.ui.browse.discover.AiRecommendationResult
 import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
 import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.domain.manga.model.toDomainManga
 import okhttp3.MediaType.Companion.toMediaType
@@ -281,7 +283,7 @@ class MangaRecommendationsViewModel(
     }
 
     /** Retries a flaky network call once after a short delay before giving up. */
-    private suspend fun <T> fetchWithRetry(block: () -> T): T {
+    private suspend fun <T> fetchWithRetry(block: suspend () -> T): T {
         return try {
             block()
         } catch (e: Exception) {
@@ -291,84 +293,86 @@ class MangaRecommendationsViewModel(
         }
     }
 
-    private fun fetchAniListRecommendationTitles(aniListMediaId: Long): List<String> {
-        val query = """
-            query (${'$'}id: Int) {
-              Media(id: ${'$'}id, type: MANGA) {
-                recommendations(sort: RATING_DESC, perPage: 15) {
-                  nodes {
-                    mediaRecommendation {
-                      title { romaji english }
+    private suspend fun fetchAniListRecommendationTitles(aniListMediaId: Long): List<String> =
+        withContext(Dispatchers.IO) {
+            val query = """
+                query (${'$'}id: Int) {
+                  Media(id: ${'$'}id, type: MANGA) {
+                    recommendations(sort: RATING_DESC, perPage: 15) {
+                      nodes {
+                        mediaRecommendation {
+                          title { romaji english }
+                        }
+                      }
                     }
                   }
                 }
-              }
+            """.trimIndent()
+
+            val payload = JSONObject().apply {
+                put("query", query)
+                put("variables", JSONObject().put("id", aniListMediaId.toInt()))
             }
-        """.trimIndent()
 
-        val payload = JSONObject().apply {
-            put("query", query)
-            put("variables", JSONObject().put("id", aniListMediaId.toInt()))
-        }
+            val request = Request.Builder()
+                .url("https://graphql.anilist.co")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
 
-        val request = Request.Builder()
-            .url("https://graphql.anilist.co")
-            .post(payload.toString().toRequestBody("application/json".toMediaType()))
-            .build()
+            networkHelper.client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errorBody = runCatching { response.body?.string() }.getOrNull().orEmpty()
+                    throw IllegalStateException("AniList HTTP ${response.code}: ${errorBody.take(200)}")
+                }
+                val body = response.body?.string() ?: return@withContext emptyList()
+                val nodes = JSONObject(body)
+                    .optJSONObject("data")
+                    ?.optJSONObject("Media")
+                    ?.optJSONObject("recommendations")
+                    ?.optJSONArray("nodes")
+                    ?: return@withContext emptyList()
 
-        networkHelper.client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                val errorBody = runCatching { response.body?.string() }.getOrNull().orEmpty()
-                throw IllegalStateException("AniList HTTP ${response.code}: ${errorBody.take(200)}")
-            }
-            val body = response.body?.string() ?: return emptyList()
-            val nodes = JSONObject(body)
-                .optJSONObject("data")
-                ?.optJSONObject("Media")
-                ?.optJSONObject("recommendations")
-                ?.optJSONArray("nodes")
-                ?: return emptyList()
-
-            return buildList {
-                for (i in 0 until nodes.length()) {
-                    val rec = nodes.getJSONObject(i).optJSONObject("mediaRecommendation") ?: continue
-                    val titleObj = rec.optJSONObject("title") ?: continue
-                    val title = titleObj.optString("romaji").ifBlank { titleObj.optString("english") }
-                    if (title.isNotBlank()) add(title)
+                buildList {
+                    for (i in 0 until nodes.length()) {
+                        val rec = nodes.getJSONObject(i).optJSONObject("mediaRecommendation") ?: continue
+                        val titleObj = rec.optJSONObject("title") ?: continue
+                        val title = titleObj.optString("romaji").ifBlank { titleObj.optString("english") }
+                        if (title.isNotBlank()) add(title)
+                    }
                 }
             }
         }
-    }
 
-    private fun fetchMalRecommendationTitles(malMangaId: Long): List<String> {
-        // VERIFY: your fork's MAL API client-id constant. Search the project for an
-        // existing "X-MAL-CLIENT-ID" usage (often in a MyAnimeListApi class) and reuse
-        // that same constant here instead of hardcoding a new one.
-        val malClientId = MAL_CLIENT_ID
+    private suspend fun fetchMalRecommendationTitles(malMangaId: Long): List<String> =
+        withContext(Dispatchers.IO) {
+            // VERIFY: your fork's MAL API client-id constant. Search the project for an
+            // existing "X-MAL-CLIENT-ID" usage (often in a MyAnimeListApi class) and
+            // reuse that same constant here instead of hardcoding a new one.
+            val malClientId = MAL_CLIENT_ID
 
-        val request = Request.Builder()
-            .url("https://api.myanimelist.net/v2/manga/$malMangaId?fields=recommendations")
-            .header("X-MAL-CLIENT-ID", malClientId)
-            .get()
-            .build()
+            val request = Request.Builder()
+                .url("https://api.myanimelist.net/v2/manga/$malMangaId?fields=recommendations")
+                .header("X-MAL-CLIENT-ID", malClientId)
+                .get()
+                .build()
 
-        networkHelper.client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IllegalStateException("MAL HTTP ${response.code}")
-            }
-            val body = response.body?.string() ?: return emptyList()
-            val recs = JSONObject(body).optJSONArray("recommendations") ?: return emptyList()
+            networkHelper.client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IllegalStateException("MAL HTTP ${response.code}")
+                }
+                val body = response.body?.string() ?: return@withContext emptyList()
+                val recs = JSONObject(body).optJSONArray("recommendations") ?: return@withContext emptyList()
 
-            return buildList {
-                for (i in 0 until recs.length()) {
-                    val title = recs.getJSONObject(i)
-                        .optJSONObject("manga")
-                        ?.optString("title")
-                    if (!title.isNullOrBlank()) add(title)
+                buildList {
+                    for (i in 0 until recs.length()) {
+                        val title = recs.getJSONObject(i)
+                            .optJSONObject("manga")
+                            ?.optString("title")
+                        if (!title.isNullOrBlank()) add(title)
+                    }
                 }
             }
         }
-    }
 
     // --- Source / AI logic ---------------------------------------------------
 
