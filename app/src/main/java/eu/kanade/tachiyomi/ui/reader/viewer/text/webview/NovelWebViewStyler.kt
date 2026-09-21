@@ -3,10 +3,12 @@ package eu.kanade.tachiyomi.ui.reader.viewer.text.webview
 import android.view.View
 import android.webkit.WebView
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
 import eu.kanade.presentation.reader.settings.CodeSnippet
 import eu.kanade.presentation.reader.settings.safeTitle
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
+import eu.kanade.tachiyomi.ui.reader.viewer.text.shared.NovelCoverSeed
 import eu.kanade.tachiyomi.ui.reader.viewer.text.shared.NovelProgress
 import eu.kanade.tachiyomi.ui.reader.viewer.text.shared.ThemeUtils
 import eu.kanade.tachiyomi.ui.reader.viewer.text.webview.NovelWebViewChapterMeta.CHAPTER_DIVIDER_CLASS
@@ -44,6 +46,19 @@ internal class NovelWebViewStyler(
         target.layoutDirection = View.LAYOUT_DIRECTION_LTR
     }
 
+    /**
+     * Seed color for the "cover" theme. Returns the cached color if it's ready; otherwise starts a
+     * one-time background load (palette extraction is blocking I/O) that re-injects styles when it
+     * lands, and returns null so ThemeUtils falls back to the dark theme in the meantime.
+     */
+    private fun resolveCoverSeed(theme: String): Int? {
+        if (theme != "cover") return null
+        val manga = activity.viewModel.manga ?: return null
+        NovelCoverSeed.peek(manga.id)?.let { return it }
+        NovelCoverSeed.load(manga, activity.lifecycleScope) { injectStyles() }
+        return null
+    }
+
     fun buildPayload(): CustomStylePayload {
         val fontSize = preferences.novelFontSize.get()
         val fontFamily = preferences.novelFontFamily.get()
@@ -60,7 +75,8 @@ internal class NovelWebViewStyler(
         val theme = preferences.novelTheme.get()
         val hideChapterTitle = preferences.novelHideChapterTitle.get()
 
-        val (themeBgColor, themeTextColor) = ThemeUtils.getThemeColors(activity, preferences, theme)
+        val coverSeed = resolveCoverSeed(theme)
+        val (themeBgColor, themeTextColor) = ThemeUtils.getThemeColors(activity, preferences, theme, coverSeed)
         val finalBgColor = if (theme == "custom" && backgroundColor != 0) backgroundColor else themeBgColor
         val finalTextColor = if (fontColor != 0) fontColor else themeTextColor
 
