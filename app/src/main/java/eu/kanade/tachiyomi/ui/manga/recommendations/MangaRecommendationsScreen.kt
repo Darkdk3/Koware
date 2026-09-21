@@ -114,10 +114,8 @@ private fun RecommendationsContent(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        // Hero — cover + title + source
         item { MangaHero(state.manga, state.sourceName) }
 
-        // Source suggestions — "More from this source"
         if (state.groupedSourceSuggestions.isNotEmpty()) {
             state.groupedSourceSuggestions.forEach { (sourceName, list) ->
                 item { SectionHeader("More from $sourceName") }
@@ -138,17 +136,16 @@ private fun RecommendationsContent(
             }
         }
 
-        // AI picks for this novel
         item { Spacer(Modifier.height(8.dp)) }
         item { AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage, onMangaClick) }
 
-        // Tracker recommendations — only when a tracker is linked
         if (state.trackedOn.isNotEmpty()) {
             item { Spacer(Modifier.height(8.dp)) }
             item {
                 TrackerRecommendationsSection(
                     trackedOn = state.trackedOn,
                     suggestions = state.trackerSuggestions,
+                    message = state.trackerMessage,
                     onMangaClick = onMangaClick,
                 )
             }
@@ -355,6 +352,7 @@ private fun AiPicksSection(
 private fun TrackerRecommendationsSection(
     trackedOn: List<String>,
     suggestions: List<Manga>,
+    message: String?,
     onMangaClick: (Manga) -> Unit,
 ) {
     Column(Modifier.padding(vertical = 4.dp)) {
@@ -387,7 +385,7 @@ private fun TrackerRecommendationsSection(
             SuggestionRow(suggestions = suggestions, onMangaClick = onMangaClick)
         } else {
             Text(
-                text = "Tracked titles will appear here once your services return recommendations for this entry.",
+                text = message ?: "Tracked titles will appear here once your services return recommendations for this entry.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp),
