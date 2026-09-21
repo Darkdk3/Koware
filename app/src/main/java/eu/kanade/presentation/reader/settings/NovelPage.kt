@@ -352,6 +352,11 @@ internal fun ColumnScope.NovelAppearanceTab(viewModel: ReaderSettingsViewModel, 
                 label = { Text(stringResource(labelRes)) },
             )
         }
+        FilterChip(
+            selected = theme == "cover",
+            onClick = { viewModel.preferences.novelTheme.set("cover") },
+            label = { Text("Cover") },
+        )
     }
 
     // Font Color
