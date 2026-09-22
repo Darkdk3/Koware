@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
  * hasn't been downloaded to disk yet.
  */
 object MangaCoverPalette {
+
     private val coverCache: CoverCache by lazy { Injekt.get() }
 
     private val colors = ConcurrentHashMap<Long, Int>()
@@ -40,8 +41,8 @@ object MangaCoverPalette {
      * never directly from composition.
      */
     private fun extract(manga: Manga): Int? {
-        val file = manga.let(coverCache::getCustomCoverFile).takeIf { it.exists() }
-            ?: manga.let(coverCache::getCoverFile).takeIf { it.exists() }
+        val file = coverCache.getCustomCoverFile(manga.id).takeIf { it.exists() }
+            ?: coverCache.getCoverFile(manga.thumbnailUrl)?.takeIf { it.exists() }
             ?: return null
 
         // Downsampled - palette only needs a rough color distribution, not full resolution.
