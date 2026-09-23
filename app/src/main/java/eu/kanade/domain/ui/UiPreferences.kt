@@ -40,10 +40,15 @@ class UiPreferences(
 
     val libraryChipsStyle: Preference<LibraryChipsStyle> = preferenceStore.getEnum("pref_library_chips_style", LibraryChipsStyle.MODERN)
 
-    /** Material Kolor palette style used when theming from a manga's cover color. */
+    /**
+     * Material Kolor palette style used when theming from a manga's cover color.
+     * Defaults to Vibrant rather than Material You's stock TonalSpot, since TonalSpot is
+     * deliberately conservative (built for safety across arbitrary system wallpapers) and
+     * reads as flat/washed out when driven by a cover-extracted seed color specifically.
+     */
     val themeCoverBasedStyle: Preference<PaletteStyle> = preferenceStore.getEnum(
         "pref_theme_cover_based_style",
-        PaletteStyle.TonalSpot,
+        PaletteStyle.Vibrant,
     )
 
     val relativeTime: Preference<Boolean> = preferenceStore.getBoolean("relative_time_v2", true)
