@@ -64,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -317,7 +318,14 @@ private fun DiscoverSourcesSheet(
     // Ticking boxes only edits this local copy; the feed reloads when Apply is tapped.
     var pending by remember(options, selected) { mutableStateOf(selected) }
 
-    AdaptiveSheet(onDismissRequest = onDismiss) {
+    // Same rule Mihon uses for its own sheets: phones get a bottom sheet, tablets a side sheet.
+    val isTabletUi = LocalConfiguration.current.smallestScreenWidthDp >= 720
+
+    AdaptiveSheet(
+        isTabletUi = isTabletUi,
+        enableImplicitDismiss = true,
+        onDismissRequest = onDismiss,
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
