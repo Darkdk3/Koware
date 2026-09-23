@@ -1,5 +1,3 @@
-// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discover/DiscoverViewModel.kt
-
 package eu.kanade.tachiyomi.ui.browse.discover
 
 import androidx.lifecycle.viewModelScope
@@ -33,6 +31,13 @@ data class DiscoverEntry(
     val manga: Manga,
 )
 
+/** One row in the Discover "Sources" sheet. */
+data class DiscoverSourceOption(
+    val id: Long,
+    val name: String,
+    val isPinned: Boolean,
+)
+
 data class DiscoverScreenState(
     val items: List<DiscoverEntry> = emptyList(),
     val isLoading: Boolean = true,
@@ -41,6 +46,11 @@ data class DiscoverScreenState(
     val hasPinnedNovelSources: Boolean = true,
     val browseMode: DiscoverBrowseMode = DiscoverBrowseMode.LATEST,
     val pendingMangaId: Long? = null,
+
+    // Every novel source that can feed Discover (pinned ones first) and the ids currently feeding it.
+    // Drives the "Sources" sheet.
+    val sourceOptions: List<DiscoverSourceOption> = emptyList(),
+    val selectedSourceIds: Set<Long> = emptySet(),
 
     // AI recommendations shelf. DiscoverTab reads these five fields and only shows the shelf when
     // the AI features + Discover shelf preferences are both enabled. Nothing populates them yet,
@@ -80,24 +90,60 @@ class DiscoverViewModel(
         loadDiscoverFeed()
     }
 
-    private fun pinnedNovelSources(): List<CatalogueSource> {
-        val pinnedKeys = sourcePreferences.pinnedSources.get()
+    /** Every novel source that could feed Discover. */
+    private fun allNovelSources(): List<CatalogueSource> {
         return (sourceManager.getOnlineSources() + jsPluginManager.jsSources.value)
             .filterIsInstance<CatalogueSource>()
             .distinctBy { it.id }
             .filter { it.isNovelSource() }
             .filter { it.supportsLatest }
-            .filter { it.id.toString() in pinnedKeys }
+    }
+
+    /**
+     * The sources that actually feed Discover: the ones picked in the Sources sheet, or - until
+     * a selection has been applied for the first time - the pinned ones (the old behaviour).
+     */
+    private fun feedSources(): List<CatalogueSource> {
+        val chosenKeys = if (sourcePreferences.discoverSourcesCustomized.get()) {
+            sourcePreferences.discoverSourceIds.get()
+        } else {
+            sourcePreferences.pinnedSources.get()
+        }
+        return allNovelSources().filter { it.id.toString() in chosenKeys }
+    }
+
+    /** Rebuilds the Sources sheet data. Also called when the sheet opens so it's never stale. */
+    fun refreshSourceOptions() {
+        val pinnedKeys = sourcePreferences.pinnedSources.get()
+        val options = allNovelSources()
+            .map { DiscoverSourceOption(id = it.id, name = it.name, isPinned = it.id.toString() in pinnedKeys) }
+            .sortedWith(
+                compareByDescending<DiscoverSourceOption> { it.isPinned }
+                    .thenBy { it.name.lowercase() },
+            )
+        val selected = feedSources().map { it.id }.toSet()
+        mutableState.update { it.copy(sourceOptions = options, selectedSourceIds = selected) }
+    }
+
+    /** Saves the picked sources and reloads the feed, but only if the selection actually changed. */
+    fun applySources(ids: Set<Long>) {
+        val changed = ids != state.value.selectedSourceIds
+        sourcePreferences.discoverSourceIds.set(ids.map { it.toString() }.toSet())
+        sourcePreferences.discoverSourcesCustomized.set(true)
+        if (changed) {
+            loadDiscoverFeed()
+        }
     }
 
     fun loadDiscoverFeed() {
         moreJob?.cancel()
         feedJob?.cancel()
+        refreshSourceOptions()
         feedJob = viewModelScope.launchIO {
             mutableState.update { it.copy(isLoading = true, isLoadingMore = false) }
             pageCursors.clear()
 
-            val sources = pinnedNovelSources()
+            val sources = feedSources()
             val mode = state.value.browseMode
 
             val perSourceLists = sources.map { source ->
@@ -123,7 +169,7 @@ class DiscoverViewModel(
 
     fun loadMore() {
         if (state.value.isLoading || moreJob?.isActive == true) return
-        val sources = pinnedNovelSources().filter { pageCursors[it.id]?.hasNextPage == true }
+        val sources = feedSources().filter { pageCursors[it.id]?.hasNextPage == true }
         if (sources.isEmpty()) return
 
         moreJob = viewModelScope.launchIO {
