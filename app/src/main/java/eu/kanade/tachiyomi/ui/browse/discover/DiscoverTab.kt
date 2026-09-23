@@ -41,12 +41,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -68,6 +71,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.UiStyle
+import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
@@ -88,6 +94,9 @@ fun discoverTab(
 ): TabContent {
     val state by viewModel.state.collectAsState()
     val navigator = LocalNavigator.currentOrThrow
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
+    val uiStyle by uiPreferences.uiStyle.collectAsState()
+    val isModern = uiStyle == UiStyle.MODERN
 
     LaunchedEffect(state.pendingMangaId) {
         val id = state.pendingMangaId
@@ -100,7 +109,18 @@ fun discoverTab(
     return TabContent(
         titleRes = TDMR.strings.label_discover,
         searchEnabled = false,
-        actions = emptyList(),
+        // Modern drops the top-bar refresh (pull-to-refresh and Apply cover it); Legacy keeps it as always.
+        actions = if (isModern) {
+            emptyList()
+        } else {
+            listOf(
+                AppBar.Action(
+                    title = "Refresh",
+                    icon = Icons.Outlined.Refresh,
+                    onClick = { viewModel.loadDiscoverFeed() },
+                ),
+            )
+        },
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
@@ -112,6 +132,7 @@ fun discoverTab(
                 isLoading = state.isLoading,
                 isLoadingMore = state.isLoadingMore,
                 browseMode = state.browseMode,
+                isModern = isModern,
                 sourceOptions = state.sourceOptions,
                 selectedSourceIds = state.selectedSourceIds,
                 contentPadding = contentPadding,
@@ -137,6 +158,7 @@ private fun DiscoverScreenContent(
     isLoading: Boolean,
     isLoadingMore: Boolean,
     browseMode: DiscoverBrowseMode,
+    isModern: Boolean,
     sourceOptions: List<DiscoverSourceOption>,
     selectedSourceIds: Set<Long>,
     contentPadding: PaddingValues,
@@ -227,6 +249,7 @@ private fun DiscoverScreenContent(
         BrowseModeToggle(
             selected = browseMode,
             onSelect = onBrowseModeChange,
+            isModern = isModern,
             sourceCount = selectedSourceIds.size,
             onSourcesClick = {
                 onOpenSources()
@@ -297,6 +320,7 @@ private fun DiscoverScreenContent(
 
     if (showSourceSheet) {
         DiscoverSourcesSheet(
+            isModern = isModern,
             options = sourceOptions,
             selected = selectedSourceIds,
             onDismiss = { showSourceSheet = false },
@@ -310,6 +334,7 @@ private fun DiscoverScreenContent(
 
 @Composable
 private fun DiscoverSourcesSheet(
+    isModern: Boolean,
     options: List<DiscoverSourceOption>,
     selected: Set<Long>,
     onDismiss: () -> Unit,
@@ -317,103 +342,142 @@ private fun DiscoverSourcesSheet(
 ) {
     // Ticking boxes only edits this local copy; the feed reloads when Apply is tapped.
     var pending by remember(options, selected) { mutableStateOf(selected) }
+    val onToggle = { id: Long -> pending = if (id in pending) pending - id else pending + id }
 
-    // Same rule Mihon uses for its own sheets: phones get a bottom sheet, tablets a side sheet.
-    val isTabletUi = LocalConfiguration.current.smallestScreenWidthDp >= 720
+    if (isModern) {
+        // Same rule Mihon uses for its own sheets: phones get a bottom sheet, tablets a side sheet.
+        val isTabletUi = LocalConfiguration.current.smallestScreenWidthDp >= 720
 
-    AdaptiveSheet(
-        isTabletUi = isTabletUi,
-        enableImplicitDismiss = true,
-        onDismissRequest = onDismiss,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(top = 8.dp, bottom = 20.dp),
+        AdaptiveSheet(
+            isTabletUi = isTabletUi,
+            enableImplicitDismiss = true,
+            onDismissRequest = onDismiss,
         ) {
-            Text(
-                text = "Discover sources",
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Text(
-                text = "Choose which sources load into your feed.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-            )
-
-            if (options.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 8.dp, bottom = 20.dp),
+            ) {
                 Text(
-                    text = "No novel sources installed yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(vertical = 16.dp),
+                    text = "Discover sources",
+                    style = MaterialTheme.typography.titleLarge,
                 )
-            } else {
-                Column(
+                Text(
+                    text = "Choose which sources load into your feed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+                )
+
+                SourceCheckList(options = options, pending = pending, onToggle = onToggle)
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .heightIn(max = 360.dp)
-                        .verticalScroll(rememberScrollState()),
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
                 ) {
-                    options.forEach { option ->
-                        val checked = option.id in pending
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .clickable {
-                                    pending = if (checked) pending - option.id else pending + option.id
-                                },
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = null)
-                            Spacer(Modifier.width(14.dp))
-                            Text(
-                                text = option.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (option.isPinned) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
-                                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                                ) {
-                                    Text(
-                                        text = "Pinned",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
-                                }
-                            }
-                        }
+                    TextButton(onClick = { pending = options.map { it.id }.toSet() }) {
+                        Text("Select all")
+                    }
+                    TextButton(onClick = { pending = emptySet() }) {
+                        Text("Clear")
+                    }
+                    Spacer(Modifier.weight(1f))
+                    FilledTonalButton(onClick = { onApply(pending) }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Apply (${pending.size})")
                     }
                 }
             }
+        }
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Discover sources") },
+            text = {
+                Column {
+                    SourceCheckList(options = options, pending = pending, onToggle = onToggle)
+                    Row {
+                        TextButton(onClick = { pending = options.map { it.id }.toSet() }) {
+                            Text("Select all")
+                        }
+                        TextButton(onClick = { pending = emptySet() }) {
+                            Text("Clear")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onApply(pending) }) {
+                    Text("Apply (${pending.size})")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+}
 
+@Composable
+private fun SourceCheckList(
+    options: List<DiscoverSourceOption>,
+    pending: Set<Long>,
+    onToggle: (Long) -> Unit,
+) {
+    if (options.isEmpty()) {
+        Text(
+            text = "No novel sources installed yet.",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(vertical = 16.dp),
+        )
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .heightIn(max = 360.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        options.forEach { option ->
+            val checked = option.id in pending
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp),
+                    .heightIn(min = 48.dp)
+                    .clickable { onToggle(option.id) },
             ) {
-                TextButton(onClick = { pending = options.map { it.id }.toSet() }) {
-                    Text("Select all")
-                }
-                TextButton(onClick = { pending = emptySet() }) {
-                    Text("Clear")
-                }
-                Spacer(Modifier.weight(1f))
-                FilledTonalButton(onClick = { onApply(pending) }) {
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Apply (${pending.size})")
+                Checkbox(checked = checked, onCheckedChange = null)
+                Spacer(Modifier.width(14.dp))
+                Text(
+                    text = option.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+                if (option.isPinned) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "Pinned",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }
@@ -592,6 +656,7 @@ private fun matchScore(genres: List<String>, topGenres: List<String>): Int? {
 private fun BrowseModeToggle(
     selected: DiscoverBrowseMode,
     onSelect: (DiscoverBrowseMode) -> Unit,
+    isModern: Boolean,
     sourceCount: Int,
     onSourcesClick: () -> Unit,
 ) {
@@ -613,21 +678,30 @@ private fun BrowseModeToggle(
             label = { Text("Popular") },
         )
         Spacer(Modifier.weight(1f))
-        FilledTonalButton(
-            onClick = onSourcesClick,
-            contentPadding = PaddingValues(horizontal = 14.dp),
-            modifier = Modifier.height(32.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Tune,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "Sources · $sourceCount",
-                style = MaterialTheme.typography.labelLarge,
-            )
+        if (isModern) {
+            FilledTonalButton(
+                onClick = onSourcesClick,
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                modifier = Modifier.height(32.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Tune,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "Sources · $sourceCount",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        } else {
+            IconButton(onClick = onSourcesClick) {
+                Icon(
+                    imageVector = Icons.Outlined.Tune,
+                    contentDescription = "Sources",
+                )
+            }
         }
     }
 }
