@@ -50,13 +50,43 @@ object MangaCoverPalette {
         val bitmap = BitmapFactory.decodeFile(file.path, options) ?: return null
 
         val palette = Palette.from(bitmap).generate()
-        return palette.dominantSwatch?.rgb
-            ?: palette.vibrantSwatch?.rgb
-            ?: palette.mutedSwatch?.rgb
+        return palette.getBestColor()
     }
 
     fun remove(mangaId: Long) {
         colors.remove(mangaId)
         lastModifiedSeen.remove(mangaId)
     }
+}
+
+/**
+ * Picks the most visually "vibrant" usable color from a Palette, weighing population,
+ * saturation, and brightness together rather than just taking whichever swatch covers the
+ * most pixels. A flat dominant-first pick (`dominantSwatch ?: vibrantSwatch ?: mutedSwatch`)
+ * almost always resolves to dominant, since it's rarely null - this weighs the alternatives
+ * properly instead.
+ *
+ * Ported from Komikku (eu.kanade.tachiyomi.data.coil.Utils), original author @Jays2Kings.
+ */
+private fun Palette.getBestColor(): Int? {
+    val vibPopulation = vibrantSwatch?.population ?: -1
+    val domSat = dominantSwatch?.hsl?.get(1) ?: 0f
+    val domLum = dominantSwatch?.hsl?.get(2) ?: -1f
+    val mutedPopulation = mutedSwatch?.population ?: -1
+    val mutedSat = mutedSwatch?.hsl?.get(1) ?: 0f
+
+    val mutedSatMinAcceptable = if (mutedPopulation > vibPopulation * 3f) 0.1f else 0.25f
+    val dominantIsColorful = domSat >= .25f
+    val dominantBrightnessJustRight = domLum <= .8f && domLum > .2f
+    val vibrantIsConsiderableBigEnough = vibPopulation >= mutedPopulation * 0.75f
+    val mutedIsBig = mutedPopulation > vibPopulation * 1.5f
+    val mutedIsNotTooBoring = mutedSat > mutedSatMinAcceptable
+
+    return when {
+        dominantIsColorful && dominantBrightnessJustRight -> dominantSwatch
+        vibrantIsConsiderableBigEnough -> vibrantSwatch
+        mutedIsBig && mutedIsNotTooBoring -> mutedSwatch
+        else -> listOfNotNull(vibrantSwatch, lightVibrantSwatch, darkVibrantSwatch)
+            .maxByOrNull { if (it === vibrantSwatch) vibPopulation * 3 else it.population }
+    }?.rgb
 }
