@@ -35,6 +35,25 @@ class SourcePreferences(
     val pinnedSources: Preference<Set<String>> = preferenceStore.getStringSet("pinned_catalogues", emptySet())
 
     /**
+     * Source ids (as strings) picked in the Discover "Sources" sheet.
+     * Only used once [discoverSourcesCustomized] is true.
+     */
+    val discoverSourceIds: Preference<Set<String>> = preferenceStore.getStringSet(
+        "discover_source_ids",
+        emptySet(),
+    )
+
+    /**
+     * False until a selection is applied in Discover. Until then Discover falls back to
+     * [pinnedSources], so nothing changes for existing users. Once true, an empty
+     * [discoverSourceIds] really means "no sources selected".
+     */
+    val discoverSourcesCustomized: Preference<Boolean> = preferenceStore.getBoolean(
+        "discover_sources_customized",
+        false,
+    )
+
+    /**
      * Format: { "$group_name|$sourceid" }
      */
     val groupPinnedSources: Preference<Set<String>> = preferenceStore.getStringSet(
