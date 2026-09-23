@@ -140,10 +140,28 @@ private fun DiscoverScreenContent(
     val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
     val gridState = rememberLazyGridState()
 
-    val shouldLoadMore by remember {
+    // Keyed on the item count so the check never uses a stale (e.g. initially empty) list.
+    val itemCount = items.size
+    val shouldLoadMore by remember(itemCount) {
         derivedStateOf {
             val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            items.isNotEmpty() && lastVisible >= items.size - 6
+            itemCount > 0 && lastVisible >= itemCount - 6
+        }
+    }
+
+    // Safety net: guaranteed-unique grid keys. If a duplicate ever slips past the ViewModel's
+    // distinctBy, the second copy gets a "#2" suffix instead of crashing the whole app.
+    val gridKeys = remember(items) {
+        val seen = HashSet<String>()
+        items.map { entry ->
+            val base = "novel_${entry.source.id}_${entry.manga.id}"
+            var key = base
+            var n = 2
+            while (!seen.add(key)) {
+                key = "$base#$n"
+                n++
+            }
+            key
         }
     }
 
@@ -213,7 +231,8 @@ private fun DiscoverScreenContent(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(items, key = { "novel_${it.source.id}_${it.manga.id}" }) { entry ->
+                items(count = items.size, key = { index -> gridKeys[index] }) { index ->
+                    val entry = items[index]
                     Column {
                         MangaComfortableGridItem(
                             isSelected = false,
@@ -266,6 +285,11 @@ private fun AiRecommendationsShelf(
     message: String?,
     onMangaClick: (DiscoverEntry) -> Unit,
 ) {
+    // Same duplicate-key protection as the main grid, for when recommendations get populated.
+    val uniqueRecommendations = remember(recommendations) {
+        recommendations.distinctBy { it.manga.id }
+    }
+
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -301,7 +325,7 @@ private fun AiRecommendationsShelf(
         }
 
         when {
-            isLoading && recommendations.isEmpty() -> {
+            isLoading && uniqueRecommendations.isEmpty() -> {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -335,12 +359,12 @@ private fun AiRecommendationsShelf(
                     }
                 }
             }
-            recommendations.isNotEmpty() -> {
+            uniqueRecommendations.isNotEmpty() -> {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(recommendations, key = { "novel_rec_${it.source.id}_${it.manga.id}" }) { entry ->
+                    items(uniqueRecommendations, key = { "novel_rec_${it.source.id}_${it.manga.id}" }) { entry ->
                         val heuristicMatch = remember(entry.manga.id, topGenres) {
                             matchScore(entry.manga.genre.orEmpty(), topGenres)
                         }
