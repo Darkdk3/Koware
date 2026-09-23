@@ -12,6 +12,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.draw.clip
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,20 +40,26 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -59,7 +67,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
@@ -68,6 +75,7 @@ import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.MangaCover
 import tachiyomi.domain.translation.service.TranslationPreferences
 import tachiyomi.i18n.novel.TDMR
+import tachiyomi.presentation.core.components.AdaptiveSheet
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
@@ -91,13 +99,7 @@ fun discoverTab(
     return TabContent(
         titleRes = TDMR.strings.label_discover,
         searchEnabled = false,
-        actions = listOf(
-            AppBar.Action(
-                title = "Refresh",
-                icon = Icons.Outlined.Refresh,
-                onClick = { viewModel.loadDiscoverFeed() },
-            ),
-        ),
+        actions = emptyList(),
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
@@ -109,9 +111,13 @@ fun discoverTab(
                 isLoading = state.isLoading,
                 isLoadingMore = state.isLoadingMore,
                 browseMode = state.browseMode,
+                sourceOptions = state.sourceOptions,
+                selectedSourceIds = state.selectedSourceIds,
                 contentPadding = contentPadding,
                 onMangaClick = viewModel::openEntry,
                 onBrowseModeChange = viewModel::setBrowseMode,
+                onOpenSources = viewModel::refreshSourceOptions,
+                onApplySources = viewModel::applySources,
                 onRefresh = viewModel::loadDiscoverFeed,
                 onLoadMore = viewModel::loadMore,
             )
@@ -130,15 +136,20 @@ private fun DiscoverScreenContent(
     isLoading: Boolean,
     isLoadingMore: Boolean,
     browseMode: DiscoverBrowseMode,
+    sourceOptions: List<DiscoverSourceOption>,
+    selectedSourceIds: Set<Long>,
     contentPadding: PaddingValues,
     onMangaClick: (DiscoverEntry) -> Unit,
     onBrowseModeChange: (DiscoverBrowseMode) -> Unit,
+    onOpenSources: () -> Unit,
+    onApplySources: (Set<Long>) -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
     val gridState = rememberLazyGridState()
+    var showSourceSheet by remember { mutableStateOf(false) }
 
     // Keyed on the item count so the check never uses a stale (e.g. initially empty) list.
     val itemCount = items.size
@@ -212,7 +223,15 @@ private fun DiscoverScreenContent(
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
         }
-        BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
+        BrowseModeToggle(
+            selected = browseMode,
+            onSelect = onBrowseModeChange,
+            sourceCount = selectedSourceIds.size,
+            onSourcesClick = {
+                onOpenSources()
+                showSourceSheet = true
+            },
+        )
         when {
             isLoading -> DiscoverLoadingGrid(columns = columns, contentPadding = contentPadding)
             items.isEmpty() -> Box(
@@ -220,7 +239,7 @@ private fun DiscoverScreenContent(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "No novel sources pinned yet — long-press a source in the Sources tab to pin it, and it'll start feeding Discover. Tap refresh above once you have.",
+                    text = "Nothing to show yet — tap Sources above to choose which sources feed Discover, or pull down to refresh.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -273,6 +292,123 @@ private fun DiscoverScreenContent(
             }
         }
     }
+    }
+
+    if (showSourceSheet) {
+        DiscoverSourcesSheet(
+            options = sourceOptions,
+            selected = selectedSourceIds,
+            onDismiss = { showSourceSheet = false },
+            onApply = { ids ->
+                onApplySources(ids)
+                showSourceSheet = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun DiscoverSourcesSheet(
+    options: List<DiscoverSourceOption>,
+    selected: Set<Long>,
+    onDismiss: () -> Unit,
+    onApply: (Set<Long>) -> Unit,
+) {
+    // Ticking boxes only edits this local copy; the feed reloads when Apply is tapped.
+    var pending by remember(options, selected) { mutableStateOf(selected) }
+
+    AdaptiveSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(top = 8.dp, bottom = 20.dp),
+        ) {
+            Text(
+                text = "Discover sources",
+                style = MaterialTheme.typography.titleLarge,
+            )
+            Text(
+                text = "Choose which sources load into your feed.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+            )
+
+            if (options.isEmpty()) {
+                Text(
+                    text = "No novel sources installed yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 16.dp),
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    options.forEach { option ->
+                        val checked = option.id in pending
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .clickable {
+                                    pending = if (checked) pending - option.id else pending + option.id
+                                },
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = null)
+                            Spacer(Modifier.width(14.dp))
+                            Text(
+                                text = option.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (option.isPinned) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                ) {
+                                    Text(
+                                        text = "Pinned",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+            ) {
+                TextButton(onClick = { pending = options.map { it.id }.toSet() }) {
+                    Text("Select all")
+                }
+                TextButton(onClick = { pending = emptySet() }) {
+                    Text("Clear")
+                }
+                Spacer(Modifier.weight(1f))
+                FilledTonalButton(onClick = { onApply(pending) }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Apply (${pending.size})")
+                }
+            }
+        }
     }
 }
 
@@ -448,12 +584,15 @@ private fun matchScore(genres: List<String>, topGenres: List<String>): Int? {
 private fun BrowseModeToggle(
     selected: DiscoverBrowseMode,
     onSelect: (DiscoverBrowseMode) -> Unit,
+    sourceCount: Int,
+    onSourcesClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         FilterChip(
             selected = selected == DiscoverBrowseMode.LATEST,
@@ -465,6 +604,23 @@ private fun BrowseModeToggle(
             onClick = { onSelect(DiscoverBrowseMode.POPULAR) },
             label = { Text("Popular") },
         )
+        Spacer(Modifier.weight(1f))
+        FilledTonalButton(
+            onClick = onSourcesClick,
+            contentPadding = PaddingValues(horizontal = 14.dp),
+            modifier = Modifier.height(32.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Tune,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Sources · $sourceCount",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
     }
 }
 
