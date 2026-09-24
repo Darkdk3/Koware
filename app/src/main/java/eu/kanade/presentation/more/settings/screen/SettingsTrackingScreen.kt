@@ -135,6 +135,12 @@ object SettingsTrackingScreen : SearchableSettings {
                         onDismissRequest = { dialog = null },
                     )
                 }
+                is NotionLibraryDialog -> {
+                    NotionLibraryDialogContent(
+                        tracker = tracker,
+                        onDismissRequest = { dialog = null },
+                    )
+                }
                 is NovelUpdatesListMappingDialog -> {
                     NovelUpdatesListMappingDialogContent(
                         trackerManager = trackerManager,
@@ -328,6 +334,11 @@ object SettingsTrackingScreen : SearchableSettings {
                         tracker = trackerManager.notion,
                         login = { dialog = NotionLoginDialog(trackerManager.notion) },
                         logout = { dialog = LogoutDialog(trackerManager.notion) },
+                    ),
+                    Preference.PreferenceItem.TextPreference(
+                        title = "View Notion library",
+                        subtitle = "Browse everything in your tracking database",
+                        onClick = { dialog = NotionLibraryDialog(trackerManager.notion) },
                     ),
                     Preference.PreferenceItem.ListPreference(
                         preference = trackPreferences.notionDefaultMediaType,
@@ -1127,6 +1138,10 @@ private data class LogoutDialog(
 )
 
 private data class NotionLoginDialog(
+    val tracker: NotionTracker,
+)
+
+private data class NotionLibraryDialog(
     val tracker: NotionTracker,
 )
 
