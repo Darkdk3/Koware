@@ -28,8 +28,13 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import uy.kohesive.injekt.injectLazy
 import tachiyomi.domain.track.model.Track as DomainTrack
 
@@ -43,7 +48,7 @@ import tachiyomi.domain.track.model.Track as DomainTrack
  *    The tracker can also list / auto-create the recommended database for you.
  * 3. Paste the secret, then pick or create the database. The app verifies the token and the
  *    database sharing permission, and auto-provisions the recommended columns:
- *    Title, Type, Status, Chapter, Score, Total Chapters.
+ *    Title, Type, Status, Chapter, Score, Total Chapters, Cover, Source, Description.
  *
  * Login screen: secret field = integration secret, database field = database ID or URL.
  * Reuses BaseTracker's username/password storage the same way other trackers do.
@@ -226,6 +231,12 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
                 putJsonObject(COVER_PROPERTY) {
                     putJsonObject("url") {}
                 }
+                putJsonObject(SOURCE_PROPERTY) {
+                    putJsonObject("select") {}
+                }
+                putJsonObject(DESCRIPTION_PROPERTY) {
+                    putJsonObject("rich_text") {}
+                }
             }
         }.toString().toRequestBody("application/json".toMediaType())
 
@@ -370,6 +381,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         if (existingPageId != null) {
             track.tracking_url = pageIdToNotionUrl(existingPageId)
             track.remote_id = hashPageId(existingPageId)
+            writeLibraryInfoIfEnabled(track.manga_id, existingPageId)
             // Adopt whatever is already in Notion for this row.
             return refresh(track)
         }
@@ -461,11 +473,16 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
             }
         }
 
+        writeLibraryInfoIfEnabled(track.manga_id, pageId)
+
         return track
     }
 
     override suspend fun update(track: Track, didReadChapter: Boolean): Track {
-        ensureSchemaLoaded() ?: return track
+        // Offline fix: if Notion can't be reached while loading the schema, this throws instead of
+        // silently returning. The app then queues the update and retries once the device is back
+        // online, the same way it does for the other trackers.
+        ensureSchemaLoaded(throwOnFailure = true) ?: return track
         val pageId = resolvePageId(track) ?: return track
         val schema = schemaCache ?: return track
         val statusKey = schema.keyFor(STATUS_PROPERTY)
@@ -581,6 +598,54 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         }
     }
 
+    /**
+     * When "Sync library info on add" is on, copies the title's source name and description from
+     * the local library into its Notion row right away. Best effort: never blocks tracking.
+     */
+    private suspend fun writeLibraryInfoIfEnabled(mangaId: Long, pageId: String) {
+        if (!syncOnAddPreference().get()) return
+        runCatching {
+            val schema = schemaCache ?: return@runCatching
+            val sourceKey = schema.keyFor(SOURCE_PROPERTY)
+            val descriptionKey = schema.keyFor(DESCRIPTION_PROPERTY)
+            if (sourceKey == null && descriptionKey == null) return@runCatching
+
+            val manga = Injekt.get<GetManga>().await(mangaId) ?: return@runCatching
+            val sourceName = Injekt.get<SourceManager>().getOrStub(manga.source).name
+                .replace(",", " ").trim().take(100)
+            val description = manga.description.orEmpty().replace("\r", "").trim().take(DESCRIPTION_LIMIT)
+            if (sourceName.isBlank() && description.isBlank()) return@runCatching
+
+            val body = buildJsonObject {
+                putJsonObject("properties") {
+                    if (sourceKey != null && sourceName.isNotBlank()) {
+                        putJsonObject(sourceKey) {
+                            putJsonObject("select") {
+                                put("name", sourceName)
+                            }
+                        }
+                    }
+                    if (descriptionKey != null && description.isNotBlank()) {
+                        putJsonObject(descriptionKey) {
+                            putJsonArray("rich_text") {
+                                add(
+                                    buildJsonObject {
+                                        putJsonObject("text") {
+                                            put("content", description)
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }.toString().toRequestBody("application/json".toMediaType())
+            client.newCall(patchRequest("$apiBase/pages/$pageId", authHeaders(), body)).awaitSuccess().close()
+        }.onFailure {
+            logcat(LogPriority.WARN, it) { "Notion: failed to save library info for $pageId" }
+        }
+    }
+
     /** Fetches every page in the database, paginated, returning them as search results. */
     private suspend fun fetchAllEntries(): List<TrackSearch> {
         val schema = ensureSchemaLoaded() ?: return emptyList()
@@ -669,8 +734,12 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
     /**
      * Loads (and caches) the database schema so property names are resolved dynamically
      * instead of assuming the layout. Also provisions missing recommended columns.
+     *
+     * With [throwOnFailure] the underlying error is rethrown instead of returning null, which
+     * lets callers such as [update] surface network failures so the update can be retried.
+     * A missing login still returns null.
      */
-    private suspend fun ensureSchemaLoaded(): SchemaInfo? {
+    private suspend fun ensureSchemaLoaded(throwOnFailure: Boolean = false): SchemaInfo? {
         val databaseId = getDatabaseId()
         val secret = getSecret()
         if (databaseId.isBlank() || secret.isBlank()) return null
@@ -693,15 +762,17 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
             info
         } catch (e: Exception) {
             logcat(LogPriority.WARN, e) { "Notion: could not load schema for $databaseId" }
+            if (throwOnFailure) throw e
             null
         }
     }
 
     /**
-     * Best-effort: adds the recommended columns (Type, Status, Chapter, Score, Total Chapters)
-     * to an existing database if the integration has update permission, and appends any
-     * missing status/type options to existing select columns. Returns the keys it added so
-     * callers can update their schema cache without another round-trip.
+     * Best-effort: adds the recommended columns (Type, Status, Chapter, Score, Total Chapters,
+     * Cover, Source, Description) to an existing database if the integration has update
+     * permission, and appends any missing status/type options to existing select columns.
+     * Returns the keys it added so callers can update their schema cache without another
+     * round-trip.
      */
     private suspend fun applyRecommendedSchema(schema: JsonObject, databaseId: String, secret: String): Set<String> {
         val existing = schema["properties"]?.jsonObject ?: return emptySet()
@@ -739,6 +810,8 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         if (!existing.containsKey(SCORE_PROPERTY)) additions[SCORE_PROPERTY] = buildJsonObject { putJsonObject("number") {} }
         if (!existing.containsKey(TOTAL_CHAPTERS_PROPERTY)) additions[TOTAL_CHAPTERS_PROPERTY] = buildJsonObject { putJsonObject("number") {} }
         if (!existing.containsKey(COVER_PROPERTY)) additions[COVER_PROPERTY] = buildJsonObject { putJsonObject("url") {} }
+        if (!existing.containsKey(SOURCE_PROPERTY)) additions[SOURCE_PROPERTY] = buildJsonObject { putJsonObject("select") {} }
+        if (!existing.containsKey(DESCRIPTION_PROPERTY)) additions[DESCRIPTION_PROPERTY] = buildJsonObject { putJsonObject("rich_text") {} }
 
         if (additions.isEmpty()) return emptySet()
 
@@ -854,9 +927,17 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         const val SCORE_PROPERTY = "Score"
         const val TOTAL_CHAPTERS_PROPERTY = "Total Chapters"
         const val COVER_PROPERTY = "Cover"
+        const val SOURCE_PROPERTY = "Source"
+        const val DESCRIPTION_PROPERTY = "Description"
+
+        /** Notion rich_text content is capped at 2000 characters per text object. */
+        const val DESCRIPTION_LIMIT = 1900
 
         const val AUTO_MEDIA_TYPE = "Auto"
         const val DEFAULT_MEDIA_TYPE = "Manga"
+
+        /** Toggle: also save source + description to Notion whenever a title is added to it. */
+        fun syncOnAddPreference() = Injekt.get<PreferenceStore>().getBoolean("notion_sync_on_add", false)
 
         /** Select options written to the Type column: book, novel, manga, manhwa, etc. */
         val MEDIA_TYPES = listOf(
