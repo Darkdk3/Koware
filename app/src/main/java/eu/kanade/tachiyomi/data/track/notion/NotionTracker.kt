@@ -30,6 +30,7 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.logcat
+import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
@@ -237,6 +238,9 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
                 putJsonObject(DESCRIPTION_PROPERTY) {
                     putJsonObject("rich_text") {}
                 }
+                putJsonObject(CHAPTER_NAME_PROPERTY) {
+                    putJsonObject("rich_text") {}
+                }
             }
         }.toString().toRequestBody("application/json".toMediaType())
 
@@ -398,6 +402,12 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
             it.equals("novel", ignoreCase = true) || it.equals("light novel", ignoreCase = true) || it.equals("book", ignoreCase = true)
         } ?: false
         val resolvedType = resolveMediaType(isNovel)
+        val chapterNameKey = schema.keyFor(CHAPTER_NAME_PROPERTY)
+        val chapterName = if (chapterNameKey != null && track.last_chapter_read > 0) {
+            lookupChapterName(track.manga_id, track.last_chapter_read)
+        } else {
+            null
+        }
 
         val body = buildJsonObject {
             putJsonObject("parent") {
@@ -442,6 +452,19 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
                 if (totalChaptersKey != null && track.total_chapters > 0) {
                     putJsonObject(totalChaptersKey) {
                         put("number", track.total_chapters.toDouble())
+                    }
+                }
+                if (chapterNameKey != null && !chapterName.isNullOrBlank()) {
+                    putJsonObject(chapterNameKey) {
+                        putJsonArray("rich_text") {
+                            add(
+                                buildJsonObject {
+                                    putJsonObject("text") {
+                                        put("content", chapterName)
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -489,6 +512,12 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         val chapterKey = schema.keyFor(CHAPTER_PROPERTY)
         val scoreKey = schema.keyFor(SCORE_PROPERTY)
         val totalChaptersKey = schema.keyFor(TOTAL_CHAPTERS_PROPERTY)
+        val chapterNameKey = schema.keyFor(CHAPTER_NAME_PROPERTY)
+        val chapterName = if (chapterNameKey != null) {
+            lookupChapterName(track.manga_id, track.last_chapter_read)
+        } else {
+            null
+        }
 
         val body = buildJsonObject {
             putJsonObject("properties") {
@@ -512,6 +541,19 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
                 if (totalChaptersKey != null && track.total_chapters > 0) {
                     putJsonObject(totalChaptersKey) {
                         put("number", track.total_chapters.toDouble())
+                    }
+                }
+                if (chapterNameKey != null && !chapterName.isNullOrBlank()) {
+                    putJsonObject(chapterNameKey) {
+                        putJsonArray("rich_text") {
+                            add(
+                                buildJsonObject {
+                                    putJsonObject("text") {
+                                        put("content", chapterName)
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -646,6 +688,19 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         }
     }
 
+    /**
+     * Name of the chapter the reader is on: the chapter matching [lastRead], else the highest
+     * chapter marked read. Local database only, never throws.
+     */
+    private suspend fun lookupChapterName(mangaId: Long, lastRead: Double): String? {
+        return runCatching {
+            val chapters = Injekt.get<GetChaptersByMangaId>().await(mangaId)
+            val match = chapters.firstOrNull { lastRead > 0 && it.chapterNumber == lastRead }
+                ?: chapters.filter { it.read }.maxByOrNull { it.chapterNumber }
+            match?.name?.trim()?.take(200)?.takeIf { it.isNotBlank() }
+        }.getOrNull()
+    }
+
     /** Fetches every page in the database, paginated, returning them as search results. */
     private suspend fun fetchAllEntries(): List<TrackSearch> {
         val schema = ensureSchemaLoaded() ?: return emptyList()
@@ -769,7 +824,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
 
     /**
      * Best-effort: adds the recommended columns (Type, Status, Chapter, Score, Total Chapters,
-     * Cover, Source, Description) to an existing database if the integration has update
+     * Cover, Source, Description, Chapter Name, Progress) to an existing database if the integration has update
      * permission, and appends any missing status/type options to existing select columns.
      * Returns the keys it added so callers can update their schema cache without another
      * round-trip.
@@ -812,21 +867,45 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         if (!existing.containsKey(COVER_PROPERTY)) additions[COVER_PROPERTY] = buildJsonObject { putJsonObject("url") {} }
         if (!existing.containsKey(SOURCE_PROPERTY)) additions[SOURCE_PROPERTY] = buildJsonObject { putJsonObject("select") {} }
         if (!existing.containsKey(DESCRIPTION_PROPERTY)) additions[DESCRIPTION_PROPERTY] = buildJsonObject { putJsonObject("rich_text") {} }
+        if (!existing.containsKey(CHAPTER_NAME_PROPERTY)) additions[CHAPTER_NAME_PROPERTY] = buildJsonObject { putJsonObject("rich_text") {} }
 
-        if (additions.isEmpty()) return emptySet()
+        val added = mutableSetOf<String>()
 
-        runCatching {
-            val body = buildJsonObject {
-                putJsonObject("properties") {
-                    additions.forEach { (name, value) -> put(name, value) }
-                }
-            }.toString().toRequestBody("application/json".toMediaType())
-            client.newCall(patchRequest("$apiBase/databases/$databaseId", authHeaders(secret), body)).awaitSuccess().close()
-        }.onFailure {
-            logcat(LogPriority.WARN, it) { "Notion: could not provision schema columns for $databaseId" }
-            return emptySet()
+        if (additions.isNotEmpty()) {
+            val ok = runCatching {
+                val body = buildJsonObject {
+                    putJsonObject("properties") {
+                        additions.forEach { (name, value) -> put(name, value) }
+                    }
+                }.toString().toRequestBody("application/json".toMediaType())
+                client.newCall(patchRequest("$apiBase/databases/$databaseId", authHeaders(secret), body)).awaitSuccess().close()
+            }.onFailure {
+                logcat(LogPriority.WARN, it) { "Notion: could not provision schema columns for $databaseId" }
+            }.isSuccess
+            if (ok) added += additions.keys
         }
-        return additions.keys.toSet()
+
+        // The progress bar is a formula column. It is added on its own so a formula problem can
+        // never stop the simple columns above from being created.
+        if (!existing.containsKey(PROGRESS_PROPERTY)) {
+            val ok = runCatching {
+                val body = buildJsonObject {
+                    putJsonObject("properties") {
+                        putJsonObject(PROGRESS_PROPERTY) {
+                            putJsonObject("formula") {
+                                put("expression", PROGRESS_FORMULA)
+                            }
+                        }
+                    }
+                }.toString().toRequestBody("application/json".toMediaType())
+                client.newCall(patchRequest("$apiBase/databases/$databaseId", authHeaders(secret), body)).awaitSuccess().close()
+            }.onFailure {
+                logcat(LogPriority.WARN, it) { "Notion: could not add the progress formula for $databaseId" }
+            }.isSuccess
+            if (ok) added += PROGRESS_PROPERTY
+        }
+
+        return added
     }
 
     private fun toTrackSearch(page: JsonObject): TrackSearch {
@@ -929,6 +1008,15 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         const val COVER_PROPERTY = "Cover"
         const val SOURCE_PROPERTY = "Source"
         const val DESCRIPTION_PROPERTY = "Description"
+        const val CHAPTER_NAME_PROPERTY = "Chapter Name"
+        const val PROGRESS_PROPERTY = "Progress"
+
+        /** Formula for the Progress column: a text bar plus a percentage, e.g. "██████░░░░ 60%". */
+        const val PROGRESS_FORMULA =
+            "if(prop(\"Total Chapters\") > 0, " +
+                "slice(\"██████████\", 0, min(round(prop(\"Chapter\") / prop(\"Total Chapters\") * 10), 10)) + " +
+                "slice(\"░░░░░░░░░░\", 0, 10 - min(round(prop(\"Chapter\") / prop(\"Total Chapters\") * 10), 10)) + " +
+                "\" \" + format(min(round(prop(\"Chapter\") / prop(\"Total Chapters\") * 100), 100)) + \"%\", \"\")"
 
         /** Notion rich_text content is capped at 2000 characters per text object. */
         const val DESCRIPTION_LIMIT = 1900
