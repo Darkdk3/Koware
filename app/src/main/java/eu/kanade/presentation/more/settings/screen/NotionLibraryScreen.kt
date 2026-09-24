@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +59,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -99,6 +103,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.domain.track.interactor.GetTracks
@@ -106,6 +111,7 @@ import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.ByteArrayOutputStream
+import kotlin.math.max
 import kotlin.coroutines.cancellation.CancellationException
 
 /** One row of the user's Notion tracking database. */
@@ -121,6 +127,7 @@ data class NotionLibraryEntry(
     val pageUrl: String,
     val source: String,
     val description: String,
+    val chapterName: String,
 )
 
 /**
@@ -792,30 +799,46 @@ private fun NotionEntryRow(
                         modifier = Modifier.padding(top = 2.dp),
                     )
                 }
-                Row(
-                    modifier = Modifier.padding(top = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (entry.totalChapters > 0) {
-                        LinearProgressIndicator(
-                            progress = { (entry.chapter / entry.totalChapters).toFloat().coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(4.dp),
-                        )
+                if (entry.totalChapters > 0) {
+                    val fraction = (entry.chapter / entry.totalChapters).toFloat().coerceIn(0f, 1f)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
                         Text(
-                            text = "${entry.chapter.clean()} / ${entry.totalChapters.clean()}",
+                            text = "${entry.chapter.clean()} of ${entry.totalChapters.clean()} chapters read",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                    } else {
                         Text(
-                            text = "Ch. ${entry.chapter.clean()}",
+                            text = "${(fraction * 100).toInt()}%",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    NotionProgressBar(
+                        progress = fraction,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                } else {
+                    Text(
+                        text = "Ch. ${entry.chapter.clean()}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+                if (entry.chapterName.isNotBlank()) {
+                    Text(
+                        text = entry.chapterName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
                 }
             }
 
@@ -853,6 +876,52 @@ private fun NotionEntryRow(
                 )
                 TextButton(onClick = onOpen) {
                     Text("Open in Notion")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Progress bar in the same style as the manga detail screen: a rounded filled part, a small gap,
+ * then the remaining track with a dot at its end.
+ */
+@Composable
+private fun NotionProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val fillColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(6.dp),
+    ) {
+        val h = size.height
+        val w = size.width
+        val gap = 4.dp.toPx()
+        val radius = CornerRadius(h / 2, h / 2)
+        val p = progress.coerceIn(0f, 1f)
+
+        when {
+            p <= 0f -> {
+                drawRoundRect(color = trackColor, size = Size(w, h), cornerRadius = radius)
+                drawCircle(color = fillColor, radius = h * 0.28f, center = Offset(w - h / 2, h / 2))
+            }
+            p >= 1f -> drawRoundRect(color = fillColor, size = Size(w, h), cornerRadius = radius)
+            else -> {
+                val fillEnd = max(w * p - gap / 2, h)
+                val trackStart = max(w * p + gap / 2, fillEnd + gap)
+                drawRoundRect(color = fillColor, size = Size(fillEnd, h), cornerRadius = radius)
+                if (trackStart < w) {
+                    drawRoundRect(
+                        color = trackColor,
+                        topLeft = Offset(trackStart, 0f),
+                        size = Size(w - trackStart, h),
+                        cornerRadius = radius,
+                    )
+                    drawCircle(color = fillColor, radius = h * 0.28f, center = Offset(w - h / 2, h / 2))
                 }
             }
         }
@@ -1040,6 +1109,7 @@ private fun parseNotionPage(page: JsonObject): NotionLibraryEntry? {
             ?: "https://notion.so/${pageId.replace("-", "")}",
         source = props.textValue(SOURCE_PROPERTY).orEmpty(),
         description = props.textValue(DESCRIPTION_PROPERTY).orEmpty(),
+        chapterName = props.textValue(NotionTracker.CHAPTER_NAME_PROPERTY).orEmpty(),
     )
 }
 
@@ -1071,14 +1141,29 @@ private fun JsonObject.urlValue(name: String): String? =
 // Library -> Notion sync (Source + Description)
 // ---------------------------------------------------------------------------------------------
 
-private class LocalMeta(val source: String, val description: String)
+private class LocalMeta(val source: String, val description: String, val mangaId: Long)
 
 private class PendingUpdate(
     val entry: NotionLibraryEntry,
     val props: JsonObject,
     val newSource: String?,
     val newDescription: String?,
+    val newChapterName: String?,
 )
+
+/** Name of the chapter at [notionChapter], else the highest chapter marked read locally. */
+private suspend fun localChapterName(
+    getChapters: GetChaptersByMangaId,
+    mangaId: Long,
+    notionChapter: Double,
+): String? {
+    return runCatching {
+        val chapters = getChapters.await(mangaId)
+        val match = chapters.firstOrNull { notionChapter > 0 && it.chapterNumber == notionChapter }
+            ?: chapters.filter { it.read }.maxByOrNull { it.chapterNumber }
+        match?.name?.trim()?.take(200)?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+}
 
 private fun pageIdFromUrl(url: String): String? {
     if (url.isBlank()) return null
@@ -1125,6 +1210,9 @@ private suspend fun syncNotionMetadata(
         if (DESCRIPTION_PROPERTY !in types) {
             putJsonObject(DESCRIPTION_PROPERTY) { putJsonObject("rich_text") {} }
         }
+        if (NotionTracker.CHAPTER_NAME_PROPERTY !in types) {
+            putJsonObject(NotionTracker.CHAPTER_NAME_PROPERTY) { putJsonObject("rich_text") {} }
+        }
     }
     if (missing.isNotEmpty()) {
         notionPatch(
@@ -1133,19 +1221,46 @@ private suspend fun syncNotionMetadata(
             buildJsonObject { put("properties", missing) },
         )
     }
+
+    // The progress bar column is a formula; added on its own so a problem there can't block the rest.
+    if (NotionTracker.PROGRESS_PROPERTY !in types) {
+        try {
+            notionPatch(
+                conn,
+                "$NOTION_API/databases/${conn.databaseId}",
+                buildJsonObject {
+                    putJsonObject("properties") {
+                        putJsonObject(NotionTracker.PROGRESS_PROPERTY) {
+                            putJsonObject("formula") {
+                                put("expression", NotionTracker.PROGRESS_FORMULA)
+                            }
+                        }
+                    }
+                },
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // Best effort only.
+        }
+    }
+
     val sourceType = types[SOURCE_PROPERTY] ?: "select"
     val descriptionType = types[DESCRIPTION_PROPERTY] ?: "rich_text"
+    val chapterNameType = types[NotionTracker.CHAPTER_NAME_PROPERTY] ?: "rich_text"
 
     // 2) Read source + description for every library item that has a Notion track.
     val byPageId = mutableMapOf<String, LocalMeta>()
     val byTitle = mutableMapOf<String, LocalMeta>()
     val getFavorites = Injekt.get<GetFavorites>()
     val getTracks = Injekt.get<GetTracks>()
+    val getChapters = Injekt.get<GetChaptersByMangaId>()
     val sourceManager = Injekt.get<SourceManager>()
     getFavorites.await().forEach { manga ->
         val meta = LocalMeta(
             source = sourceManager.getOrStub(manga.source).name,
             description = manga.description.orEmpty(),
+            mangaId = manga.id,
         )
         byTitle[manga.title.trim().lowercase()] = meta
         getTracks.await(manga.id)
@@ -1172,17 +1287,25 @@ private suspend fun syncNotionMetadata(
         } else {
             null
         }
-        if (sourcePayload == null && descriptionPayload == null) return@forEach
+        val wantChapterName = localChapterName(getChapters, local.mangaId, entry.chapter)
+        val chapterNamePayload = if (wantChapterName != null && wantChapterName != entry.chapterName.trim()) {
+            textPayload(chapterNameType, wantChapterName)
+        } else {
+            null
+        }
+        if (sourcePayload == null && descriptionPayload == null && chapterNamePayload == null) return@forEach
 
         val props = buildJsonObject {
             if (sourcePayload != null) put(SOURCE_PROPERTY, sourcePayload)
             if (descriptionPayload != null) put(DESCRIPTION_PROPERTY, descriptionPayload)
+            if (chapterNamePayload != null) put(NotionTracker.CHAPTER_NAME_PROPERTY, chapterNamePayload)
         }
         pending += PendingUpdate(
             entry = entry,
             props = props,
             newSource = if (sourcePayload != null) wantSource else null,
             newDescription = if (descriptionPayload != null) wantDescription else null,
+            newChapterName = if (chapterNamePayload != null) wantChapterName else null,
         )
     }
 
@@ -1213,6 +1336,7 @@ private suspend fun syncNotionMetadata(
             updated[item.entry.pageId] = item.entry.copy(
                 source = item.newSource ?: item.entry.source,
                 description = item.newDescription ?: item.entry.description,
+                chapterName = item.newChapterName ?: item.entry.chapterName,
             )
         } else {
             failed++
