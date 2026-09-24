@@ -105,6 +105,7 @@ object SettingsTrackingScreen : SearchableSettings {
         val trackPreferences = remember { Injekt.get<TrackPreferences>() }
         val trackerManager = remember { Injekt.get<TrackerManager>() }
         val sourceManager = remember { Injekt.get<SourceManager>() }
+        val notionSyncOnAdd = remember { NotionTracker.syncOnAddPreference() }
 
         var dialog by remember { mutableStateOf<Any?>(null) }
         dialog?.run {
@@ -345,6 +346,11 @@ object SettingsTrackingScreen : SearchableSettings {
                         entries = NotionTracker.MEDIA_TYPES.associateWith { it },
                         title = "Default media type",
                         subtitle = "\"Auto\" detects Novel vs Manga from the source automatically",
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = notionSyncOnAdd,
+                        title = "Sync library info on add",
+                        subtitle = "When a title is added to Notion, also save its source and description to the database",
                     ),
                     Preference.PreferenceItem.InfoPreference(
                         "Your Notion database must be shared with the integration " +
