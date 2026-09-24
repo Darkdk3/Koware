@@ -53,6 +53,18 @@ class SourcePreferences(
         false,
     )
 
+    /** Same as [discoverSourceIds] but for the manga Discover tab, so the two selections stay independent. */
+    val discoverMangaSourceIds: Preference<Set<String>> = preferenceStore.getStringSet(
+        "discover_manga_source_ids",
+        emptySet(),
+    )
+
+    /** Same as [discoverSourcesCustomized] but for the manga Discover tab. */
+    val discoverMangaSourcesCustomized: Preference<Boolean> = preferenceStore.getBoolean(
+        "discover_manga_sources_customized",
+        false,
+    )
+
     /**
      * Format: { "$group_name|$sourceid" }
      */
