@@ -1,6 +1,3 @@
-
-// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discovermanga/DiscoverMangaViewModel.kt
-
 package eu.kanade.tachiyomi.ui.browse.discovermanga
 
 import androidx.lifecycle.viewModelScope
@@ -9,10 +6,14 @@ import eu.kanade.tachiyomi.jsplugin.JsPluginManager
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.ui.browse.discover.AiRecommendationResult
+import eu.kanade.tachiyomi.ui.browse.discover.DiscoverSourceOption
 import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
 import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.update
 import java.util.concurrent.ConcurrentHashMap
 import mihon.core.viewmodel.StateViewModel
@@ -55,6 +56,11 @@ data class DiscoverMangaScreenState(
     val hasPinnedNovelSources: Boolean = true,
     val browseMode: DiscoverMangaBrowseMode = DiscoverMangaBrowseMode.LATEST,
     val pendingMangaId: Long? = null,
+
+    // Every manga source that can feed Discover (pinned ones first) and the ids currently feeding it.
+    // Drives the "Sources" picker.
+    val sourceOptions: List<DiscoverSourceOption> = emptyList(),
+    val selectedSourceIds: Set<Long> = emptySet(),
 )
 
 class DiscoverMangaViewModel(
@@ -68,6 +74,12 @@ class DiscoverMangaViewModel(
     private data class SourcePageCursor(val nextPage: Int, val hasNextPage: Boolean)
     private val pageCursors = ConcurrentHashMap<Long, SourcePageCursor>()
 
+    // Tracked so a refresh / mode switch cancels in-flight work. Without this, a stale loadMore()
+    // result could be appended onto a fresh list and duplicate items (=> duplicate LazyGrid keys => crash).
+    private var feedJob: Job? = null
+    private var moreJob: Job? = null
+    private var aiJob: Job? = null
+
     init {
         loadDiscoverFeed()
     }
@@ -78,27 +90,65 @@ class DiscoverMangaViewModel(
         loadDiscoverFeed()
     }
 
-    private fun pinnedNovelSources(): List<CatalogueSource> {
-        val pinnedKeys = sourcePreferences.pinnedSources.get()
+    /** Every manga (non-novel) source that could feed Discover. */
+    private fun allMangaSources(): List<CatalogueSource> {
         return (sourceManager.getOnlineSources() + jsPluginManager.jsSources.value)
             .filterIsInstance<CatalogueSource>()
             .distinctBy { it.id }
             .filter { !it.isNovelSource() }
             .filter { it.supportsLatest }
-            .filter { it.id.toString() in pinnedKeys }
+    }
+
+    /**
+     * The sources that actually feed Discover: the ones picked in the Sources picker, or - until
+     * a selection has been applied for the first time - the pinned ones (the old behaviour).
+     */
+    private fun feedSources(): List<CatalogueSource> {
+        val chosenKeys = if (sourcePreferences.discoverMangaSourcesCustomized.get()) {
+            sourcePreferences.discoverMangaSourceIds.get()
+        } else {
+            sourcePreferences.pinnedSources.get()
+        }
+        return allMangaSources().filter { it.id.toString() in chosenKeys }
+    }
+
+    /** Rebuilds the picker data. Also called when the picker opens so it's never stale. */
+    fun refreshSourceOptions() {
+        val pinnedKeys = sourcePreferences.pinnedSources.get()
+        val options = allMangaSources()
+            .map { DiscoverSourceOption(id = it.id, name = it.name, isPinned = it.id.toString() in pinnedKeys) }
+            .sortedWith(
+                compareByDescending<DiscoverSourceOption> { it.isPinned }
+                    .thenBy { it.name.lowercase() },
+            )
+        val selected = feedSources().map { it.id }.toSet()
+        mutableState.update { it.copy(sourceOptions = options, selectedSourceIds = selected) }
+    }
+
+    /** Saves the picked sources and reloads the feed, but only if the selection actually changed. */
+    fun applySources(ids: Set<Long>) {
+        val changed = ids != state.value.selectedSourceIds
+        sourcePreferences.discoverMangaSourceIds.set(ids.map { it.toString() }.toSet())
+        sourcePreferences.discoverMangaSourcesCustomized.set(true)
+        if (changed) {
+            loadDiscoverFeed()
+        }
     }
 
     fun loadDiscoverFeed() {
-        viewModelScope.launchIO {
-            mutableState.update { it.copy(isLoading = true) }
+        moreJob?.cancel()
+        feedJob?.cancel()
+        refreshSourceOptions()
+        feedJob = viewModelScope.launchIO {
+            mutableState.update { it.copy(isLoading = true, isLoadingMore = false) }
             pageCursors.clear()
 
-            val sources = pinnedNovelSources()
+            val sources = feedSources()
             val mode = state.value.browseMode
 
             val perSourceLists = sources.map { source ->
                 async {
-                    val page = runCatching { fetchPage(source, mode, page = 1) }.getOrNull()
+                    val page = fetchPageOrNull(source, mode, page = 1)
                     pageCursors[source.id] = SourcePageCursor(
                         nextPage = 2,
                         hasNextPage = page?.hasNextPage == true,
@@ -109,7 +159,10 @@ class DiscoverMangaViewModel(
                     }
                 }
             }.awaitAll()
-            val merged = interleave(perSourceLists)
+            ensureActive()
+
+            // A source can return the same entry twice; never let duplicate ids reach the grid.
+            val merged = interleave(perSourceLists).distinctBy { it.manga.id }
 
             mutableState.update {
                 it.copy(items = merged, isLoading = false, hasPinnedNovelSources = sources.isNotEmpty())
@@ -120,10 +173,12 @@ class DiscoverMangaViewModel(
     }
 
     private fun loadAiRecommendations() {
-        viewModelScope.launchIO {
+        aiJob?.cancel()
+        aiJob = viewModelScope.launchIO {
             mutableState.update { it.copy(isLoadingRecommendations = true, aiRecommendationMessage = null) }
             val result = runCatching { getAiRecommendations.await(state.value.items) }
                 .getOrElse { AiRecommendationResult.Failed(it.message ?: "AI request failed") }
+            ensureActive()
             mutableState.update { state ->
                 when (result) {
                     is AiRecommendationResult.Success -> state.copy(
@@ -161,14 +216,14 @@ class DiscoverMangaViewModel(
                         recommendationTopGenres = emptyList(),
                         recommendationScores = emptyMap(),
                         isLoadingRecommendations = false,
-                        aiRecommendationMessage = "Pin some manga sources first - AI recommendations will appear here once the feed has titles.",
+                        aiRecommendationMessage = "Pick some manga sources first (tap Sources) - AI recommendations will appear here once the feed has titles.",
                     )
                     AiRecommendationResult.NoMatches -> state.copy(
                         recommendations = emptyList(),
                         recommendationTopGenres = emptyList(),
                         recommendationScores = emptyMap(),
                         isLoadingRecommendations = false,
-                        aiRecommendationMessage = "The AI didn't find a good match this time - tap refresh to try again.",
+                        aiRecommendationMessage = "The AI didn't find a good match this time - pull down to refresh and try again.",
                     )
                     is AiRecommendationResult.Failed -> state.copy(
                         recommendations = emptyList(),
@@ -183,18 +238,18 @@ class DiscoverMangaViewModel(
     }
 
     fun loadMore() {
-        if (state.value.isLoading || state.value.isLoadingMore) return
-        val sources = pinnedNovelSources().filter { pageCursors[it.id]?.hasNextPage == true }
+        if (state.value.isLoading || moreJob?.isActive == true) return
+        val sources = feedSources().filter { pageCursors[it.id]?.hasNextPage == true }
         if (sources.isEmpty()) return
 
-        viewModelScope.launchIO {
+        moreJob = viewModelScope.launchIO {
             mutableState.update { it.copy(isLoadingMore = true) }
             val mode = state.value.browseMode
 
-            val newLists = sources.mapNotNull { source ->
+            val newLists = sources.map { source ->
                 async {
-                    val cursor = pageCursors[source.id] ?: return@async null
-                    val page = runCatching { fetchPage(source, mode, cursor.nextPage) }.getOrNull()
+                    val cursor = pageCursors[source.id] ?: return@async emptyList<DiscoverMangaEntry>()
+                    val page = fetchPageOrNull(source, mode, cursor.nextPage)
                     pageCursors[source.id] = SourcePageCursor(
                         nextPage = cursor.nextPage + 1,
                         hasNextPage = page?.hasNextPage == true,
@@ -204,10 +259,18 @@ class DiscoverMangaViewModel(
                         DiscoverMangaEntry(source, localManga)
                     }
                 }
-            }.awaitAll().filterNotNull()
+            }.awaitAll()
+            ensureActive()
             val appended = interleave(newLists)
 
-            mutableState.update { it.copy(items = it.items + appended, isLoadingMore = false) }
+            mutableState.update { s ->
+                // Overlapping pages: skip anything already in the list (and dupes within the batch).
+                val seen = s.items.mapTo(HashSet()) { it.manga.id }
+                s.copy(
+                    items = s.items + appended.filter { seen.add(it.manga.id) },
+                    isLoadingMore = false,
+                )
+            }
         }
     }
 
@@ -218,6 +281,20 @@ class DiscoverMangaViewModel(
     ) = when (mode) {
         DiscoverMangaBrowseMode.LATEST -> source.getLatestUpdates(page)
         DiscoverMangaBrowseMode.POPULAR -> source.getPopularManga(page)
+    }
+
+    // Like runCatching { ... }.getOrNull(), but lets cancellation through so cancelled jobs
+    // actually stop instead of carrying on with stale data.
+    private suspend fun fetchPageOrNull(
+        source: CatalogueSource,
+        mode: DiscoverMangaBrowseMode,
+        page: Int,
+    ) = try {
+        fetchPage(source, mode, page)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     /** Trivial now - the manga is already a real local entry with a known id by fetch time. */
