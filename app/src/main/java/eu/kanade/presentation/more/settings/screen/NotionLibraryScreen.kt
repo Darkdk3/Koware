@@ -1,5 +1,11 @@
 package eu.kanade.presentation.more.settings.screen
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,10 +28,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -44,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +78,7 @@ import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -83,6 +94,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.Headers
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -93,6 +105,7 @@ import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.ByteArrayOutputStream
 import kotlin.coroutines.cancellation.CancellationException
 
 /** One row of the user's Notion tracking database. */
@@ -146,6 +159,7 @@ fun NotionLibraryDialogContent(
     var entries by remember { mutableStateOf<List<NotionLibraryEntry>>(emptyList()) }
     var dbTitle by remember { mutableStateOf("Notion library") }
     var bannerUrl by remember { mutableStateOf<String?>(null) }
+    var bannerNote by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var syncing by remember { mutableStateOf(false) }
     var syncStatus by remember { mutableStateOf<String?>(null) }
@@ -154,6 +168,32 @@ fun NotionLibraryDialogContent(
     var query by remember { mutableStateOf("") }
     var typeFilter by remember { mutableStateOf(FILTER_ALL) }
     var statusFilter by remember { mutableStateOf(FILTER_ALL) }
+
+    val scope = rememberCoroutineScope()
+    var menuOpen by remember { mutableStateOf(false) }
+    var uploadingCover by remember { mutableStateOf(false) }
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                uploadingCover = true
+                syncStatus = "Uploading cover..."
+                try {
+                    val newCover = withContext(Dispatchers.IO) {
+                        uploadDatabaseCover(context, tracker, uri)
+                        fetchDatabaseCoverUrl(tracker)
+                    }
+                    bannerUrl = newCover
+                    bannerNote = if (newCover == null) "Cover uploaded, but Notion didn't return it yet. Tap refresh." else null
+                    syncStatus = "Cover updated"
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    syncStatus = "Cover upload failed: ${e.message}"
+                }
+                uploadingCover = false
+            }
+        }
+    }
 
     LaunchedEffect(refreshKey) {
         loading = true
@@ -164,6 +204,7 @@ fun NotionLibraryDialogContent(
             entries = data.entries
             dbTitle = data.title
             bannerUrl = data.bannerUrl
+            bannerNote = data.bannerNote
             loading = false
 
             // Only a manual refresh writes to Notion; opening the screen never does.
@@ -194,7 +235,7 @@ fun NotionLibraryDialogContent(
         syncing = false
     }
 
-    val busy = loading || syncing
+    val busy = loading || syncing || uploadingCover
     val types = remember(entries) {
         listOf(FILTER_ALL) + entries.map { it.type }.filter { it.isNotBlank() }.distinct().sorted()
     }
@@ -229,7 +270,12 @@ fun NotionLibraryDialogContent(
                         contentPadding = PaddingValues(bottom = 24.dp),
                     ) {
                         item(key = "header") {
-                            NotionModernHeader(title = dbTitle, subtitle = subtitle, bannerUrl = bannerUrl)
+                            NotionModernHeader(
+                                title = dbTitle,
+                                subtitle = subtitle,
+                                bannerUrl = bannerUrl,
+                                bannerNote = bannerNote,
+                            )
                         }
                         item(key = "stats") {
                             LazyRow(
@@ -336,20 +382,28 @@ fun NotionLibraryDialogContent(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(50))
-                                    .background(Color.Black.copy(alpha = 0.45f))
-                                    .clickable { stylePref.set(NotionLibraryStyle.CLASSIC) }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                            ) {
-                                Text(text = "Classic", style = MaterialTheme.typography.labelLarge, color = Color.White)
-                            }
                             NotionCircleButton(onClick = { refreshKey++ }, enabled = !busy) {
                                 Icon(
                                     imageVector = Icons.Filled.Refresh,
                                     contentDescription = "Refresh",
                                     tint = Color.White,
+                                )
+                            }
+                            Box {
+                                NotionCircleButton(onClick = { menuOpen = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MoreVert,
+                                        contentDescription = "More",
+                                        tint = Color.White,
+                                    )
+                                }
+                                NotionOverflowMenu(
+                                    expanded = menuOpen,
+                                    onDismiss = { menuOpen = false },
+                                    enabled = !busy,
+                                    styleLabel = "Switch to Classic",
+                                    onStyle = { stylePref.set(NotionLibraryStyle.CLASSIC) },
+                                    onChangeCover = { coverPicker.launch("image/*") },
                                 )
                             }
                         }
@@ -381,13 +435,26 @@ fun NotionLibraryDialogContent(
                                 }
                             },
                             actions = {
-                                TextButton(onClick = { stylePref.set(NotionLibraryStyle.MODERN) }) {
-                                    Text("Modern")
-                                }
                                 IconButton(onClick = { refreshKey++ }, enabled = !busy) {
                                     Icon(
                                         imageVector = Icons.Filled.Refresh,
                                         contentDescription = "Refresh",
+                                    )
+                                }
+                                Box {
+                                    IconButton(onClick = { menuOpen = true }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.MoreVert,
+                                            contentDescription = "More",
+                                        )
+                                    }
+                                    NotionOverflowMenu(
+                                        expanded = menuOpen,
+                                        onDismiss = { menuOpen = false },
+                                        enabled = !busy,
+                                        styleLabel = "Switch to Modern",
+                                        onStyle = { stylePref.set(NotionLibraryStyle.MODERN) },
+                                        onChangeCover = { coverPicker.launch("image/*") },
                                     )
                                 }
                             },
@@ -467,7 +534,14 @@ private fun NotionModernHeader(
     title: String,
     subtitle: String,
     bannerUrl: String?,
+    bannerNote: String?,
 ) {
+    var imageFailed by remember(bannerUrl) { mutableStateOf(false) }
+    val hint = when {
+        imageFailed -> "Cover found, but the image failed to load"
+        bannerUrl == null -> bannerNote
+        else -> null
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -479,6 +553,7 @@ private fun NotionModernHeader(
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
+                onError = { imageFailed = true },
             )
         } else {
             Box(
@@ -517,7 +592,42 @@ private fun NotionModernHeader(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (hint != null) {
+                Text(
+                    text = hint,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun NotionOverflowMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    enabled: Boolean,
+    styleLabel: String,
+    onStyle: () -> Unit,
+    onChangeCover: () -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("Change cover") },
+            enabled = enabled,
+            onClick = {
+                onDismiss()
+                onChangeCover()
+            },
+        )
+        DropdownMenuItem(
+            text = { Text(styleLabel) },
+            onClick = {
+                onDismiss()
+                onStyle()
+            },
+        )
     }
 }
 
@@ -782,11 +892,13 @@ private class NotionConn(
     val databaseId: String,
     val client: OkHttpClient,
     val headers: Headers,
+    val uploadHeaders: Headers,
 )
 
 private class NotionLibraryData(
     val title: String,
     val bannerUrl: String?,
+    val bannerNote: String?,
     val propertyTypes: Map<String, String>,
     val entries: List<NotionLibraryEntry>,
 )
@@ -807,7 +919,11 @@ private fun notionConn(tracker: NotionTracker): NotionConn {
         .add("Notion-Version", "2022-06-28")
         .add("Content-Type", "application/json")
         .build()
-    return NotionConn(databaseId, Injekt.get<NetworkHelper>().client, headers)
+    val uploadHeaders = Headers.Builder()
+        .add("Authorization", "Bearer $secret")
+        .add("Notion-Version", "2022-06-28")
+        .build()
+    return NotionConn(databaseId, Injekt.get<NetworkHelper>().client, headers, uploadHeaders)
 }
 
 private suspend fun notionPatch(conn: NotionConn, url: String, json: JsonObject) {
@@ -828,7 +944,16 @@ private suspend fun fetchNotionLibrary(tracker: NotionTracker): NotionLibraryDat
     }
     val title = (database["title"] as? JsonArray)?.plainText().orEmpty()
         .ifBlank { "Notion library" }
-    val bannerUrl = (database["cover"] as? JsonObject)?.let { coverUrlOf(it) }
+    var bannerUrl = (database["cover"] as? JsonObject)?.let { coverUrlOf(it) }
+    var bannerNote: String? = null
+    if (bannerUrl == null) {
+        bannerNote = "This database has no cover set"
+        val parentPageId = (database["parent"] as? JsonObject)?.get("page_id")?.jsonPrimitive?.contentOrNull
+        if (parentPageId != null) {
+            bannerUrl = fetchPageCover(conn, parentPageId)
+            bannerNote = if (bannerUrl != null) null else "No cover on the database or its parent page"
+        }
+    }
     val propertyTypes = (database["properties"] as? JsonObject)
         ?.mapValues { (_, value) ->
             (value as? JsonObject)?.get("type")?.jsonPrimitive?.contentOrNull.orEmpty()
@@ -866,7 +991,19 @@ private suspend fun fetchNotionLibrary(tracker: NotionTracker): NotionLibraryDat
         cursor = root["next_cursor"]?.jsonPrimitive?.contentOrNull
     } while (hasMore && !cursor.isNullOrBlank())
 
-    return NotionLibraryData(title, bannerUrl, propertyTypes, entries)
+    return NotionLibraryData(title, bannerUrl, bannerNote, propertyTypes, entries)
+}
+
+private suspend fun fetchPageCover(conn: NotionConn, pageId: String): String? {
+    return try {
+        val page = conn.client.newCall(GET("$NOTION_API/pages/$pageId", conn.headers)).awaitSuccess()
+            .use { Json.parseToJsonElement(it.body.string()).jsonObject }
+        (page["cover"] as? JsonObject)?.let { coverUrlOf(it) }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        null
+    }
 }
 
 private fun coverUrlOf(cover: JsonObject): String? {
@@ -1085,4 +1222,105 @@ private suspend fun syncNotionMetadata(
     }
 
     return NotionSyncResult(updated = updated, failed = failed)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Change the database cover (Notion file upload API)
+// ---------------------------------------------------------------------------------------------
+
+private const val MAX_COVER_BYTES = 4_500_000
+
+private suspend fun fetchDatabaseCoverUrl(tracker: NotionTracker): String? {
+    val conn = notionConn(tracker)
+    val database = conn.client.newCall(GET("$NOTION_API/databases/${conn.databaseId}", conn.headers))
+        .awaitSuccess()
+        .use { Json.parseToJsonElement(it.body.string()).jsonObject }
+    return (database["cover"] as? JsonObject)?.let { coverUrlOf(it) }
+}
+
+/** Downscales and re-encodes as JPEG so the file fits Notion's upload size limit. */
+private fun shrinkImage(bytes: ByteArray): ByteArray {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    var sample = 1
+    while (bounds.outWidth / sample > 2400) sample *= 2
+    val bitmap = BitmapFactory.decodeByteArray(
+        bytes,
+        0,
+        bytes.size,
+        BitmapFactory.Options().apply { inSampleSize = sample },
+    ) ?: error("Couldn't decode that image.")
+
+    var quality = 88
+    var out = ByteArray(0)
+    do {
+        val stream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
+        out = stream.toByteArray()
+        quality -= 10
+    } while (out.size > MAX_COVER_BYTES && quality > 30)
+    bitmap.recycle()
+    return out
+}
+
+/**
+ * Uploads the picked image to Notion and sets it as the database cover.
+ * Steps: create a file upload, send the bytes, then attach it to the database.
+ */
+private suspend fun uploadDatabaseCover(context: Context, tracker: NotionTracker, uri: Uri) {
+    val conn = notionConn(tracker)
+
+    var mime = context.contentResolver.getType(uri) ?: "image/jpeg"
+    var bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        ?: error("Couldn't read that image.")
+    if (bytes.size > MAX_COVER_BYTES) {
+        bytes = shrinkImage(bytes)
+        mime = "image/jpeg"
+    }
+    val extension = when (mime) {
+        "image/png" -> "png"
+        "image/gif" -> "gif"
+        "image/webp" -> "webp"
+        else -> "jpg"
+    }
+    val filename = "koware-cover.$extension"
+
+    try {
+        // 1) Create the upload slot.
+        val createBody = buildJsonObject {
+            put("filename", filename)
+            put("content_type", mime)
+        }.toString().toRequestBody("application/json".toMediaType())
+        val created = conn.client.newCall(POST("$NOTION_API/file_uploads", conn.headers, createBody))
+            .awaitSuccess()
+            .use { Json.parseToJsonElement(it.body.string()).jsonObject }
+        val uploadId = created["id"]?.jsonPrimitive?.contentOrNull
+            ?: error("Notion didn't return an upload id.")
+
+        // 2) Send the bytes.
+        val multipart = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("file", filename, bytes.toRequestBody(mime.toMediaType()))
+            .build()
+        conn.client.newCall(POST("$NOTION_API/file_uploads/$uploadId/send", conn.uploadHeaders, multipart))
+            .awaitSuccess()
+            .close()
+
+        // 3) Attach it as the database cover.
+        notionPatch(
+            conn,
+            "$NOTION_API/databases/${conn.databaseId}",
+            buildJsonObject {
+                putJsonObject("cover") {
+                    put("type", "file_upload")
+                    putJsonObject("file_upload") { put("id", uploadId) }
+                }
+            },
+        )
+    } catch (e: HttpException) {
+        error(
+            "Notion returned ${e.code}. Make sure the integration has permission to update content " +
+                "and the image is a normal jpg, png, gif or webp.",
+        )
+    }
 }
