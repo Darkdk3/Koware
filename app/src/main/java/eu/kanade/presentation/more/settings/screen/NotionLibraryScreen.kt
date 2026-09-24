@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +48,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -54,12 +60,14 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import eu.kanade.tachiyomi.data.track.notion.NotionTracker
+import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -72,9 +80,17 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.Headers
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import tachiyomi.core.common.preference.PreferenceStore
+import tachiyomi.domain.manga.interactor.GetFavorites
+import tachiyomi.domain.source.service.SourceManager
+import tachiyomi.domain.track.interactor.GetTracks
+import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.coroutines.cancellation.CancellationException
@@ -90,14 +106,31 @@ data class NotionLibraryEntry(
     val score: Double,
     val coverUrl: String?,
     val pageUrl: String,
+    val source: String,
+    val description: String,
 )
+
+/**
+ * Which layout the Notion library uses. Stored as a plain string preference so it can be
+ * pointed at the app-wide UI style later by changing only [preference].
+ */
+object NotionLibraryStyle {
+    const val CLASSIC = "Classic"
+    const val MODERN = "Modern"
+
+    fun preference() = Injekt.get<PreferenceStore>().getString("notion_library_style", CLASSIC)
+}
 
 private const val FILTER_ALL = "All"
 private const val NOTION_API = "https://api.notion.com/v1"
+private const val SOURCE_PROPERTY = "Source"
+private const val DESCRIPTION_PROPERTY = "Description"
+private const val DESCRIPTION_LIMIT = 1900
 
 /**
- * Full-screen list of everything in the Notion tracking database.
- * Reuses the login (database id + secret) already stored by [NotionTracker].
+ * Full-screen view of everything in the Notion tracking database, in a classic or modern layout.
+ * The refresh button reloads the list and then copies Source and Description from the local
+ * library into Notion for every tracked entry that is missing them (or has them out of date).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,9 +139,16 @@ fun NotionLibraryDialogContent(
     onDismissRequest: () -> Unit,
 ) {
     val context = LocalContext.current
+    val stylePref = remember { NotionLibraryStyle.preference() }
+    val style by stylePref.collectAsState()
+    val modern = style == NotionLibraryStyle.MODERN
 
     var entries by remember { mutableStateOf<List<NotionLibraryEntry>>(emptyList()) }
+    var dbTitle by remember { mutableStateOf("Notion library") }
+    var bannerUrl by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var syncing by remember { mutableStateOf(false) }
+    var syncStatus by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -118,16 +158,43 @@ fun NotionLibraryDialogContent(
     LaunchedEffect(refreshKey) {
         loading = true
         errorMessage = null
+        syncStatus = null
         try {
-            entries = withContext(Dispatchers.IO) { fetchNotionLibrary(tracker) }
+            val data = withContext(Dispatchers.IO) { fetchNotionLibrary(tracker) }
+            entries = data.entries
+            dbTitle = data.title
+            bannerUrl = data.bannerUrl
+            loading = false
+
+            // Only a manual refresh writes to Notion; opening the screen never does.
+            if (refreshKey > 0) {
+                syncing = true
+                syncStatus = "Syncing library info..."
+                val result = withContext(Dispatchers.IO) {
+                    syncNotionMetadata(tracker, data) { done, total ->
+                        syncStatus = "Syncing $done/$total"
+                    }
+                }
+                if (result.updated.isNotEmpty()) {
+                    entries = entries.map { result.updated[it.pageId] ?: it }
+                }
+                syncStatus = when {
+                    result.failed > 0 -> "Updated ${result.updated.size}, ${result.failed} failed"
+                    result.updated.isEmpty() -> "Everything is up to date"
+                    else -> "Updated ${result.updated.size} entries"
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
             errorMessage = e.message ?: "Couldn't load your Notion library."
+            syncStatus = null
         }
         loading = false
+        syncing = false
     }
 
+    val busy = loading || syncing
     val types = remember(entries) {
         listOf(FILTER_ALL) + entries.map { it.type }.filter { it.isNotBlank() }.distinct().sorted()
     }
@@ -141,6 +208,8 @@ fun NotionLibraryDialogContent(
                 (q.isEmpty() || entry.title.contains(q, ignoreCase = true))
         }
     }
+    val subtitle = syncStatus ?: "${filtered.size} of ${entries.size} entries"
+    val err = errorMessage
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -153,100 +222,236 @@ fun NotionLibraryDialogContent(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        navigationIcon = {
-                            IconButton(onClick = onDismissRequest) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
+            if (modern) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 24.dp),
+                    ) {
+                        item(key = "header") {
+                            NotionModernHeader(title = dbTitle, subtitle = subtitle, bannerUrl = bannerUrl)
+                        }
+                        item(key = "stats") {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                items(statuses, key = { it }) { status ->
+                                    val selected = status == statusFilter
+                                    val count = if (status == FILTER_ALL) {
+                                        entries.size
+                                    } else {
+                                        entries.count { it.status == status }
+                                    }
+                                    val content = if (selected) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                    Column(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(
+                                                if (selected) {
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                                },
+                                            )
+                                            .clickable { statusFilter = status }
+                                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    ) {
+                                        Text(
+                                            text = count.toString(),
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = content,
+                                        )
+                                        Text(
+                                            text = status,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = content,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        item(key = "search") {
+                            NotionSearchField(
+                                query = query,
+                                onQueryChange = { query = it },
+                                shape = RoundedCornerShape(50),
+                            )
+                        }
+                        if (types.size > 2) {
+                            item(key = "types") {
+                                NotionFilterRow(options = types, selected = typeFilter, onSelect = { typeFilter = it })
+                            }
+                        }
+                        val centered = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp)
+                        when {
+                            err != null && entries.isEmpty() -> item(key = "message") {
+                                NotionCenterMessage(err, "Retry", { refreshKey++ }, centered)
+                            }
+                            loading && entries.isEmpty() -> item(key = "loading") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(32.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                            filtered.isEmpty() -> item(key = "empty") {
+                                NotionCenterMessage("Nothing here yet.", null, {}, centered)
+                            }
+                            else -> items(filtered, key = { it.pageId }) { entry ->
+                                NotionEntryRow(
+                                    entry = entry,
+                                    modern = true,
+                                    onOpen = { context.openInBrowser(entry.pageUrl) },
                                 )
                             }
-                        },
-                        title = {
-                            Column {
-                                Text(
-                                    text = "Notion library",
-                                    style = MaterialTheme.typography.titleLarge,
-                                )
-                                Text(
-                                    text = "${filtered.size} of ${entries.size} entries",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        NotionCircleButton(onClick = onDismissRequest) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.Black.copy(alpha = 0.45f))
+                                    .clickable { stylePref.set(NotionLibraryStyle.CLASSIC) }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                            ) {
+                                Text(text = "Classic", style = MaterialTheme.typography.labelLarge, color = Color.White)
                             }
-                        },
-                        actions = {
-                            IconButton(onClick = { refreshKey++ }, enabled = !loading) {
+                            NotionCircleButton(onClick = { refreshKey++ }, enabled = !busy) {
                                 Icon(
                                     imageVector = Icons.Filled.Refresh,
                                     contentDescription = "Refresh",
+                                    tint = Color.White,
                                 )
                             }
-                        },
-                    )
-                },
-            ) { innerPadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                ) {
-                    if (loading) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    } else {
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        placeholder = { Text("Search your library") },
-                        singleLine = true,
-                    )
-                    NotionFilterRow(options = types, selected = typeFilter, onSelect = { typeFilter = it })
-                    NotionFilterRow(options = statuses, selected = statusFilter, onSelect = { statusFilter = it })
-
-                    val err = errorMessage
-                    when {
-                        err != null && entries.isEmpty() -> NotionCenterMessage(
-                            text = err,
-                            actionLabel = "Retry",
-                            onAction = { refreshKey++ },
-                        )
-                        loading && entries.isEmpty() -> Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator()
                         }
-                        filtered.isEmpty() -> NotionCenterMessage(
-                            text = "Nothing here yet.",
-                            actionLabel = null,
-                            onAction = {},
-                        )
-                        else -> {
-                            if (err != null) {
-                                Text(
-                                    text = err,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                )
-                            }
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(vertical = 8.dp),
-                            ) {
-                                items(filtered, key = { it.pageId }) { entry ->
-                                    NotionLibraryRow(
-                                        entry = entry,
-                                        onClick = { context.openInBrowser(entry.pageUrl) },
+                    }
+                }
+            } else {
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            navigationIcon = {
+                                IconButton(onClick = onDismissRequest) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
                                     )
+                                }
+                            },
+                            title = {
+                                Column {
+                                    Text(
+                                        text = "Notion library",
+                                        style = MaterialTheme.typography.titleLarge,
+                                    )
+                                    Text(
+                                        text = subtitle,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            actions = {
+                                TextButton(onClick = { stylePref.set(NotionLibraryStyle.MODERN) }) {
+                                    Text("Modern")
+                                }
+                                IconButton(onClick = { refreshKey++ }, enabled = !busy) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Refresh,
+                                        contentDescription = "Refresh",
+                                    )
+                                }
+                            },
+                        )
+                    },
+                ) { innerPadding ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                    ) {
+                        if (busy) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        } else {
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+
+                        NotionSearchField(
+                            query = query,
+                            onQueryChange = { query = it },
+                            shape = RoundedCornerShape(4.dp),
+                        )
+                        NotionFilterRow(options = types, selected = typeFilter, onSelect = { typeFilter = it })
+                        NotionFilterRow(options = statuses, selected = statusFilter, onSelect = { statusFilter = it })
+
+                        when {
+                            err != null && entries.isEmpty() -> NotionCenterMessage(
+                                text = err,
+                                actionLabel = "Retry",
+                                onAction = { refreshKey++ },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            loading && entries.isEmpty() -> Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                            filtered.isEmpty() -> NotionCenterMessage(
+                                text = "Nothing here yet.",
+                                actionLabel = null,
+                                onAction = {},
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            else -> {
+                                if (err != null) {
+                                    Text(
+                                        text = err,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                    )
+                                }
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(vertical = 8.dp),
+                                ) {
+                                    items(filtered, key = { it.pageId }) { entry ->
+                                        NotionEntryRow(
+                                            entry = entry,
+                                            modern = false,
+                                            onOpen = { context.openInBrowser(entry.pageUrl) },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -255,6 +460,101 @@ fun NotionLibraryDialogContent(
             }
         }
     }
+}
+
+@Composable
+private fun NotionModernHeader(
+    title: String,
+    subtitle: String,
+    bannerUrl: String?,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp),
+    ) {
+        if (bannerUrl != null) {
+            AsyncImage(
+                model = bannerUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.3f),
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.background,
+                        ),
+                    ),
+                ),
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotionCircleButton(
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = if (enabled) 0.45f else 0.25f))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun NotionSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    shape: Shape,
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        placeholder = { Text("Search your library") },
+        singleLine = true,
+        shape = shape,
+    )
 }
 
 @Composable
@@ -282,11 +582,10 @@ private fun NotionCenterMessage(
     text: String,
     actionLabel: String?,
     onAction: () -> Unit,
+    modifier: Modifier,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier = modifier.padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -305,97 +604,146 @@ private fun NotionCenterMessage(
     }
 }
 
+/** Tap a row to expand its description; "Open in Notion" opens the page. */
 @Composable
-private fun NotionLibraryRow(
+private fun NotionEntryRow(
     entry: NotionLibraryEntry,
-    onClick: () -> Unit,
+    modern: Boolean,
+    onOpen: () -> Unit,
 ) {
+    var expanded by remember(entry.pageId) { mutableStateOf(false) }
+
+    val coverWidth = if (modern) 52.dp else 46.dp
+    val coverHeight = if (modern) 74.dp else 66.dp
+    val coverShape = RoundedCornerShape(if (modern) 10.dp else 6.dp)
     val coverModifier = Modifier
-        .width(46.dp)
-        .height(66.dp)
-        .clip(RoundedCornerShape(6.dp))
+        .width(coverWidth)
+        .height(coverHeight)
+        .clip(coverShape)
         .background(MaterialTheme.colorScheme.surfaceVariant)
 
-    Row(
-        modifier = Modifier
+    val base = if (modern) {
+        Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (entry.coverUrl != null) {
-            AsyncImage(
-                model = entry.coverUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = coverModifier,
-            )
-        } else {
-            Box(modifier = coverModifier)
-        }
+            .padding(horizontal = 14.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    } else {
+        Modifier.fillMaxWidth()
+    }
 
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = entry.title.ifBlank { "Untitled" },
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                modifier = Modifier.padding(top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (entry.status.isNotBlank()) NotionStatusPill(entry.status)
-                if (entry.type.isNotBlank()) {
-                    Text(
-                        text = entry.type,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.padding(top = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (entry.totalChapters > 0) {
-                    LinearProgressIndicator(
-                        progress = { (entry.chapter / entry.totalChapters).toFloat().coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(4.dp),
-                    )
-                    Text(
-                        text = "${entry.chapter.clean()} / ${entry.totalChapters.clean()}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Text(
-                        text = "Ch. ${entry.chapter.clean()}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-
-        if (entry.score > 0) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Star,
+    Column(modifier = base.clickable { expanded = !expanded }) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = if (modern) 10.dp else 16.dp, vertical = if (modern) 10.dp else 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (entry.coverUrl != null) {
+                AsyncImage(
+                    model = entry.coverUrl,
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    contentScale = ContentScale.Crop,
+                    modifier = coverModifier,
                 )
+            } else {
+                Box(modifier = coverModifier)
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = " ${entry.score.clean()}",
-                    style = MaterialTheme.typography.labelLarge,
+                    text = entry.title.ifBlank { "Untitled" },
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (entry.status.isNotBlank()) NotionStatusPill(entry.status)
+                    if (entry.type.isNotBlank()) {
+                        Text(
+                            text = entry.type,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (entry.source.isNotBlank()) {
+                    Text(
+                        text = "via ${entry.source}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                Row(
+                    modifier = Modifier.padding(top = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (entry.totalChapters > 0) {
+                        LinearProgressIndicator(
+                            progress = { (entry.chapter / entry.totalChapters).toFloat().coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(4.dp),
+                        )
+                        Text(
+                            text = "${entry.chapter.clean()} / ${entry.totalChapters.clean()}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Text(
+                            text = "Ch. ${entry.chapter.clean()}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
+            if (entry.score > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Star,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = " ${entry.score.clean()}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        if (expanded) {
+            Column(
+                modifier = Modifier.padding(
+                    start = if (modern) 12.dp else 16.dp,
+                    end = if (modern) 12.dp else 16.dp,
+                    bottom = 8.dp,
+                ),
+            ) {
+                Text(
+                    text = entry.description.ifBlank {
+                        "No description saved yet. Tap refresh to copy it from your library."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                TextButton(onClick = onOpen) {
+                    Text("Open in Notion")
+                }
             }
         }
     }
@@ -426,20 +774,66 @@ private fun NotionStatusPill(status: String) {
 
 private fun Double.clean(): String = if (this % 1.0 == 0.0) toLong().toString() else toString()
 
-/** Pulls every page of the database (most recently edited first). Runs blocking parsing, call on IO. */
-private suspend fun fetchNotionLibrary(tracker: NotionTracker): List<NotionLibraryEntry> {
+// ---------------------------------------------------------------------------------------------
+// Notion API
+// ---------------------------------------------------------------------------------------------
+
+private class NotionConn(
+    val databaseId: String,
+    val client: OkHttpClient,
+    val headers: Headers,
+)
+
+private class NotionLibraryData(
+    val title: String,
+    val bannerUrl: String?,
+    val propertyTypes: Map<String, String>,
+    val entries: List<NotionLibraryEntry>,
+)
+
+private class NotionSyncResult(
+    val updated: Map<String, NotionLibraryEntry>,
+    val failed: Int,
+)
+
+private fun notionConn(tracker: NotionTracker): NotionConn {
     val databaseId = tracker.getUsername().replace("-", "")
     val secret = tracker.getPassword()
     if (databaseId.isBlank() || secret.isBlank()) {
         error("Log in to Notion first (Settings, Tracking).")
     }
-
-    val client = Injekt.get<NetworkHelper>().client
     val headers = Headers.Builder()
         .add("Authorization", "Bearer $secret")
         .add("Notion-Version", "2022-06-28")
         .add("Content-Type", "application/json")
         .build()
+    return NotionConn(databaseId, Injekt.get<NetworkHelper>().client, headers)
+}
+
+private suspend fun notionPatch(conn: NotionConn, url: String, json: JsonObject) {
+    val body = json.toString().toRequestBody("application/json".toMediaType())
+    val request = Request.Builder().url(url).headers(conn.headers).patch(body).build()
+    conn.client.newCall(request).awaitSuccess().close()
+}
+
+/** Loads the database info (title, banner, columns) and every page. Blocking parse, call on IO. */
+private suspend fun fetchNotionLibrary(tracker: NotionTracker): NotionLibraryData {
+    val conn = notionConn(tracker)
+
+    val database = try {
+        conn.client.newCall(GET("$NOTION_API/databases/${conn.databaseId}", conn.headers)).awaitSuccess()
+            .use { Json.parseToJsonElement(it.body.string()).jsonObject }
+    } catch (e: HttpException) {
+        error("Notion returned ${e.code}. Check that the database is still shared with your integration.")
+    }
+    val title = (database["title"] as? JsonArray)?.plainText().orEmpty()
+        .ifBlank { "Notion library" }
+    val bannerUrl = (database["cover"] as? JsonObject)?.let { coverUrlOf(it) }
+    val propertyTypes = (database["properties"] as? JsonObject)
+        ?.mapValues { (_, value) ->
+            (value as? JsonObject)?.get("type")?.jsonPrimitive?.contentOrNull.orEmpty()
+        }
+        .orEmpty()
 
     val entries = mutableListOf<NotionLibraryEntry>()
     var cursor: String? = null
@@ -458,7 +852,8 @@ private suspend fun fetchNotionLibrary(tracker: NotionTracker): List<NotionLibra
         }.toString().toRequestBody("application/json".toMediaType())
 
         val response = try {
-            client.newCall(POST("$NOTION_API/databases/$databaseId/query", headers, body)).awaitSuccess()
+            conn.client.newCall(POST("$NOTION_API/databases/${conn.databaseId}/query", conn.headers, body))
+                .awaitSuccess()
         } catch (e: HttpException) {
             error("Notion returned ${e.code}. Check that the database is still shared with your integration.")
         }
@@ -471,7 +866,13 @@ private suspend fun fetchNotionLibrary(tracker: NotionTracker): List<NotionLibra
         cursor = root["next_cursor"]?.jsonPrimitive?.contentOrNull
     } while (hasMore && !cursor.isNullOrBlank())
 
-    return entries
+    return NotionLibraryData(title, bannerUrl, propertyTypes, entries)
+}
+
+private fun coverUrlOf(cover: JsonObject): String? {
+    val kind = cover["type"]?.jsonPrimitive?.contentOrNull ?: "external"
+    return (cover[kind] as? JsonObject)?.get("url")?.jsonPrimitive?.contentOrNull
+        ?.takeIf { it.isNotBlank() }
 }
 
 private fun parseNotionPage(page: JsonObject): NotionLibraryEntry? {
@@ -481,18 +882,11 @@ private fun parseNotionPage(page: JsonObject): NotionLibraryEntry? {
     val title = props.values
         .mapNotNull { it as? JsonObject }
         .firstOrNull { it["type"]?.jsonPrimitive?.contentOrNull == "title" }
-        ?.let { titleProp ->
-            (titleProp["title"] as? JsonArray)?.joinToString("") { part ->
-                (part as? JsonObject)?.get("plain_text")?.jsonPrimitive?.contentOrNull.orEmpty()
-            }
-        }
+        ?.let { titleProp -> (titleProp["title"] as? JsonArray)?.plainText() }
         .orEmpty()
 
     // Prefer the Cover column, fall back to the page banner the tracker sets.
-    val bannerCover = (page["cover"] as? JsonObject)?.let { cover ->
-        val kind = cover["type"]?.jsonPrimitive?.contentOrNull ?: "external"
-        (cover[kind] as? JsonObject)?.get("url")?.jsonPrimitive?.contentOrNull
-    }
+    val bannerCover = (page["cover"] as? JsonObject)?.let { coverUrlOf(it) }
     val coverUrl = (props.urlValue(NotionTracker.COVER_PROPERTY) ?: bannerCover)
         ?.takeIf { it.isNotBlank() }
 
@@ -507,7 +901,13 @@ private fun parseNotionPage(page: JsonObject): NotionLibraryEntry? {
         coverUrl = coverUrl,
         pageUrl = page["url"]?.jsonPrimitive?.contentOrNull
             ?: "https://notion.so/${pageId.replace("-", "")}",
+        source = props.textValue(SOURCE_PROPERTY).orEmpty(),
+        description = props.textValue(DESCRIPTION_PROPERTY).orEmpty(),
     )
+}
+
+private fun JsonArray.plainText(): String = joinToString("") { part ->
+    (part as? JsonObject)?.get("plain_text")?.jsonPrimitive?.contentOrNull.orEmpty()
 }
 
 private fun JsonObject.number(name: String): Double? =
@@ -519,5 +919,170 @@ private fun JsonObject.selectName(name: String): String? {
     return option?.get("name")?.jsonPrimitive?.contentOrNull
 }
 
+/** Reads a select or rich_text column as plain text. */
+private fun JsonObject.textValue(name: String): String? {
+    val prop = this[name] as? JsonObject ?: return null
+    val select = prop["select"] as? JsonObject
+    if (select != null) return select["name"]?.jsonPrimitive?.contentOrNull
+    return (prop["rich_text"] as? JsonArray)?.plainText()
+}
+
 private fun JsonObject.urlValue(name: String): String? =
     (this[name] as? JsonObject)?.get("url")?.jsonPrimitive?.contentOrNull
+
+// ---------------------------------------------------------------------------------------------
+// Library -> Notion sync (Source + Description)
+// ---------------------------------------------------------------------------------------------
+
+private class LocalMeta(val source: String, val description: String)
+
+private class PendingUpdate(
+    val entry: NotionLibraryEntry,
+    val props: JsonObject,
+    val newSource: String?,
+    val newDescription: String?,
+)
+
+private fun pageIdFromUrl(url: String): String? {
+    if (url.isBlank()) return null
+    return url.substringAfterLast("/").substringBefore("?").replace("-", "").ifBlank { null }
+}
+
+/** Source names become Notion select options, which cannot contain commas and cap at 100 chars. */
+private fun sanitizeSelect(name: String): String = name.replace(",", " ").trim().take(100)
+
+private fun textPayload(type: String, value: String): JsonObject? = when (type) {
+    "select" -> buildJsonObject {
+        putJsonObject("select") { put("name", value) }
+    }
+    "rich_text" -> buildJsonObject {
+        putJsonArray("rich_text") {
+            add(
+                buildJsonObject {
+                    putJsonObject("text") { put("content", value) }
+                },
+            )
+        }
+    }
+    else -> null
+}
+
+/**
+ * Copies Source and Description from the local library into Notion for tracked entries.
+ * Matches by the tracked page id first, then by exact (case-insensitive) title.
+ * Only writes values that are missing or different, and never blanks an existing value.
+ */
+private suspend fun syncNotionMetadata(
+    tracker: NotionTracker,
+    data: NotionLibraryData,
+    onProgress: (done: Int, total: Int) -> Unit,
+): NotionSyncResult {
+    val conn = notionConn(tracker)
+
+    // 1) Make sure the two columns exist.
+    val types = data.propertyTypes
+    val missing = buildJsonObject {
+        if (SOURCE_PROPERTY !in types) {
+            putJsonObject(SOURCE_PROPERTY) { putJsonObject("select") {} }
+        }
+        if (DESCRIPTION_PROPERTY !in types) {
+            putJsonObject(DESCRIPTION_PROPERTY) { putJsonObject("rich_text") {} }
+        }
+    }
+    if (missing.isNotEmpty()) {
+        notionPatch(
+            conn,
+            "$NOTION_API/databases/${conn.databaseId}",
+            buildJsonObject { put("properties", missing) },
+        )
+    }
+    val sourceType = types[SOURCE_PROPERTY] ?: "select"
+    val descriptionType = types[DESCRIPTION_PROPERTY] ?: "rich_text"
+
+    // 2) Read source + description for every library item that has a Notion track.
+    val byPageId = mutableMapOf<String, LocalMeta>()
+    val byTitle = mutableMapOf<String, LocalMeta>()
+    val getFavorites = Injekt.get<GetFavorites>()
+    val getTracks = Injekt.get<GetTracks>()
+    val sourceManager = Injekt.get<SourceManager>()
+    getFavorites.await().forEach { manga ->
+        val meta = LocalMeta(
+            source = sourceManager.getOrStub(manga.source).name,
+            description = manga.description.orEmpty(),
+        )
+        byTitle[manga.title.trim().lowercase()] = meta
+        getTracks.await(manga.id)
+            .filter { it.trackerId == tracker.id }
+            .forEach { track -> pageIdFromUrl(track.remoteUrl)?.let { byPageId[it] = meta } }
+    }
+
+    // 3) Work out which pages actually need a write.
+    val pending = mutableListOf<PendingUpdate>()
+    data.entries.forEach { entry ->
+        val local = byPageId[entry.pageId.replace("-", "")]
+            ?: byTitle[entry.title.trim().lowercase()]
+            ?: return@forEach
+
+        val wantSource = sanitizeSelect(local.source)
+        val wantDescription = local.description.replace("\r", "").trim().take(DESCRIPTION_LIMIT)
+        val sourcePayload = if (wantSource.isNotBlank() && wantSource != entry.source.trim()) {
+            textPayload(sourceType, wantSource)
+        } else {
+            null
+        }
+        val descriptionPayload = if (wantDescription.isNotBlank() && wantDescription != entry.description.trim()) {
+            textPayload(descriptionType, wantDescription)
+        } else {
+            null
+        }
+        if (sourcePayload == null && descriptionPayload == null) return@forEach
+
+        val props = buildJsonObject {
+            if (sourcePayload != null) put(SOURCE_PROPERTY, sourcePayload)
+            if (descriptionPayload != null) put(DESCRIPTION_PROPERTY, descriptionPayload)
+        }
+        pending += PendingUpdate(
+            entry = entry,
+            props = props,
+            newSource = if (sourcePayload != null) wantSource else null,
+            newDescription = if (descriptionPayload != null) wantDescription else null,
+        )
+    }
+
+    // 4) Write them, gently: Notion allows roughly 3 requests per second.
+    val updated = mutableMapOf<String, NotionLibraryEntry>()
+    var failed = 0
+    pending.forEachIndexed { index, item ->
+        onProgress(index, pending.size)
+        var ok = false
+        for (attempt in 0..1) {
+            try {
+                notionPatch(
+                    conn,
+                    "$NOTION_API/pages/${item.entry.pageId}",
+                    buildJsonObject { put("properties", item.props) },
+                )
+                ok = true
+                break
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: HttpException) {
+                if (e.code == 429 && attempt == 0) delay(1500) else break
+            } catch (e: Throwable) {
+                break
+            }
+        }
+        if (ok) {
+            updated[item.entry.pageId] = item.entry.copy(
+                source = item.newSource ?: item.entry.source,
+                description = item.newDescription ?: item.entry.description,
+            )
+        } else {
+            failed++
+        }
+        onProgress(index + 1, pending.size)
+        delay(350)
+    }
+
+    return NotionSyncResult(updated = updated, failed = failed)
+}
