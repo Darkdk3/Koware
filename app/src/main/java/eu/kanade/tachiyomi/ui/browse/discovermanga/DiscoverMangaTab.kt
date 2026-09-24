@@ -1,5 +1,3 @@
-// FILE: app/src/main/java/eu/kanade/tachiyomi/ui/browse/discovermanga/DiscoverMangaTab.kt
-
 package eu.kanade.tachiyomi.ui.browse.discovermanga
 
 import androidx.compose.animation.AnimatedVisibility
@@ -40,7 +38,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -53,7 +50,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -61,10 +60,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import eu.kanade.presentation.components.AppBar
-import eu.kanade.presentation.components.AppBarActions
+import eu.kanade.domain.ui.UiPreferences
+import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.library.components.MangaComfortableGridItem
+import eu.kanade.tachiyomi.ui.browse.discover.DiscoverSourceOption
+import eu.kanade.tachiyomi.ui.browse.discover.DiscoverSourcesButton
+import eu.kanade.tachiyomi.ui.browse.discover.DiscoverSourcesSheet
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.MangaCover
@@ -76,9 +78,9 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
- * "Discover" tab, next to Sources/Extensions. Feed is driven by whichever novel
- * sources you've pinned in the Sources tab — long-press a source there to pin it.
- * Register by adding `discoverTab(discoverViewModel)` to BrowseTab's `tabs` list.
+ * Manga "Discover" tab, next to Sources/Extensions. The feed is driven by the manga sources picked
+ * with the Sources button (until a selection is applied it falls back to your pinned sources).
+ * Register by adding `discoverMangaTab(discoverMangaViewModel)` to BrowseTab's `tabs` list.
  */
 @Composable
 fun discoverMangaTab(
@@ -86,6 +88,9 @@ fun discoverMangaTab(
 ): TabContent {
     val state by viewModel.state.collectAsState()
     val navigator = LocalNavigator.currentOrThrow
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
+    val uiStyle by uiPreferences.uiStyle.collectAsState()
+    val isModern = uiStyle == UiStyle.MODERN
 
     LaunchedEffect(state.pendingMangaId) {
         val id = state.pendingMangaId
@@ -98,13 +103,8 @@ fun discoverMangaTab(
     return TabContent(
         titleRes = TDMR.strings.label_discover_manga,
         searchEnabled = false,
-        actions = listOf(
-            AppBar.Action(
-                title = "Refresh",
-                icon = Icons.Outlined.Refresh,
-                onClick = { viewModel.loadDiscoverFeed() },
-            ),
-        ),
+        // No top-bar refresh in either style: pull down on the feed to refresh, or Apply in Sources.
+        actions = emptyList(),
         content = { contentPadding, _ ->
             DiscoverScreenContent(
                 items = state.items,
@@ -116,9 +116,14 @@ fun discoverMangaTab(
                 isLoading = state.isLoading,
                 isLoadingMore = state.isLoadingMore,
                 browseMode = state.browseMode,
+                isModern = isModern,
+                sourceOptions = state.sourceOptions,
+                selectedSourceIds = state.selectedSourceIds,
                 contentPadding = contentPadding,
                 onMangaClick = viewModel::openEntry,
                 onBrowseModeChange = viewModel::setBrowseMode,
+                onOpenSources = viewModel::refreshSourceOptions,
+                onApplySources = viewModel::applySources,
                 onRefresh = viewModel::loadDiscoverFeed,
                 onLoadMore = viewModel::loadMore,
             )
@@ -137,22 +142,47 @@ private fun DiscoverScreenContent(
     isLoading: Boolean,
     isLoadingMore: Boolean,
     browseMode: DiscoverMangaBrowseMode,
+    isModern: Boolean,
+    sourceOptions: List<DiscoverSourceOption>,
+    selectedSourceIds: Set<Long>,
     contentPadding: PaddingValues,
     onMangaClick: (DiscoverMangaEntry) -> Unit,
     onBrowseModeChange: (DiscoverMangaBrowseMode) -> Unit,
+    onOpenSources: () -> Unit,
+    onApplySources: (Set<Long>) -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
 ) {
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val portraitColumns by libraryPreferences.portraitColumns.collectAsState()
     val gridState = rememberLazyGridState()
+    var showSourceSheet by remember { mutableStateOf(false) }
 
-    val shouldLoadMore by remember {
+    // Keyed on the item count so the check never uses a stale (e.g. initially empty) list.
+    val itemCount = items.size
+    val shouldLoadMore by remember(itemCount) {
         derivedStateOf {
             val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            items.isNotEmpty() && lastVisible >= items.size - 6
+            itemCount > 0 && lastVisible >= itemCount - 6
         }
     }
+
+    // Safety net: guaranteed-unique grid keys. If a duplicate ever slips past the ViewModel's
+    // distinctBy, the second copy gets a "#2" suffix instead of crashing the whole app.
+    val gridKeys = remember(items) {
+        val seen = HashSet<String>()
+        items.map { entry ->
+            val base = "manga_${entry.source.id}_${entry.manga.id}"
+            var key = base
+            var n = 2
+            while (!seen.add(key)) {
+                key = "$base#$n"
+                n++
+            }
+            key
+        }
+    }
+
     LaunchedEffect(shouldLoadMore, isLoading, isLoadingMore) {
         if (shouldLoadMore && !isLoading && !isLoadingMore) {
             onLoadMore()
@@ -202,7 +232,16 @@ private fun DiscoverScreenContent(
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
         }
-        BrowseModeToggle(selected = browseMode, onSelect = onBrowseModeChange)
+        BrowseModeToggle(
+            selected = browseMode,
+            onSelect = onBrowseModeChange,
+            isModern = isModern,
+            sourceCount = selectedSourceIds.size,
+            onSourcesClick = {
+                onOpenSources()
+                showSourceSheet = true
+            },
+        )
 
         when {
             isLoading -> DiscoverLoadingGrid(columns = columns, contentPadding = contentPadding)
@@ -212,7 +251,7 @@ private fun DiscoverScreenContent(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "No manga sources pinned yet — long-press a source in the Sources tab to pin it, and it'll start feeding Discover. Tap refresh above once you have.",
+                    text = "Nothing to show yet — tap Sources above to choose which sources feed Discover, or pull down to refresh.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -224,7 +263,8 @@ private fun DiscoverScreenContent(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(items, key = { "manga_${it.source.id}_${it.manga.id}" }) { entry ->
+                items(count = items.size, key = { index -> gridKeys[index] }) { index ->
+                    val entry = items[index]
                     Column {
                         MangaComfortableGridItem(
                             isSelected = false,
@@ -267,18 +307,35 @@ private fun DiscoverScreenContent(
         }
     }
     }
+
+    if (showSourceSheet) {
+        DiscoverSourcesSheet(
+            isModern = isModern,
+            options = sourceOptions,
+            selected = selectedSourceIds,
+            onDismiss = { showSourceSheet = false },
+            onApply = { ids ->
+                onApplySources(ids)
+                showSourceSheet = false
+            },
+        )
+    }
 }
 
 @Composable
 private fun BrowseModeToggle(
     selected: DiscoverMangaBrowseMode,
     onSelect: (DiscoverMangaBrowseMode) -> Unit,
+    isModern: Boolean,
+    sourceCount: Int,
+    onSourcesClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         FilterChip(
             selected = selected == DiscoverMangaBrowseMode.LATEST,
@@ -289,6 +346,12 @@ private fun BrowseModeToggle(
             selected = selected == DiscoverMangaBrowseMode.POPULAR,
             onClick = { onSelect(DiscoverMangaBrowseMode.POPULAR) },
             label = { Text("Popular") },
+        )
+        Spacer(Modifier.weight(1f))
+        DiscoverSourcesButton(
+            isModern = isModern,
+            sourceCount = sourceCount,
+            onClick = onSourcesClick,
         )
     }
 }
@@ -302,6 +365,11 @@ private fun AiRecommendationsShelf(
     message: String?,
     onMangaClick: (DiscoverMangaEntry) -> Unit,
 ) {
+    // Same duplicate-key protection as the main grid.
+    val uniqueRecommendations = remember(recommendations) {
+        recommendations.distinctBy { it.manga.id }
+    }
+
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -337,7 +405,7 @@ private fun AiRecommendationsShelf(
         }
 
         when {
-            isLoading && recommendations.isEmpty() -> {
+            isLoading && uniqueRecommendations.isEmpty() -> {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -371,12 +439,12 @@ private fun AiRecommendationsShelf(
                     }
                 }
             }
-            recommendations.isNotEmpty() -> {
+            uniqueRecommendations.isNotEmpty() -> {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    items(recommendations, key = { "manga_rec_${it.source.id}_${it.manga.id}" }) { entry ->
+                    items(uniqueRecommendations, key = { "manga_rec_${it.source.id}_${it.manga.id}" }) { entry ->
                         val heuristicMatch = remember(entry.manga.id, topGenres) {
                             matchScore(entry.manga.genre.orEmpty(), topGenres)
                         }
