@@ -72,8 +72,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import cafe.adriel.voyager.navigator.LocalNavigator
 import coil3.compose.AsyncImage
 import eu.kanade.tachiyomi.data.track.notion.NotionTracker
+import eu.kanade.tachiyomi.ui.browse.migration.search.RestoreSearchScreen
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -128,6 +130,7 @@ data class NotionLibraryEntry(
     val source: String,
     val description: String,
     val chapterName: String,
+    val author: String,
 )
 
 /**
@@ -159,6 +162,7 @@ fun NotionLibraryDialogContent(
     onDismissRequest: () -> Unit,
 ) {
     val context = LocalContext.current
+    val navigator = LocalNavigator.current
     val stylePref = remember { NotionLibraryStyle.preference() }
     val style by stylePref.collectAsState()
     val modern = style == NotionLibraryStyle.MODERN
@@ -257,6 +261,25 @@ fun NotionLibraryDialogContent(
         }
     }
     val subtitle = syncStatus ?: "${filtered.size} of ${entries.size} entries"
+
+    // Restore: close this screen, then open a search for the title so you can pick the right match.
+    val restoreFor: (NotionLibraryEntry) -> (() -> Unit)? = { entry ->
+        navigator?.let { nav ->
+            {
+                onDismissRequest()
+                nav.push(
+                    RestoreSearchScreen(
+                        pageId = entry.pageId,
+                        title = entry.title,
+                        author = entry.author,
+                        novel = entry.type.equals("Novel", ignoreCase = true) ||
+                            entry.type.equals("Light Novel", ignoreCase = true) ||
+                            entry.type.equals("Book", ignoreCase = true),
+                    ),
+                )
+            }
+        }
+    }
     val err = errorMessage
 
     Dialog(
@@ -365,6 +388,7 @@ fun NotionLibraryDialogContent(
                                     entry = entry,
                                     modern = true,
                                     onOpen = { context.openInBrowser(entry.pageUrl) },
+                                    onRestore = restoreFor(entry),
                                 )
                             }
                         }
@@ -524,6 +548,7 @@ fun NotionLibraryDialogContent(
                                             entry = entry,
                                             modern = false,
                                             onOpen = { context.openInBrowser(entry.pageUrl) },
+                                            onRestore = restoreFor(entry),
                                         )
                                     }
                                 }
@@ -727,6 +752,7 @@ private fun NotionEntryRow(
     entry: NotionLibraryEntry,
     modern: Boolean,
     onOpen: () -> Unit,
+    onRestore: (() -> Unit)?,
 ) {
     var expanded by remember(entry.pageId) { mutableStateOf(false) }
 
@@ -874,8 +900,23 @@ private fun NotionEntryRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = onOpen) {
-                    Text("Open in Notion")
+                if (entry.author.isNotBlank()) {
+                    Text(
+                        text = "Author: ${entry.author}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                Row {
+                    TextButton(onClick = onOpen) {
+                        Text("Open in Notion")
+                    }
+                    if (onRestore != null) {
+                        TextButton(onClick = onRestore) {
+                            Text("Restore to library")
+                        }
+                    }
                 }
             }
         }
@@ -1110,6 +1151,7 @@ private fun parseNotionPage(page: JsonObject): NotionLibraryEntry? {
         source = props.textValue(SOURCE_PROPERTY).orEmpty(),
         description = props.textValue(DESCRIPTION_PROPERTY).orEmpty(),
         chapterName = props.textValue(NotionTracker.CHAPTER_NAME_PROPERTY).orEmpty(),
+        author = props.textValue(NotionTracker.AUTHOR_PROPERTY).orEmpty(),
     )
 }
 
@@ -1141,7 +1183,7 @@ private fun JsonObject.urlValue(name: String): String? =
 // Library -> Notion sync (Source + Description)
 // ---------------------------------------------------------------------------------------------
 
-private class LocalMeta(val source: String, val description: String, val mangaId: Long)
+private class LocalMeta(val source: String, val description: String, val mangaId: Long, val author: String)
 
 private class PendingUpdate(
     val entry: NotionLibraryEntry,
@@ -1149,6 +1191,7 @@ private class PendingUpdate(
     val newSource: String?,
     val newDescription: String?,
     val newChapterName: String?,
+    val newAuthor: String?,
 )
 
 /** Name of the chapter at [notionChapter], else the highest chapter marked read locally. */
@@ -1213,6 +1256,9 @@ private suspend fun syncNotionMetadata(
         if (NotionTracker.CHAPTER_NAME_PROPERTY !in types) {
             putJsonObject(NotionTracker.CHAPTER_NAME_PROPERTY) { putJsonObject("rich_text") {} }
         }
+        if (NotionTracker.AUTHOR_PROPERTY !in types) {
+            putJsonObject(NotionTracker.AUTHOR_PROPERTY) { putJsonObject("rich_text") {} }
+        }
     }
     if (missing.isNotEmpty()) {
         notionPatch(
@@ -1248,6 +1294,7 @@ private suspend fun syncNotionMetadata(
     val sourceType = types[SOURCE_PROPERTY] ?: "select"
     val descriptionType = types[DESCRIPTION_PROPERTY] ?: "rich_text"
     val chapterNameType = types[NotionTracker.CHAPTER_NAME_PROPERTY] ?: "rich_text"
+    val authorType = types[NotionTracker.AUTHOR_PROPERTY] ?: "rich_text"
 
     // 2) Read source + description for every library item that has a Notion track.
     val byPageId = mutableMapOf<String, LocalMeta>()
@@ -1261,6 +1308,7 @@ private suspend fun syncNotionMetadata(
             source = sourceManager.getOrStub(manga.source).name,
             description = manga.description.orEmpty(),
             mangaId = manga.id,
+            author = manga.author.orEmpty(),
         )
         byTitle[manga.title.trim().lowercase()] = meta
         getTracks.await(manga.id)
@@ -1293,12 +1341,21 @@ private suspend fun syncNotionMetadata(
         } else {
             null
         }
-        if (sourcePayload == null && descriptionPayload == null && chapterNamePayload == null) return@forEach
+        val wantAuthor = local.author.trim().take(200)
+        val authorPayload = if (wantAuthor.isNotBlank() && wantAuthor != entry.author.trim()) {
+            textPayload(authorType, wantAuthor)
+        } else {
+            null
+        }
+        if (sourcePayload == null && descriptionPayload == null && chapterNamePayload == null && authorPayload == null) {
+            return@forEach
+        }
 
         val props = buildJsonObject {
             if (sourcePayload != null) put(SOURCE_PROPERTY, sourcePayload)
             if (descriptionPayload != null) put(DESCRIPTION_PROPERTY, descriptionPayload)
             if (chapterNamePayload != null) put(NotionTracker.CHAPTER_NAME_PROPERTY, chapterNamePayload)
+            if (authorPayload != null) put(NotionTracker.AUTHOR_PROPERTY, authorPayload)
         }
         pending += PendingUpdate(
             entry = entry,
@@ -1306,6 +1363,7 @@ private suspend fun syncNotionMetadata(
             newSource = if (sourcePayload != null) wantSource else null,
             newDescription = if (descriptionPayload != null) wantDescription else null,
             newChapterName = if (chapterNamePayload != null) wantChapterName else null,
+            newAuthor = if (authorPayload != null) wantAuthor else null,
         )
     }
 
@@ -1337,6 +1395,7 @@ private suspend fun syncNotionMetadata(
                 source = item.newSource ?: item.entry.source,
                 description = item.newDescription ?: item.entry.description,
                 chapterName = item.newChapterName ?: item.entry.chapterName,
+                author = item.newAuthor ?: item.entry.author,
             )
         } else {
             failed++
