@@ -241,6 +241,9 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
                 putJsonObject(CHAPTER_NAME_PROPERTY) {
                     putJsonObject("rich_text") {}
                 }
+                putJsonObject(AUTHOR_PROPERTY) {
+                    putJsonObject("rich_text") {}
+                }
             }
         }.toString().toRequestBody("application/json".toMediaType())
 
@@ -650,13 +653,15 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
             val schema = schemaCache ?: return@runCatching
             val sourceKey = schema.keyFor(SOURCE_PROPERTY)
             val descriptionKey = schema.keyFor(DESCRIPTION_PROPERTY)
-            if (sourceKey == null && descriptionKey == null) return@runCatching
+            val authorKey = schema.keyFor(AUTHOR_PROPERTY)
+            if (sourceKey == null && descriptionKey == null && authorKey == null) return@runCatching
 
             val manga = Injekt.get<GetManga>().await(mangaId) ?: return@runCatching
             val sourceName = Injekt.get<SourceManager>().getOrStub(manga.source).name
                 .replace(",", " ").trim().take(100)
             val description = manga.description.orEmpty().replace("\r", "").trim().take(DESCRIPTION_LIMIT)
-            if (sourceName.isBlank() && description.isBlank()) return@runCatching
+            val author = manga.author.orEmpty().trim().take(200)
+            if (sourceName.isBlank() && description.isBlank() && author.isBlank()) return@runCatching
 
             val body = buildJsonObject {
                 putJsonObject("properties") {
@@ -674,6 +679,19 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
                                     buildJsonObject {
                                         putJsonObject("text") {
                                             put("content", description)
+                                        }
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    if (authorKey != null && author.isNotBlank()) {
+                        putJsonObject(authorKey) {
+                            putJsonArray("rich_text") {
+                                add(
+                                    buildJsonObject {
+                                        putJsonObject("text") {
+                                            put("content", author)
                                         }
                                     },
                                 )
@@ -824,7 +842,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
 
     /**
      * Best-effort: adds the recommended columns (Type, Status, Chapter, Score, Total Chapters,
-     * Cover, Source, Description, Chapter Name, Progress) to an existing database if the integration has update
+     * Cover, Source, Description, Chapter Name, Author, Progress) to an existing database if the integration has update
      * permission, and appends any missing status/type options to existing select columns.
      * Returns the keys it added so callers can update their schema cache without another
      * round-trip.
@@ -868,6 +886,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         if (!existing.containsKey(SOURCE_PROPERTY)) additions[SOURCE_PROPERTY] = buildJsonObject { putJsonObject("select") {} }
         if (!existing.containsKey(DESCRIPTION_PROPERTY)) additions[DESCRIPTION_PROPERTY] = buildJsonObject { putJsonObject("rich_text") {} }
         if (!existing.containsKey(CHAPTER_NAME_PROPERTY)) additions[CHAPTER_NAME_PROPERTY] = buildJsonObject { putJsonObject("rich_text") {} }
+        if (!existing.containsKey(AUTHOR_PROPERTY)) additions[AUTHOR_PROPERTY] = buildJsonObject { putJsonObject("rich_text") {} }
 
         val added = mutableSetOf<String>()
 
@@ -1009,6 +1028,7 @@ class NotionTracker(id: Long) : BaseTracker(id, "Notion"), DeletableTracker {
         const val SOURCE_PROPERTY = "Source"
         const val DESCRIPTION_PROPERTY = "Description"
         const val CHAPTER_NAME_PROPERTY = "Chapter Name"
+        const val AUTHOR_PROPERTY = "Author"
         const val PROGRESS_PROPERTY = "Progress"
 
         /** Formula for the Progress column: a text bar plus a percentage, e.g. "██████░░░░ 60%". */
