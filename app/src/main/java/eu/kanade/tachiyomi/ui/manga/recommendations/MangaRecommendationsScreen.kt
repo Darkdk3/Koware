@@ -319,10 +319,24 @@ private fun RecommendationsContent(
             item { AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage, onMangaClick) }
         }
 
-        // Tracker recommendations — only when a non-Notion tracker is linked
+        // Tracker recommendations — only when a tracker is linked
         if (settings.showTracker && state.trackedOn.isNotEmpty()) {
             item { Spacer(Modifier.height(8.dp)) }
-            item { TrackerRecommendationsSection(state.trackedOn) }
+            item {
+                TrackerRecommendationsSection(
+                    trackedOn = state.trackedOn,
+                    message = state.trackerMessage,
+                    hasResults = state.trackerSuggestions.isNotEmpty(),
+                )
+            }
+            if (state.trackerSuggestions.isNotEmpty()) {
+                item {
+                    SuggestionRow(
+                        suggestions = state.trackerSuggestions,
+                        onMangaClick = onMangaClick,
+                    )
+                }
+            }
         }
     }
 }
@@ -614,7 +628,11 @@ private fun AiPicksSection(
 }
 
 @Composable
-private fun TrackerRecommendationsSection(trackedOn: List<String>) {
+private fun TrackerRecommendationsSection(
+    trackedOn: List<String>,
+    message: String?,
+    hasResults: Boolean,
+) {
     Column(Modifier.padding(vertical = 4.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -639,12 +657,15 @@ private fun TrackerRecommendationsSection(trackedOn: List<String>) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Tracked titles will appear here once your services return recommendations for this entry.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
+        if (!hasResults && message != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
     }
 }
