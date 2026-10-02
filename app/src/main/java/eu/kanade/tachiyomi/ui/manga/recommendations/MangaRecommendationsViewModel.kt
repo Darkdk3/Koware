@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.data.track.TrackerManager
+import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeListApi
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
@@ -369,10 +370,7 @@ class MangaRecommendationsViewModel(
 
     private suspend fun fetchMalRecommendationTitles(malMangaId: Long): List<String> =
         withContext(Dispatchers.IO) {
-            // VERIFY: your fork's MAL API client-id constant. Search the project for an
-            // existing "X-MAL-CLIENT-ID" usage (often in a MyAnimeListApi class) and
-            // reuse that same constant here instead of hardcoding a new one.
-            val malClientId = MAL_CLIENT_ID
+            val malClientId = MyAnimeListApi.CLIENT_ID
 
             val request = Request.Builder()
                 .url("https://api.myanimelist.net/v2/manga/$malMangaId?fields=recommendations")
@@ -388,8 +386,9 @@ class MangaRecommendationsViewModel(
                 val recs = JSONObject(body).optJSONArray("recommendations") ?: return@withContext emptyList()
                 buildList {
                     for (i in 0 until recs.length()) {
+                        // MAL returns each recommendation as {"node": {...}, "num_recommendations": n}
                         val title = recs.getJSONObject(i)
-                            .optJSONObject("manga")
+                            .optJSONObject("node")
                             ?.optString("title")
                         if (!title.isNullOrBlank()) add(title)
                     }
@@ -594,10 +593,5 @@ class MangaRecommendationsViewModel(
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             MangaRecommendationsViewModel(mangaId) as T
-    }
-
-    companion object {
-        // VERIFY: replace with your fork's actual MAL client ID constant/lookup.
-        private const val MAL_CLIENT_ID = "YOUR_MAL_CLIENT_ID_HERE"
     }
 }
