@@ -6,16 +6,17 @@ import tachiyomi.domain.release.service.ReleaseService
 class GetApplicationRelease(
     private val service: ReleaseService,
 ) {
+
     suspend fun await(arguments: Arguments): Result {
         val release = service.latest(arguments) ?: return Result.NoNewUpdate
 
-        // Check if latest version is different from current version
         val isNewVersion = isNewVersion(
             arguments.isPreview,
             arguments.commitCount,
             arguments.versionName,
             release.version,
         )
+
         return when {
             isNewVersion -> Result.NewUpdate(release)
             else -> Result.NoNewUpdate
@@ -28,26 +29,25 @@ class GetApplicationRelease(
         versionName: String,
         versionTag: String,
     ): Boolean {
-        // Removes prefixes like "r" or "v"
-        val newVersion = versionTag.replace("[^\\d.]".toRegex(), "")
+        val digitsOnly = "[^\\d.]".toRegex()
+
         return if (isPreview) {
-            // Preview builds: based on releases in "tsundoku-otaku/tsundoku-preview" repo
-            // tagged as something like "r1234"
-            newVersion.toInt() > commitCount
+            // Preview/nightly builds: tags like "r1234", compared by commit count
+            val newCount = versionTag.replace(digitsOnly, "").toIntOrNull() ?: return false
+            newCount > commitCount
         } else {
-            // Release builds: based on releases in "tsundoku-otaku/tsundoku" repo
-            // tagged as something like "v0.1.2"
-            val oldVersion = versionName.replace("[^\\d.]".toRegex(), "")
+            // Release builds: tags like "v0.1.2", compared field by field
+            val newSemVer = versionTag.substringBefore("-").replace(digitsOnly, "")
+                .split(".").map { it.toIntOrNull() ?: 0 }
+            val oldSemVer = versionName.substringBefore("-").replace(digitsOnly, "")
+                .split(".").map { it.toIntOrNull() ?: 0 }
 
-            val newSemVer = newVersion.split(".").map { it.toInt() }
-            val oldSemVer = oldVersion.split(".").map { it.toInt() }
-
-            oldSemVer.mapIndexed { index, i ->
-                if (newSemVer[index] > i) {
-                    return true
-                }
+            for (i in 0 until maxOf(newSemVer.size, oldSemVer.size)) {
+                val n = newSemVer.getOrElse(i) { 0 }
+                val o = oldSemVer.getOrElse(i) { 0 }
+                if (n > o) return true
+                if (n < o) return false
             }
-
             false
         }
     }
