@@ -213,6 +213,7 @@ class MangaScreen(
             onSearchChaptersClicked = {
                 navigator.push(ChapterSearchScreen(successState.manga.id))
             }.takeIf { successState.isNovel || successState.manga.isLocalNovel() },
+            onWordCountClicked = viewModel::showWordCountDialog.takeIf { successState.isNovel },
             showSourceName = successState.showSourceName,
             onToggleSourceNameVisibility = viewModel::toggleSourceNameVisibility,
             onMultiBookmarkClicked = viewModel::bookmarkChapters,
@@ -428,6 +429,14 @@ class MangaScreen(
                     onExport = { uri, options ->
                         viewModel.exportAsEpub(dialog.manga, dialog.chapters, uri, options)
                     },
+                )
+            }
+            is MangaViewModel.Dialog.WordCount -> {
+                eu.kanade.presentation.manga.components.WordCountDialog(
+                    checkedChapters = dialog.checkedChapters,
+                    chaptersToCount = dialog.chaptersToCount,
+                    result = dialog.result,
+                    onDismissRequest = onDismissRequest,
                 )
             }
         }

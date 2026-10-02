@@ -14,6 +14,7 @@ The format is a modified version of [Keep a Changelog](https://keepachangelog.co
 ### Added
 - Webview paged reader [@mrissaoussama](https://github.com/mrissaoussama) [#420](https://github.com/tsundoku-otaku/tsundoku/pull/420)
 - Search text (optionally regex) across all downloaded chapters of an entry [@RibatTRW](https://github.com/RibatTRW) [#433](https://github.com/tsundoku-otaku/tsundoku/issues/433)
+- Word count and word density indicator for downloaded novel chapters [@RibatTRW](https://github.com/RibatTRW) [#434](https://github.com/tsundoku-otaku/tsundoku/pull/434)
 
 
 ### Improved

@@ -127,6 +127,7 @@ fun MangaScreen(
     onTranslateDownloadedClicked: (() -> Unit)? = null,
     onExportEpubClicked: (() -> Unit)? = null,
     onSearchChaptersClicked: (() -> Unit)? = null,
+    onWordCountClicked: (() -> Unit)? = null,
     showSourceName: Boolean = true,
     onToggleSourceNameVisibility: (() -> Unit)? = null,
 
@@ -191,6 +192,7 @@ fun MangaScreen(
             onTranslateDownloadedClicked = onTranslateDownloadedClicked,
             onExportEpubClicked = onExportEpubClicked,
             onSearchChaptersClicked = onSearchChaptersClicked,
+            onWordCountClicked = onWordCountClicked,
             showSourceName = showSourceName,
             onToggleSourceNameVisibility = onToggleSourceNameVisibility,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
@@ -242,6 +244,7 @@ fun MangaScreen(
             onTranslateDownloadedClicked = onTranslateDownloadedClicked,
             onExportEpubClicked = onExportEpubClicked,
             onSearchChaptersClicked = onSearchChaptersClicked,
+            onWordCountClicked = onWordCountClicked,
             showSourceName = showSourceName,
             onToggleSourceNameVisibility = onToggleSourceNameVisibility,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
@@ -303,6 +306,7 @@ private fun MangaScreenSmallImpl(
     onTranslateDownloadedClicked: (() -> Unit)?,
     onExportEpubClicked: (() -> Unit)?,
     onSearchChaptersClicked: (() -> Unit)?,
+    onWordCountClicked: (() -> Unit)?,
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
 
@@ -377,6 +381,7 @@ private fun MangaScreenSmallImpl(
                 onClickTranslateDownloaded = onTranslateDownloadedClicked,
                 onClickExportEpub = onExportEpubClicked,
                 onClickSearchChapters = onSearchChaptersClicked,
+                onClickWordCount = onWordCountClicked,
                 onClickScrollToTop = {
                     scrollScope.launch { chapterListState.animateScrollToItem(0) }
                 },
@@ -609,6 +614,7 @@ fun MangaScreenLargeImpl(
     onTranslateDownloadedClicked: (() -> Unit)?,
     onExportEpubClicked: (() -> Unit)?,
     onSearchChaptersClicked: (() -> Unit)?,
+    onWordCountClicked: (() -> Unit)?,
     showSourceName: Boolean,
     onToggleSourceNameVisibility: (() -> Unit)?,
 
@@ -676,6 +682,7 @@ fun MangaScreenLargeImpl(
                 onClickTranslateDownloaded = onTranslateDownloadedClicked,
                 onClickExportEpub = onExportEpubClicked,
                 onClickSearchChapters = onSearchChaptersClicked,
+                onClickWordCount = onWordCountClicked,
                 onClickScrollToTop = {
                     scrollScope.launch { chapterListState.animateScrollToItem(0) }
                 },
