@@ -19,34 +19,34 @@ class AppUpdateChecker {
         // }
 
         return withIOContext {
-            val result = getApplicationRelease.await(
+            getApplicationRelease.await(
                 GetApplicationRelease.Arguments(
                     isFossBuildType,
-                    isPreviewBuildType,
+                    isPreviewBuildType || isNightlyBuildType,
                     BuildConfig.COMMIT_COUNT.toInt(),
                     BuildConfig.VERSION_NAME,
                     GITHUB_REPO,
                     forceCheck,
                 ),
             )
-
-            result
         }
     }
 }
 
+// All channels publish releases to the same repo.
+// If you later split nightly into its own repo, change the nightly branch only.
 val GITHUB_REPO: String by lazy {
     if (isNightlyBuildType) {
-        "tsundoku-otaku/tsundoku-nightly"
+        "Darkdk3/Koware"
     } else if (isPreviewBuildType) {
-        "tsundoku-otaku/tsundoku-preview"
+        "Darkdk3/Koware"
     } else {
-        "tsundoku-otaku/tsundoku"
+        "Darkdk3/Koware"
     }
 }
 
 val RELEASE_TAG: String by lazy {
-    if (isPreviewBuildType) {
+    if (isPreviewBuildType || isNightlyBuildType) {
         "r${BuildConfig.COMMIT_COUNT}"
     } else {
         "v${BuildConfig.VERSION_NAME}"
