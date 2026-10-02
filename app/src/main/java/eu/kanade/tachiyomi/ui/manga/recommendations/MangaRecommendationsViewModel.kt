@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.domain.manga.model.toDomainManga
@@ -50,6 +52,15 @@ private class MangaRecommendable(
     override val mangaAuthor: String? get() = _manga.author
 }
 
+/**
+ * One "More like this" row: the keyword (genre / author) it was built from
+ * and the titles the current source returned for it.
+ */
+data class RelatedGroup(
+    val keyword: String,
+    val mangas: List<Manga>,
+)
+
 sealed interface MangaRecommendationsUiState {
     data object Loading : MangaRecommendationsUiState
 
@@ -58,6 +69,7 @@ sealed interface MangaRecommendationsUiState {
         val sourceName: String,
         val sourceSuggestions: List<Manga>,
         val groupedSourceSuggestions: Map<String, List<Manga>> = emptyMap(),
+        val relatedGroups: List<RelatedGroup> = emptyList(),
         val aiPicks: List<Manga>,
         val aiScores: List<Int?>,
         val aiMessage: String?,
@@ -97,6 +109,18 @@ class MangaRecommendationsViewModel(
 
             val suggestions = loadSourceSuggestions(source as? CatalogueSource, manga)
             val groupedSuggestions = loadGroupedSourceSuggestions(source as? CatalogueSource, manga, suggestions)
+
+            // "More like this" rows (keyword-grouped, Komikku-style). Skips anything already shown above.
+            val relatedGroups = runCatching {
+                loadRelatedGroups(
+                    source = source as? CatalogueSource,
+                    manga = manga,
+                    alreadyShown = suggestions + groupedSuggestions.values.flatten(),
+                )
+            }.getOrElse {
+                logcat(LogPriority.ERROR, it) { "Failed to load related groups" }
+                emptyList()
+            }
 
             val aiCandidatePool = loadAiCandidatePool(source as? CatalogueSource, manga)
 
@@ -151,6 +175,7 @@ class MangaRecommendationsViewModel(
                 sourceName = sourceName,
                 sourceSuggestions = suggestions,
                 groupedSourceSuggestions = groupedSuggestions,
+                relatedGroups = relatedGroups,
                 aiPicks = picks,
                 aiScores = scores,
                 aiMessage = aiMessage,
@@ -331,7 +356,6 @@ class MangaRecommendationsViewModel(
                     ?.optJSONObject("recommendations")
                     ?.optJSONArray("nodes")
                     ?: return@withContext emptyList()
-
                 buildList {
                     for (i in 0 until nodes.length()) {
                         val rec = nodes.getJSONObject(i).optJSONObject("mediaRecommendation") ?: continue
@@ -362,7 +386,6 @@ class MangaRecommendationsViewModel(
                 }
                 val body = response.body?.string() ?: return@withContext emptyList()
                 val recs = JSONObject(body).optJSONArray("recommendations") ?: return@withContext emptyList()
-
                 buildList {
                     for (i in 0 until recs.length()) {
                         val title = recs.getJSONObject(i)
@@ -376,12 +399,77 @@ class MangaRecommendationsViewModel(
 
     // --- Source / AI logic ---------------------------------------------------
 
+    /**
+     * "More like this": one row per keyword (top genres + author) of the open entry,
+     * each filled by searching the entry's own source. Lookups run at most 2 at a time
+     * so rate-limited sources don't choke, and results are de-duplicated across rows
+     * and against everything already shown on the screen.
+     */
+    private suspend fun loadRelatedGroups(
+        source: CatalogueSource?,
+        manga: Manga,
+        alreadyShown: List<Manga>,
+    ): List<RelatedGroup> = coroutineScope {
+        if (source == null) return@coroutineScope emptyList()
+        // Keyword rows are search-based, so honour the existing "no related search" setting.
+        if (libraryPreferences.disableRelatedMangasBySearch.get()) return@coroutineScope emptyList()
+
+        val keywords = (
+            manga.genre.orEmpty().map { it.trim() }.take(3) +
+                listOfNotNull(manga.author?.trim())
+            )
+            .filter { it.isNotBlank() && !it.equals(manga.title, ignoreCase = true) }
+            .distinctBy { it.lowercase() }
+            .take(4)
+
+        if (keywords.isEmpty()) return@coroutineScope emptyList()
+
+        val gate = Semaphore(2)
+
+        val found = keywords.map { keyword ->
+            async {
+                keyword to gate.withPermit {
+                    runCatching {
+                        source.getSearchManga(
+                            page = 1,
+                            query = keyword,
+                            filters = eu.kanade.tachiyomi.source.model.FilterList(),
+                        )?.mangas.orEmpty()
+                    }.getOrElse {
+                        logcat(LogPriority.ERROR, it) { "Related search failed for keyword='$keyword'" }
+                        emptyList()
+                    }
+                }
+            }
+        }.awaitAll()
+
+        val seen = HashSet<String>()
+        seen.add(manga.url)
+        alreadyShown.forEach { seen.add(it.url) }
+
+        found.mapNotNull { (keyword, results) ->
+            // seen.add() returns false for repeats, so this also drops dupes inside a row.
+            val fresh = results.filter { seen.add(it.url) }.take(12)
+            if (fresh.isEmpty()) {
+                null
+            } else {
+                RelatedGroup(
+                    keyword = keyword,
+                    mangas = fresh.map {
+                        networkToLocalManga(it.toDomainManga(sourceId = source.id, isNovel = manga.isNovel))
+                    },
+                )
+            }
+        }
+    }
+
     private suspend fun loadGroupedSourceSuggestions(
         source: CatalogueSource?,
         manga: Manga,
         primarySuggestions: List<Manga>,
     ): Map<String, List<Manga>> = coroutineScope {
         val groupedResults = mutableMapOf<String, List<Manga>>()
+
         if (source != null && primarySuggestions.isNotEmpty()) {
             groupedResults[source.getNameForMangaInfo()] = primarySuggestions
         }
@@ -403,6 +491,7 @@ class MangaRecommendationsViewModel(
                     )?.mangas.orEmpty()
                 }.getOrNull().orEmpty()
                     .filter { it.url != manga.url }
+                    .distinctBy { it.url }
                     .take(10)
                     .map { sManga ->
                         networkToLocalManga(
@@ -460,6 +549,7 @@ class MangaRecommendationsViewModel(
 
         return results
             .filter { it.url != manga.url }
+            .distinctBy { it.url }
             .take(25)
             .map { networkToLocalManga(it.toDomainManga(sourceId = source.id, isNovel = manga.isNovel)) }
     }
