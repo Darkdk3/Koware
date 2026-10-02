@@ -44,11 +44,11 @@ note : The Manga side will be a bit neglected but i will get to it . . probably
 
 * **Discover tab** — a source-pinning feed of latest/popular novels across your pinned sources 
 * **Source suggestions** — "more from this source" recommendations on each novel's details page (super boot strapped)
-* **Notion Tracking** 
-* **Live Manga OCR translation**  
-* **Some Ai slop aswell**
+* **Notion Tracking** — pretty self explanatory,  it tracks your progress in your own notion data base allowing you to add the titels in data base nack into your library if you didn't back up or. 
+* **Live Manga OCR translation** — Live translation for manga (pretty slow but a win is a win) 
+* **Some Ai slop aswell** — Ai recommendations and suggestions . its half assed but it works ig ( a friend recommended this , u can turn it off, ⚠️ fat warning , it eats up tokens fast like super fast ) 
 * **Reading Progress bar** (only when modern style is activated)
-* **Custom Ui stuff**
+* **Custom Ui stuff** (custom ui stuff )
 * Plus much more coming...probably (if don't drop dead) ^^
 
 
