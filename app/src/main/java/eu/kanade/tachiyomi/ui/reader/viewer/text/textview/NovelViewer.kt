@@ -4,8 +4,6 @@ package eu.kanade.tachiyomi.ui.reader.viewer.text.textview
 
 import android.graphics.Canvas
 import android.graphics.text.LineBreaker
-import android.text.PrecomputedText
-import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
@@ -1824,10 +1822,7 @@ class NovelViewer(val activity: ReaderActivity) : Viewer {
         // select) re-sets that stale PrecomputedText without a param check, crashing with
         // IllegalArgumentException. Strip it back to a plain Spannable so TextView measures
         // against the live paint instead.
-        val currentText = textView.text
-        if (currentText is PrecomputedText) {
-            textView.text = SpannableStringBuilder(currentText)
-        }
+        PlatformPrecomputedText.toPlainSpannable(textView.text)?.let { textView.text = it }
     }
 
     private fun applyBackgroundColor() {
