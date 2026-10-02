@@ -52,7 +52,7 @@ note : To view and add the titels from your data base , you can use the data bas
 * **Live Manga OCR translation** — Live translation for manga (pretty slow but a win is a win) 
 * **Some Ai slop aswell** — Ai recommendations and suggestions . its half assed but it works ig ( a friend recommended this , u can turn it off, ⚠️ fat warning , it eats up tokens fast like super fast ) 
 * **Reading Progress bar** (only when modern style is activated)
-* **Custom Ui stuff** (custom ui stuff )
+* **Custom Ui stuff** (custom ui stuff ) ┐(￣ヘ￣)┌
 * Plus much more coming...probably (if don't drop dead) ^^
 
 
