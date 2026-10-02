@@ -34,6 +34,7 @@ import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
 class NovelExtensionsViewModel(
@@ -45,6 +46,9 @@ class NovelExtensionsViewModel(
 ) : StateViewModel<ExtensionScreenState>(ExtensionScreenState()) {
 
     private val currentDownloads = MutableStateFlow<Map<String, InstallStep>>(hashMapOf())
+
+    /** pkgNames of JS plugins with an install in flight, so repeated taps cannot start duplicates. */
+    private val jsPluginInstallsInFlight = ConcurrentHashMap.newKeySet<String>()
 
     init {
         val context = Injekt.get<Application>()
@@ -233,12 +237,16 @@ class NovelExtensionsViewModel(
     }
 
     fun updateAllExtensions() {
+        val plan = state.value.items.values.flatten()
+            .map { it.extension }
+            .toUpdateAllPlan()
+        plan.apkUpdates.forEach(::updateExtension)
+
+        // JS plugin installs are not safe to run concurrently, so run them one at a time
+        val jsPlugins = plan.jsPluginUpdates.filter { jsPluginInstallsInFlight.add(it.pkgName) }
+        if (jsPlugins.isEmpty()) return
         viewModelScope.launchIO {
-            state.value.items.values.flatten()
-                .map { it.extension }
-                .filterIsInstance<Extension.Installed>()
-                .filter { it.hasUpdate }
-                .forEach(::updateExtension)
+            jsPlugins.forEach { installClaimedJsPlugin(it) }
         }
     }
 
@@ -249,7 +257,12 @@ class NovelExtensionsViewModel(
     }
 
     fun installJsPlugin(extension: Extension.JsPlugin) {
-        viewModelScope.launchIO {
+        if (!jsPluginInstallsInFlight.add(extension.pkgName)) return
+        viewModelScope.launchIO { installClaimedJsPlugin(extension) }
+    }
+
+    private suspend fun installClaimedJsPlugin(extension: Extension.JsPlugin) {
+        try {
             // Extract the original plugin ID from pkgName (remove prefix)
             val pluginId = extension.pkgName.removePrefix(JsPlugin.PKG_PREFIX)
             val plugin = jsPluginManager.availablePlugins.value.find { it.id == pluginId }
@@ -257,15 +270,17 @@ class NovelExtensionsViewModel(
                 logcat(LogPriority.ERROR) {
                     "Plugin not found in available plugins: $pluginId (pkgName: ${extension.pkgName})"
                 }
-                return@launchIO
+                return
             }
             if (extension.repoUrl.isEmpty()) {
                 logcat(LogPriority.ERROR) { "Plugin repo URL is empty: ${extension.pkgName}" }
-                return@launchIO
+                return
             }
 
             logcat(LogPriority.INFO) { "Installing JS plugin: ${extension.name} from ${extension.repoUrl}" }
             jsPluginManager.installPlugin(plugin, extension.repoUrl)
+        } finally {
+            jsPluginInstallsInFlight.remove(extension.pkgName)
         }
     }
 
@@ -327,3 +342,17 @@ class NovelExtensionsViewModel(
         }
     }
 }
+
+/**
+ * What "Update all" acts on: installed extensions (APK-based or JS plugin) with an available
+ * update, split by install path. Available and untrusted entries are never included.
+ */
+internal data class UpdateAllPlan(
+    val apkUpdates: List<Extension.Installed>,
+    val jsPluginUpdates: List<Extension.JsPlugin>,
+)
+
+internal fun List<Extension>.toUpdateAllPlan() = UpdateAllPlan(
+    apkUpdates = filterIsInstance<Extension.Installed>().filter { it.hasUpdate },
+    jsPluginUpdates = filterIsInstance<Extension.JsPlugin>().filter { it.isInstalled && it.hasUpdate },
+)
