@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import eu.kanade.tachiyomi.data.track.TrackerManager
-import eu.kanade.tachiyomi.data.track.myanimelist.MyAnimeListApi
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.getNameForMangaInfo
@@ -38,6 +37,12 @@ import tachiyomi.domain.track.interactor.GetTracks
 import tachiyomi.domain.track.model.Track
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+
+/**
+ * MAL public client ID, used for the unauthenticated recommendations call.
+ * Kept local because MyAnimeListApi.CLIENT_ID is private.
+ */
+private const val MAL_CLIENT_ID = "d0464a21fd4f1ee11cd033ed3b476946"
 
 /**
  * Wraps a [Manga] for the generic AI recommendation pool.
@@ -370,11 +375,9 @@ class MangaRecommendationsViewModel(
 
     private suspend fun fetchMalRecommendationTitles(malMangaId: Long): List<String> =
         withContext(Dispatchers.IO) {
-            val malClientId = MyAnimeListApi.CLIENT_ID
-
             val request = Request.Builder()
                 .url("https://api.myanimelist.net/v2/manga/$malMangaId?fields=recommendations")
-                .header("X-MAL-CLIENT-ID", malClientId)
+                .header("X-MAL-CLIENT-ID", MAL_CLIENT_ID)
                 .get()
                 .build()
 
