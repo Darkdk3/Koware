@@ -219,6 +219,12 @@
     <string name="translate_details_save_genres">Save translated genres</string>
     <string name="translate_details_merge_genres">Add to existing genres (don\'t replace)</string>
     <string name="action_export_epub">Export as EPUB</string>
+    <!-- Entry chapter content search -->
+    <string name="action_search_chapters">Search chapters</string>
+    <string name="chapter_search_hint">Search downloaded chapters…</string>
+    <string name="chapter_search_progress">Searched %1$d of %2$d chapters</string>
+    <string name="chapter_search_no_chapters">No downloaded chapters to search</string>
+    <string name="chapter_search_empty">Search text across all downloaded chapters of this entry</string>
     <string name="action_export_epub_bulk">Export selected as EPUB</string>
     <string name="export_epub_progress">Exporting %1$d of %2$d chapters…</string>
     <string name="export_epub_success">EPUB exported successfully</string>

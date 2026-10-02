@@ -55,6 +55,7 @@ import eu.kanade.tachiyomi.ui.browse.source.globalsearch.NovelGlobalSearchScreen
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.notes.MangaNotesScreen
+import eu.kanade.tachiyomi.ui.manga.search.ChapterSearchScreen
 import eu.kanade.tachiyomi.ui.manga.track.TrackInfoDialogHomeScreen
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
@@ -76,6 +77,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
+import tachiyomi.source.local.isLocalNovel
 
 class MangaScreen(
     private val mangaId: Long,
@@ -208,6 +210,9 @@ class MangaScreen(
             onTranslateClicked = viewModel::translateMangaDetails,
             onTranslateDownloadedClicked = viewModel::translateDownloadedChapters,
             onExportEpubClicked = viewModel::showExportEpubDialog.takeIf { successState.isNovel },
+            onSearchChaptersClicked = {
+                navigator.push(ChapterSearchScreen(successState.manga.id))
+            }.takeIf { successState.isNovel || successState.manga.isLocalNovel() },
             showSourceName = successState.showSourceName,
             onToggleSourceNameVisibility = viewModel::toggleSourceNameVisibility,
             onMultiBookmarkClicked = viewModel::bookmarkChapters,

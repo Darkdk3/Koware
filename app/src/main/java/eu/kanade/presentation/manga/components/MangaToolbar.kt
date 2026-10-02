@@ -48,6 +48,7 @@ fun MangaToolbar(
     onClickTranslate: (() -> Unit)? = null,
     onClickTranslateDownloaded: (() -> Unit)? = null,
     onClickExportEpub: (() -> Unit)? = null,
+    onClickSearchChapters: (() -> Unit)? = null,
     onClickScrollToTop: (() -> Unit)? = null,
     onClickScrollToLastRead: (() -> Unit)? = null,
     onClickScrollToBottom: (() -> Unit)? = null,
@@ -227,6 +228,14 @@ fun MangaToolbar(
                             AppBar.OverflowAction(
                                 title = stringResource(TDMR.strings.action_translate_downloaded),
                                 onClick = onClickTranslateDownloaded,
+                            ),
+                        )
+                    }
+                    if (onClickSearchChapters != null) {
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(TDMR.strings.action_search_chapters),
+                                onClick = onClickSearchChapters,
                             ),
                         )
                     }
