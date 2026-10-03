@@ -37,16 +37,16 @@ class AppUpdateChecker {
 // If you later split nightly into its own repo, change the nightly branch only.
 val GITHUB_REPO: String by lazy {
     if (isNightlyBuildType) {
-        "Darkdk3/Koware"
+        "tsundoku-otaku/tsundoku-nightly"
     } else if (isPreviewBuildType) {
-        "Darkdk3/Koware"
+        "tsundoku-otaku/tsundoku-preview"
     } else {
-        "Darkdk3/Koware"
+        "tsundoku-otaku/tsundoku"
     }
 }
 
 val RELEASE_TAG: String by lazy {
-    if (isPreviewBuildType || isNightlyBuildType) {
+    if (isPreviewBuildType) {
         "r${BuildConfig.COMMIT_COUNT}"
     } else {
         "v${BuildConfig.VERSION_NAME}"
