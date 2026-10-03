@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -274,6 +275,7 @@ fun MangaActionRow(
     onAddToLibraryClicked: () -> Unit,
     onWebViewClicked: (() -> Unit)?,
     onWebViewLongClicked: (() -> Unit)?,
+    onSearchChaptersClicked: (() -> Unit)?,
     onTrackingClicked: () -> Unit,
     onEditIntervalClicked: (() -> Unit)?,
     onEditCategory: (() -> Unit)?,
@@ -578,6 +580,14 @@ fun ChapterProgressToggle(
                     .clip(MaterialTheme.shapes.extraSmall),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            )
+        } else if (onSearchChaptersClicked != null) {
+            // Entries without WebView (e.g. imported EPUBs) get chapter search in that slot instead
+            MangaActionButton(
+                title = stringResource(MR.strings.action_search),
+                icon = Icons.Outlined.Search,
+                color = defaultActionButtonColor,
+                onClick = onSearchChaptersClicked,
             )
         }
     }

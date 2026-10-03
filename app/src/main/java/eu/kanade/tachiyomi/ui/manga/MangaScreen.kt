@@ -58,6 +58,7 @@ import eu.kanade.tachiyomi.ui.category.CategoryScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.manga.notes.MangaNotesScreen
 import eu.kanade.tachiyomi.ui.manga.recommendations.MangaRecommendationsScreen
+import eu.kanade.tachiyomi.ui.manga.search.ChapterSearchScreen
 import eu.kanade.tachiyomi.ui.manga.track.TrackInfoDialogHomeScreen
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
@@ -80,6 +81,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.novel.TDMR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
+import tachiyomi.source.local.isLocalNovel
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -225,6 +227,10 @@ class MangaScreen(
                 onTranslateClicked = viewModel::translateMangaDetails,
                 onTranslateDownloadedClicked = viewModel::translateDownloadedChapters,
                 onExportEpubClicked = viewModel::showExportEpubDialog.takeIf { successState.isNovel },
+                onSearchChaptersClicked = {
+                    navigator.push(ChapterSearchScreen(successState.manga.id))
+                }.takeIf { successState.isNovel || successState.manga.isLocalNovel() },
+                onWordCountClicked = viewModel::showWordCountDialog.takeIf { successState.isNovel },
                 showSourceName = successState.showSourceName,
                 onToggleSourceNameVisibility = viewModel::toggleSourceNameVisibility,
                 onSourceSuggestionClicked = { manga ->
@@ -447,6 +453,14 @@ class MangaScreen(
                         onExport = { uri, options ->
                             viewModel.exportAsEpub(dialog.manga, dialog.chapters, uri, options)
                         },
+                    )
+                }
+                is MangaViewModel.Dialog.WordCount -> {
+                    eu.kanade.presentation.manga.components.WordCountDialog(
+                        checkedChapters = dialog.checkedChapters,
+                        chaptersToCount = dialog.chaptersToCount,
+                        result = dialog.result,
+                        onDismissRequest = onDismissRequest,
                     )
                 }
             }
