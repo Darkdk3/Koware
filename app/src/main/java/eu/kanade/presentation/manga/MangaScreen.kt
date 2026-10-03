@@ -544,6 +544,7 @@ private fun MangaScreenSmallImpl(
                             eu.kanade.presentation.manga.components.ChapterProgressToggle(
                                 readCount = remember(state.chapters) { state.chapters.count { it.chapter.read } },
                                 totalCount = state.chapters.size,
+                                onSearchChaptersClicked = onSearchChaptersClicked,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }
@@ -872,6 +873,7 @@ fun MangaScreenLargeImpl(
                             eu.kanade.presentation.manga.components.ChapterProgressToggle(
                                 readCount = remember(state.chapters) { state.chapters.count { it.chapter.read } },
                                 totalCount = state.chapters.size,
+                                onSearchChaptersClicked = onSearchChaptersClicked,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             )
                         }

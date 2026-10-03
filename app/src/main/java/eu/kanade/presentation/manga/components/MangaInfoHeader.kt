@@ -508,6 +508,7 @@ private fun TrackerPill(item: TrackItem, onClick: () -> Unit) {
 fun ChapterProgressToggle(
     readCount: Int,
     totalCount: Int,
+    onSearchChaptersClicked: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val showProgressPref = remember {
@@ -516,6 +517,7 @@ fun ChapterProgressToggle(
     }
     val expanded by showProgressPref.collectAsState()
     val percent = if (totalCount > 0) (readCount * 100) / totalCount else 0
+    val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
 
     Column(modifier = modifier) {
         Row(
@@ -583,12 +585,17 @@ fun ChapterProgressToggle(
             )
         } else if (onSearchChaptersClicked != null) {
             // Entries without WebView (e.g. imported EPUBs) get chapter search in that slot instead
-            MangaActionButton(
-                title = stringResource(MR.strings.action_search),
-                icon = Icons.Outlined.Search,
-                color = defaultActionButtonColor,
-                onClick = onSearchChaptersClicked,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                MangaActionButton(
+                    title = stringResource(MR.strings.action_search),
+                    icon = Icons.Outlined.Search,
+                    color = defaultActionButtonColor,
+                    onClick = onSearchChaptersClicked,
+                )
+            }
         }
     }
 }
