@@ -79,7 +79,7 @@ object SettingsAppearanceScreen : SearchableSettings {
         val uiPreferences = remember { Injekt.get<UiPreferences>() }
         return listOf(
             getThemeGroup(uiPreferences = uiPreferences),
-            getCustomizeGroup(),
+            getCustomizeGroup(uiPreferences = uiPreferences),
         )
     }
 }
@@ -154,10 +154,24 @@ private fun AppearanceSubScreen(
 }
 
 @Composable
-private fun getCustomizeGroup(): Preference.PreferenceGroup {
+private fun getCustomizeGroup(
+    uiPreferences: UiPreferences,
+): Preference.PreferenceGroup {
     val navigator = LocalNavigator.currentOrThrow
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val basePreferences = remember { Injekt.get<BasePreferences>() }
+
+    val customThemeEnabled by uiPreferences.customThemeEnabled.collectAsState()
+    val savedRaw by uiPreferences.savedCustomThemes.collectAsState()
+    val activeId by uiPreferences.activeCustomThemeId.collectAsState()
+    val savedThemes = remember(savedRaw) { CustomTheme.parseSaved(savedRaw) }
+    val activeIndex = savedThemes.indexOfFirst { it.id == activeId }
+    val customThemeSubtitle = when {
+        activeIndex >= 0 -> CustomTheme.displayName(savedThemes[activeIndex], activeIndex)
+        customThemeEnabled -> "Unsaved custom theme"
+        savedThemes.isEmpty() -> "Tap to create one"
+        else -> "${savedThemes.size} saved"
+    }
 
     val joined by libraryPreferences.joinedLibrary.collectAsState()
     val uiMode by basePreferences.uiMode.collectAsState()
@@ -178,6 +192,53 @@ private fun getCustomizeGroup(): Preference.PreferenceGroup {
     return Preference.PreferenceGroup(
         title = "Customize",
         preferenceItems = listOf(
+            Preference.PreferenceItem.CustomPreference(
+                title = "Custom theme",
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { navigator.push(SettingsCustomThemeScreen) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Palette,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Custom theme",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = customThemeSubtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = customThemeEnabled,
+                        onCheckedChange = { on ->
+                            if (on) {
+                                val target = savedThemes.firstOrNull { it.id == activeId }
+                                    ?: savedThemes.firstOrNull()
+                                val hasUnsavedColors = uiPreferences.customThemeLight.get().isNotBlank() ||
+                                    uiPreferences.customThemeDark.get().isNotBlank()
+                                when {
+                                    target != null -> CustomTheme.activate(uiPreferences, target)
+                                    hasUnsavedColors -> uiPreferences.customThemeEnabled.set(true)
+                                    else -> navigator.push(SettingsCustomThemeScreen)
+                                }
+                            } else {
+                                uiPreferences.customThemeEnabled.set(false)
+                            }
+                        },
+                    )
+                }
+            },
             Preference.PreferenceItem.TextPreference(
                 title = "Library",
                 subtitle = "Combined ${if (joined) "on" else "off"} · $uiModeLabel",
@@ -415,7 +476,6 @@ private fun getThemeGroup(
     uiPreferences: UiPreferences,
 ): Preference.PreferenceGroup {
     val context = LocalContext.current
-    val navigator = LocalNavigator.currentOrThrow
     val themeModePref = uiPreferences.themeMode
     val themeMode by themeModePref.collectAsState()
     val appThemePref = uiPreferences.appTheme
@@ -425,19 +485,6 @@ private fun getThemeGroup(
     // Read here so the manga-details-style override below can be disabled when the
     // top-level style is Legacy.
     val uiStyle by uiPreferences.uiStyle.collectAsState()
-
-    val customThemeEnabled by uiPreferences.customThemeEnabled.collectAsState()
-    val savedRaw by uiPreferences.savedCustomThemes.collectAsState()
-    val activeId by uiPreferences.activeCustomThemeId.collectAsState()
-    val savedThemes = remember(savedRaw) { CustomTheme.parseSaved(savedRaw) }
-    val activeIndex = savedThemes.indexOfFirst { it.id == activeId }
-    val customThemeSubtitle = when {
-        activeIndex >= 0 -> CustomTheme.displayName(savedThemes[activeIndex], activeIndex)
-        customThemeEnabled -> "Unsaved custom theme"
-        savedThemes.isEmpty() -> "Tap to create one"
-        else -> "${savedThemes.size} saved"
-    }
-
     return Preference.PreferenceGroup(
         title = stringResource(MR.strings.pref_category_theme),
         preferenceItems = listOf(
@@ -472,51 +519,6 @@ private fun getThemeGroup(
                     true
                 },
             ),
-            Preference.PreferenceItem.CustomPreference(
-                title = "Custom theme",
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { navigator.push(SettingsCustomThemeScreen) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Palette,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Custom theme",
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                        Text(
-                            text = customThemeSubtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Switch(
-                        checked = customThemeEnabled,
-                        onCheckedChange = { on ->
-                            if (on) {
-                                val target = savedThemes.firstOrNull { it.id == activeId }
-                                    ?: savedThemes.firstOrNull()
-                                if (target != null) {
-                                    CustomTheme.activate(uiPreferences, target)
-                                } else {
-                                    navigator.push(SettingsCustomThemeScreen)
-                                }
-                            } else {
-                                uiPreferences.customThemeEnabled.set(false)
-                            }
-                        },
-                    )
-                }
-            },
             Preference.PreferenceItem.ListPreference(
                 preference = uiPreferences.uiStyle,
                 entries = UiStyle.entries.associateWith { it.label },
