@@ -7,6 +7,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.AppTheme
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
 
 /** The colors a user can edit. Everything else in the scheme is derived from these. */
 enum class ThemeRole(val label: String, val description: String) {
@@ -23,6 +26,15 @@ data class CustomThemeSpec(
     val base: AppTheme,
     val light: Map<ThemeRole, Color>,
     val dark: Map<ThemeRole, Color>,
+)
+
+/** A custom theme the user saved. [name] may be blank; use [CustomTheme.displayName] to show it. */
+data class SavedCustomTheme(
+    val id: String,
+    val name: String,
+    val base: String,
+    val light: String,
+    val dark: String,
 )
 
 object CustomTheme {
@@ -132,7 +144,6 @@ object CustomTheme {
                 surfaceTint = c,
             )
         }
-
         overrides[ThemeRole.SECONDARY]?.let { c ->
             val container = lerp(s.background, c, containerMix)
             s = s.copy(
@@ -142,7 +153,6 @@ object CustomTheme {
                 onSecondaryContainer = onColorFor(container),
             )
         }
-
         overrides[ThemeRole.TERTIARY]?.let { c ->
             val container = lerp(s.background, c, containerMix)
             s = s.copy(
@@ -152,7 +162,6 @@ object CustomTheme {
                 onTertiaryContainer = onColorFor(container),
             )
         }
-
         overrides[ThemeRole.ERROR]?.let { c ->
             val container = lerp(s.background, c, containerMix)
             s = s.copy(
@@ -164,5 +173,93 @@ object CustomTheme {
         }
 
         return s
+    }
+
+    // ---- Saved custom themes ----
+
+    fun parseSaved(raw: String): List<SavedCustomTheme> {
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            List(array.length()) { i ->
+                val o = array.getJSONObject(i)
+                SavedCustomTheme(
+                    id = o.getString("id"),
+                    name = o.optString("name"),
+                    base = o.optString("base", AppTheme.DEFAULT.name),
+                    light = o.optString("light"),
+                    dark = o.optString("dark"),
+                )
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun serializeSaved(themes: List<SavedCustomTheme>): String {
+        val array = JSONArray()
+        themes.forEach { t ->
+            array.put(
+                JSONObject()
+                    .put("id", t.id)
+                    .put("name", t.name)
+                    .put("base", t.base)
+                    .put("light", t.light)
+                    .put("dark", t.dark),
+            )
+        }
+        return array.toString()
+    }
+
+    /** The name to show on a card: the user's name, or "Custom N" when they didn't give one. */
+    fun displayName(theme: SavedCustomTheme, index: Int): String {
+        return theme.name.ifBlank { "Custom ${index + 1}" }
+    }
+
+    /**
+     * Saves a theme (updates it when [id] matches an existing one, otherwise adds a new one),
+     * makes it the active custom theme, and returns its id.
+     */
+    fun saveTheme(
+        prefs: UiPreferences,
+        id: String?,
+        name: String,
+        base: AppTheme,
+        light: Map<ThemeRole, Color>,
+        dark: Map<ThemeRole, Color>,
+    ): String {
+        val themes = parseSaved(prefs.savedCustomThemes.get()).toMutableList()
+        val themeId = id ?: UUID.randomUUID().toString()
+        val updated = SavedCustomTheme(
+            id = themeId,
+            name = name.trim(),
+            base = base.name,
+            light = serialize(light),
+            dark = serialize(dark),
+        )
+        val index = themes.indexOfFirst { it.id == themeId }
+        if (index >= 0) themes[index] = updated else themes.add(updated)
+        prefs.savedCustomThemes.set(serializeSaved(themes))
+        activate(prefs, updated)
+        return themeId
+    }
+
+    /** Makes [theme] the live custom theme and turns the custom theme on. */
+    fun activate(prefs: UiPreferences, theme: SavedCustomTheme) {
+        prefs.customThemeBase.set(theme.base)
+        prefs.customThemeLight.set(theme.light)
+        prefs.customThemeDark.set(theme.dark)
+        prefs.activeCustomThemeId.set(theme.id)
+        prefs.customThemeEnabled.set(true)
+    }
+
+    /** Deletes a saved theme. If it was the active one, the custom theme is turned off. */
+    fun delete(prefs: UiPreferences, id: String) {
+        val remaining = parseSaved(prefs.savedCustomThemes.get()).filterNot { it.id == id }
+        prefs.savedCustomThemes.set(serializeSaved(remaining))
+        if (prefs.activeCustomThemeId.get() == id) {
+            prefs.activeCustomThemeId.set("")
+            prefs.customThemeEnabled.set(false)
+            prefs.customThemeLight.set("")
+            prefs.customThemeDark.set("")
+        }
     }
 }
