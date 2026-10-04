@@ -53,6 +53,9 @@ class UiPreferences(
 
     val showNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean("pref_show_navigation_labels", true)
 
+    /** Last app version code seen; MainActivity uses it to show the "app updated" toast. */
+    val lastVersionCode: Preference<Int> = preferenceStore.getInt("last_version_code", 0)
+
     companion object {
         fun dateFormat(format: String): DateTimeFormatter = when (format) {
             "" -> DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT)
