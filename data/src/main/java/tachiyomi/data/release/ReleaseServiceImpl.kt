@@ -6,6 +6,10 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.awaitSuccess
 import eu.kanade.tachiyomi.network.interceptor.rateLimitExempt
 import eu.kanade.tachiyomi.network.parseAs
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.model.Release
@@ -28,14 +32,55 @@ class ReleaseServiceImpl(
 
         val downloadLink = getDownloadLink(release = release, isFoss = arguments.isFoss) ?: return null
 
+        // Process the release info (body)
+        val processedInfo = release.info.substringBeforeLast("<!-->").replace(gitHubUsernameMentionRegex) { mention ->
+            "[${mention.value}](https://github.com/${mention.value.substring(1)})"
+        }
+
+        // If release info is empty or just whitespace, try to generate info from recent commits
+        val finalInfo = if (processedInfo.isBlank()) {
+            generateInfoFromCommits(arguments.repository)
+        } else {
+            processedInfo
+        }
+
         return Release(
             version = release.version,
-            info = release.info.substringBeforeLast("<!-->").replace(gitHubUsernameMentionRegex) { mention ->
-                "[${mention.value}](https://github.com/${mention.value.substring(1)})"
-            },
+            info = finalInfo,
             releaseLink = release.releaseLink,
             downloadLink = downloadLink,
         )
+    }
+
+    private suspend fun generateInfoFromCommits(repository: String): String {
+        // Fetch recent commits (limit to 10) to generate a changelog
+        val commitsResponse = with(json) {
+            networkService.client.rateLimitExempt()
+                .newCall(GET("https://api.github.com/repos/$repository/commits?per_page=10"))
+                .awaitSuccess()
+                .parseAs<List<GitHubCommit>>()
+        }
+
+        if (commitsResponse.isEmpty()) {
+            return "No changelog available."
+        }
+
+        // Format commit messages into a changelog
+        val changelog = StringBuilder()
+        changelog.append("## Recent Changes\n\n")
+
+        commitsResponse.forEach { commit ->
+            val message = commit.commit.message.trim()
+            // Take first line of commit message as summary
+            val summary = message.lines().firstOrNull() ?: message
+            // Clean up the summary (remove common prefixes like [feat], [fix], etc.)
+            val cleanSummary = summary.replace("""^\[.*?\]\s*""".toRegex(), "").trim()
+            if (cleanSummary.isNotBlank()) {
+                changelog.append("- $cleanSummary\n")
+            }
+        }
+
+        return changelog.toString().trimEnd()
     }
 
     private fun getDownloadLink(release: GithubRelease, isFoss: Boolean): String? {
@@ -67,4 +112,16 @@ class ReleaseServiceImpl(
         private val gitHubUsernameMentionRegex = """\B@([a-z0-9](?:-(?=[a-z0-9])|[a-z0-9]){0,38}(?<=[a-z0-9]))"""
             .toRegex(RegexOption.IGNORE_CASE)
     }
+}
+
+// Data class for parsing GitHub commit response
+@Serializable
+data class GitHubCommit(
+    @SerialName("sha") val sha: String,
+    @SerialName("commit") val commit: CommitDetails
+) {
+    @Serializable
+    data class CommitDetails(
+        @SerialName("message") val message: String
+    )
 }
