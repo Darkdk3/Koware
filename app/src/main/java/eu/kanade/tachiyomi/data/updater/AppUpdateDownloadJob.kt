@@ -100,7 +100,7 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             .newCachelessCallWithProgress(GET(url), progressListener)
             .awaitSuccess()
 
-        val apkFile = updateApk(context)
+        val apkFile = updateApk(context, url)
         response.body.source().saveTo(apkFile)
     }
 
@@ -111,7 +111,10 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
 
         const val EXTRA_DOWNLOAD_URL = "DOWNLOAD_URL"
 
-        fun updateApk(context: Context): File = File(context.externalCacheDir, "update.apk")
+        fun updateApk(context: Context, url: String): File {
+            val fileName = url.substringAfterLast('/').substringBefore('?').ifEmpty { "update.apk" }
+            return File(context.externalCacheDir, fileName)
+        }
 
         fun start(context: Context, url: String) {
             val constraints = Constraints(

@@ -43,14 +43,14 @@ class NewUpdateScreenModel(
                     workInfo.progress.getString(AppUpdateDownloadJob.EXTRA_DOWNLOAD_URL)
                 }
 
-                if (url != downloadLink) {
+                if (url != null && url != downloadLink) {
                     return@map 0 to Stage.Available
                 }
 
                 val stage = when {
                     workInfo.state == WorkInfo.State.FAILED -> Stage.Failed
                     workInfo.state.isFinished && progress == 100 -> {
-                        if (AppUpdateDownloadJob.updateApk(context).exists()) {
+                        if (AppUpdateDownloadJob.updateApk(context, downloadLink).exists()) {
                             Stage.Downloaded
                         } else {
                             Stage.Available
@@ -79,10 +79,10 @@ class NewUpdateScreenModel(
     }
 
     fun installUpdate() {
-        val apkFile = AppUpdateDownloadJob.updateApk(context)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
+        val apkFile = AppUpdateDownloadJob.updateApk(context, downloadLink)
+        val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
             setDataAndType(apkFile.getUriCompat(context), ExtensionInstaller.APK_MIME)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
         }
         context.startActivity(intent)
     }
