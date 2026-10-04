@@ -40,6 +40,10 @@ class UiPreferences(
 
     val customThemeDark: Preference<String> = preferenceStore.getString("pref_custom_theme_dark", "")
 
+    val savedCustomThemes: Preference<String> = preferenceStore.getString("pref_custom_themes_saved", "")
+
+    val activeCustomThemeId: Preference<String> = preferenceStore.getString("pref_custom_theme_active_id", "")
+
     val themeCoverBasedStyle: Preference<PaletteStyle> = preferenceStore.getEnum(
         "pref_theme_cover_based_style",
         PaletteStyle.TonalSpot,
