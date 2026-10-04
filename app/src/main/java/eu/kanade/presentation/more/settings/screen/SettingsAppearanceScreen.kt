@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Dock
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
 import androidx.compose.material3.FilterChip
@@ -153,7 +154,9 @@ private fun getCustomizeGroup(): Preference.PreferenceGroup {
     val navigator = LocalNavigator.currentOrThrow
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val basePreferences = remember { Injekt.get<BasePreferences>() }
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
 
+    val customThemeEnabled by uiPreferences.customThemeEnabled.collectAsState()
     val joined by libraryPreferences.joinedLibrary.collectAsState()
     val uiMode by basePreferences.uiMode.collectAsState()
     val navWidth by libraryPreferences.navBarWidthPercent.collectAsState()
@@ -173,6 +176,12 @@ private fun getCustomizeGroup(): Preference.PreferenceGroup {
     return Preference.PreferenceGroup(
         title = "Customize",
         preferenceItems = listOf(
+            Preference.PreferenceItem.TextPreference(
+                title = "Custom theme",
+                subtitle = if (customThemeEnabled) "On" else "Off",
+                icon = Icons.Outlined.Palette,
+                onClick = { navigator.push(SettingsCustomThemeScreen) },
+            ),
             Preference.PreferenceItem.TextPreference(
                 title = "Library",
                 subtitle = "Combined ${if (joined) "on" else "off"} · $uiModeLabel",
