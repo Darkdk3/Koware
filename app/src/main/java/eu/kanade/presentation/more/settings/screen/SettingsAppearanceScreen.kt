@@ -25,7 +25,6 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import com.materialkolor.PaletteStyle
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
-import eu.kanade.domain.ui.model.LibraryChipsStyle
 import eu.kanade.domain.ui.model.MangaDetailsStyle
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
@@ -460,12 +459,6 @@ object SettingsAppearanceScreen : SearchableSettings {
                     // this value (see the modernStyle calculation in MangaScreen.kt).
                     enabled = uiStyle == UiStyle.MODERN,
                 ),
-                Preference.PreferenceItem.ListPreference(
-                    preference = uiPreferences.libraryChipsStyle,
-                    entries = LibraryChipsStyle.entries.associateWith { it.label },
-                    title = "Library filter chips style",
-                    subtitle = "Choose between modern style or legacy library filter chips",
-                ),
             ),
         )
     }
@@ -687,5 +680,5 @@ private val DateFormats = listOf(
     "dd/MM/yy",
     "yyyy-MM-dd",
     "dd MMM yyyy",
-    "MMM dd, yyyy",
+    "MM dd, yyyy",
 )
