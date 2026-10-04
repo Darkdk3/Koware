@@ -27,8 +27,8 @@ sealed class Preference {
             override val enabled: Boolean = true,
             val widget: @Composable (() -> Unit)? = null,
             val onClick: (() -> Unit)? = null,
+            override val icon: ImageVector? = null,
         ) : PreferenceItem<String, Unit>() {
-            override val icon: ImageVector? = null
             override val onValueChanged: suspend (value: String) -> Unit = {}
         }
 
@@ -198,7 +198,6 @@ sealed class Preference {
     data class PreferenceGroup(
         override val title: String,
         override val enabled: Boolean = true,
-
         val preferenceItems: List<PreferenceItem<out Any, out Any>>,
     ) : Preference()
 }
