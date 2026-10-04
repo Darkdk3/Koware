@@ -2,6 +2,7 @@ package eu.kanade.presentation.more.settings.screen
 
 import android.app.Activity
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -27,6 +29,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.preference.PreferenceManager
@@ -47,6 +50,7 @@ import eu.kanade.presentation.more.settings.PreferenceScreen
 import eu.kanade.presentation.more.settings.screen.appearance.AppLanguageScreen
 import eu.kanade.presentation.more.settings.widget.AppThemeModePreferenceWidget
 import eu.kanade.presentation.more.settings.widget.AppThemePreferenceWidget
+import eu.kanade.presentation.theme.CustomTheme
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.datetime.TimeZone
@@ -154,9 +158,7 @@ private fun getCustomizeGroup(): Preference.PreferenceGroup {
     val navigator = LocalNavigator.currentOrThrow
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val basePreferences = remember { Injekt.get<BasePreferences>() }
-    val uiPreferences = remember { Injekt.get<UiPreferences>() }
 
-    val customThemeEnabled by uiPreferences.customThemeEnabled.collectAsState()
     val joined by libraryPreferences.joinedLibrary.collectAsState()
     val uiMode by basePreferences.uiMode.collectAsState()
     val navWidth by libraryPreferences.navBarWidthPercent.collectAsState()
@@ -176,12 +178,6 @@ private fun getCustomizeGroup(): Preference.PreferenceGroup {
     return Preference.PreferenceGroup(
         title = "Customize",
         preferenceItems = listOf(
-            Preference.PreferenceItem.TextPreference(
-                title = "Custom theme",
-                subtitle = if (customThemeEnabled) "On" else "Off",
-                icon = Icons.Outlined.Palette,
-                onClick = { navigator.push(SettingsCustomThemeScreen) },
-            ),
             Preference.PreferenceItem.TextPreference(
                 title = "Library",
                 subtitle = "Combined ${if (joined) "on" else "off"} · $uiModeLabel",
@@ -419,6 +415,7 @@ private fun getThemeGroup(
     uiPreferences: UiPreferences,
 ): Preference.PreferenceGroup {
     val context = LocalContext.current
+    val navigator = LocalNavigator.currentOrThrow
     val themeModePref = uiPreferences.themeMode
     val themeMode by themeModePref.collectAsState()
     val appThemePref = uiPreferences.appTheme
@@ -428,6 +425,19 @@ private fun getThemeGroup(
     // Read here so the manga-details-style override below can be disabled when the
     // top-level style is Legacy.
     val uiStyle by uiPreferences.uiStyle.collectAsState()
+
+    val customThemeEnabled by uiPreferences.customThemeEnabled.collectAsState()
+    val savedRaw by uiPreferences.savedCustomThemes.collectAsState()
+    val activeId by uiPreferences.activeCustomThemeId.collectAsState()
+    val savedThemes = remember(savedRaw) { CustomTheme.parseSaved(savedRaw) }
+    val activeIndex = savedThemes.indexOfFirst { it.id == activeId }
+    val customThemeSubtitle = when {
+        activeIndex >= 0 -> CustomTheme.displayName(savedThemes[activeIndex], activeIndex)
+        customThemeEnabled -> "Unsaved custom theme"
+        savedThemes.isEmpty() -> "Tap to create one"
+        else -> "${savedThemes.size} saved"
+    }
+
     return Preference.PreferenceGroup(
         title = stringResource(MR.strings.pref_category_theme),
         preferenceItems = listOf(
@@ -445,7 +455,11 @@ private fun getThemeGroup(
                     AppThemePreferenceWidget(
                         value = appTheme,
                         amoled = amoled,
-                        onItemClick = { appThemePref.set(it) },
+                        onItemClick = {
+                            appThemePref.set(it)
+                            // Picking one of the original themes turns the custom theme off.
+                            uiPreferences.customThemeEnabled.set(false)
+                        },
                     )
                 }
             },
@@ -458,6 +472,51 @@ private fun getThemeGroup(
                     true
                 },
             ),
+            Preference.PreferenceItem.CustomPreference(
+                title = "Custom theme",
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { navigator.push(SettingsCustomThemeScreen) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Palette,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Custom theme",
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = customThemeSubtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(
+                        checked = customThemeEnabled,
+                        onCheckedChange = { on ->
+                            if (on) {
+                                val target = savedThemes.firstOrNull { it.id == activeId }
+                                    ?: savedThemes.firstOrNull()
+                                if (target != null) {
+                                    CustomTheme.activate(uiPreferences, target)
+                                } else {
+                                    navigator.push(SettingsCustomThemeScreen)
+                                }
+                            } else {
+                                uiPreferences.customThemeEnabled.set(false)
+                            }
+                        },
+                    )
+                }
+            },
             Preference.PreferenceItem.ListPreference(
                 preference = uiPreferences.uiStyle,
                 entries = UiStyle.entries.associateWith { it.label },
