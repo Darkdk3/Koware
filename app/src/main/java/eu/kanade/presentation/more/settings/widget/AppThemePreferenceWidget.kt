@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,6 +62,8 @@ internal fun AppThemePreferenceWidget(
     value: AppTheme,
     amoled: Boolean,
     onItemClick: (AppTheme) -> Unit,
+    customSelected: Boolean = false,
+    onCustomClick: (() -> Unit)? = null,
 ) {
     BasePreferenceWidget(
         subcomponent = {
@@ -68,6 +71,8 @@ internal fun AppThemePreferenceWidget(
                 currentTheme = value,
                 amoled = amoled,
                 onItemClick = onItemClick,
+                customSelected = customSelected,
+                onCustomClick = onCustomClick,
             )
         },
     )
@@ -78,12 +83,15 @@ private fun AppThemesList(
     currentTheme: AppTheme,
     amoled: Boolean,
     onItemClick: (AppTheme) -> Unit,
+    customSelected: Boolean = false,
+    onCustomClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val appThemes = remember {
         AppTheme.entries
             .filterNot { it.titleRes == null || (it == AppTheme.MONET && !DeviceUtil.isDynamicColorAvailable) }
     }
+
     LazyRow(
         contentPadding = PaddingValues(horizontal = PrefsHorizontalPadding),
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
@@ -102,16 +110,14 @@ private fun AppThemesList(
                     amoled = amoled,
                 ) {
                     AppThemePreviewItem(
-                        selected = currentTheme == appTheme,
+                        selected = !customSelected && currentTheme == appTheme,
                         onClick = {
                             onItemClick(appTheme)
                             (context as? Activity)?.let { ActivityCompat.recreate(it) }
                         },
                     )
                 }
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     text = stringResource(appTheme.titleRes!!),
                     modifier = Modifier
@@ -124,6 +130,67 @@ private fun AppThemesList(
                 )
             }
         }
+
+        if (onCustomClick != null) {
+            item(key = "custom") {
+                Column(
+                    modifier = Modifier
+                        .width(114.dp)
+                        .padding(top = 8.dp),
+                ) {
+                    if (customSelected) {
+                        // Shows the live custom theme, since no explicit theme is passed.
+                        TachiyomiTheme(amoled = amoled) {
+                            AppThemePreviewItem(
+                                selected = true,
+                                onClick = onCustomClick,
+                            )
+                        }
+                    } else {
+                        CustomThemePlaceholder(onClick = onCustomClick)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Custom",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .secondaryItemAlpha(),
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        minLines = 2,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomThemePlaceholder(
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(9f / 16f)
+            .border(
+                width = 4.dp,
+                color = DividerDefaults.color,
+                shape = RoundedCornerShape(17.dp),
+            )
+            .padding(4.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Palette,
+            contentDescription = null,
+            modifier = Modifier.size(32.dp),
+            tint = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -168,7 +235,6 @@ fun AppThemePreviewItem(
                         shape = MaterialTheme.shapes.small,
                     ),
             )
-
             Box(
                 modifier = Modifier.weight(0.3f),
                 contentAlignment = Alignment.CenterEnd,
