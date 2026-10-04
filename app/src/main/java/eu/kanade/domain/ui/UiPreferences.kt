@@ -1,8 +1,11 @@
 package eu.kanade.domain.ui
 
+import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.model.AppTheme
+import eu.kanade.domain.ui.model.MangaDetailsStyle
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
+import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.isDynamicColorAvailable
 import tachiyomi.core.common.preference.Preference
@@ -36,6 +39,20 @@ class UiPreferences(
     val customThemeLight: Preference<String> = preferenceStore.getString("pref_custom_theme_light", "")
 
     val customThemeDark: Preference<String> = preferenceStore.getString("pref_custom_theme_dark", "")
+
+    val themeCoverBasedStyle: Preference<PaletteStyle> = preferenceStore.getEnum(
+        "pref_theme_cover_based_style",
+        PaletteStyle.TonalSpot,
+    )
+
+    val uiStyle: Preference<UiStyle> = preferenceStore.getEnum("pref_ui_style", UiStyle.LEGACY)
+
+    val mangaDetailsStyle: Preference<MangaDetailsStyle> = preferenceStore.getEnum(
+        "pref_manga_details_style",
+        MangaDetailsStyle.LEGACY,
+    )
+
+    val lastVersionCode: Preference<Int> = preferenceStore.getInt("last_version_code", 0)
 
     val relativeTime: Preference<Boolean> = preferenceStore.getBoolean("relative_time_v2", true)
 
