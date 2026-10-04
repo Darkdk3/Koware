@@ -2,7 +2,6 @@ package eu.kanade.domain.ui
 
 import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.model.AppTheme
-import eu.kanade.domain.ui.model.LibraryChipsStyle
 import eu.kanade.domain.ui.model.MangaDetailsStyle
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
@@ -33,23 +32,16 @@ class UiPreferences(
 
     val themeDarkAmoled: Preference<Boolean> = preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)
 
-    /** Overall UI style: legacy (original) or modern (redesigned look). */
+    /** Palette style used when recoloring the manga details screen from the cover. */
+    val themeCoverBasedStyle: Preference<PaletteStyle> =
+        preferenceStore.getEnum("pref_theme_cover_based_style", PaletteStyle.TonalSpot)
+
+    /** App-wide look: Legacy (original) or Modern (card-based). */
     val uiStyle: Preference<UiStyle> = preferenceStore.getEnum("pref_ui_style", UiStyle.LEGACY)
 
-    val mangaDetailsStyle: Preference<MangaDetailsStyle> = preferenceStore.getEnum("pref_manga_details_style", MangaDetailsStyle.MODERN)
-
-    val libraryChipsStyle: Preference<LibraryChipsStyle> = preferenceStore.getEnum("pref_library_chips_style", LibraryChipsStyle.MODERN)
-
-    /**
-     * Material Kolor palette style used when theming from a manga's cover color.
-     * Defaults to Vibrant rather than Material You's stock TonalSpot, since TonalSpot is
-     * deliberately conservative (built for safety across arbitrary system wallpapers) and
-     * reads as flat/washed out when driven by a cover-extracted seed color specifically.
-     */
-    val themeCoverBasedStyle: Preference<PaletteStyle> = preferenceStore.getEnum(
-        "pref_theme_cover_based_style",
-        PaletteStyle.Vibrant,
-    )
+    /** Manga details override; only applies while [uiStyle] is Modern. */
+    val mangaDetailsStyle: Preference<MangaDetailsStyle> =
+        preferenceStore.getEnum("pref_manga_details_style", MangaDetailsStyle.MODERN)
 
     val relativeTime: Preference<Boolean> = preferenceStore.getBoolean("relative_time_v2", true)
 
@@ -60,9 +52,6 @@ class UiPreferences(
     val imagesInDescription: Preference<Boolean> = preferenceStore.getBoolean("pref_render_images_description", true)
 
     val showNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean("pref_show_navigation_labels", true)
-
-    /** Last version for which changelog was shown. Used to display whats new popup after update. */
-    val lastVersionCode: Preference<Int> = preferenceStore.getInt("pref_last_version_code", 0)
 
     companion object {
         fun dateFormat(format: String): DateTimeFormatter = when (format) {
