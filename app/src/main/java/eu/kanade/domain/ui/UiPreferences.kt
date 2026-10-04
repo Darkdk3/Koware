@@ -1,11 +1,8 @@
 package eu.kanade.domain.ui
 
-import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.model.AppTheme
-import eu.kanade.domain.ui.model.MangaDetailsStyle
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
-import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.tachiyomi.util.system.DeviceUtil
 import eu.kanade.tachiyomi.util.system.isDynamicColorAvailable
 import tachiyomi.core.common.preference.Preference
@@ -32,16 +29,13 @@ class UiPreferences(
 
     val themeDarkAmoled: Preference<Boolean> = preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)
 
-    /** Palette style used when recoloring the manga details screen from the cover. */
-    val themeCoverBasedStyle: Preference<PaletteStyle> =
-        preferenceStore.getEnum("pref_theme_cover_based_style", PaletteStyle.TonalSpot)
+    val customThemeEnabled: Preference<Boolean> = preferenceStore.getBoolean("pref_custom_theme_enabled", false)
 
-    /** App-wide look: Legacy (original) or Modern (card-based). */
-    val uiStyle: Preference<UiStyle> = preferenceStore.getEnum("pref_ui_style", UiStyle.LEGACY)
+    val customThemeBase: Preference<String> = preferenceStore.getString("pref_custom_theme_base", AppTheme.DEFAULT.name)
 
-    /** Manga details override; only applies while [uiStyle] is Modern. */
-    val mangaDetailsStyle: Preference<MangaDetailsStyle> =
-        preferenceStore.getEnum("pref_manga_details_style", MangaDetailsStyle.MODERN)
+    val customThemeLight: Preference<String> = preferenceStore.getString("pref_custom_theme_light", "")
+
+    val customThemeDark: Preference<String> = preferenceStore.getString("pref_custom_theme_dark", "")
 
     val relativeTime: Preference<Boolean> = preferenceStore.getBoolean("relative_time_v2", true)
 
@@ -52,9 +46,6 @@ class UiPreferences(
     val imagesInDescription: Preference<Boolean> = preferenceStore.getBoolean("pref_render_images_description", true)
 
     val showNavigationLabels: Preference<Boolean> = preferenceStore.getBoolean("pref_show_navigation_labels", true)
-
-    /** Last app version code seen; MainActivity uses it to show the "app updated" toast. */
-    val lastVersionCode: Preference<Int> = preferenceStore.getInt("last_version_code", 0)
 
     companion object {
         fun dateFormat(format: String): DateTimeFormatter = when (format) {
