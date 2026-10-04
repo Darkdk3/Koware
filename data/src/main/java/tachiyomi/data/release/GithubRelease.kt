@@ -9,14 +9,17 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GithubRelease(
     @SerialName("tag_name")
-    val version: String,
+    val tagName: String,
     @SerialName("body")
     val info: String,
     @SerialName("html_url")
     val releaseLink: String,
     @SerialName("assets")
     val assets: List<GitHubAsset>,
-)
+) {
+    // For backward compatibility
+    val version: String get() = tagName
+}
 
 /**
  * Asset class containing asset name and download url.

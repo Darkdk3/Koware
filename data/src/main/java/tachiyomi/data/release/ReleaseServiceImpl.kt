@@ -39,7 +39,7 @@ class ReleaseServiceImpl(
 
         // If release info is empty or just whitespace, try to generate info from recent commits
         val finalInfo = if (processedInfo.isBlank()) {
-            generateInfoFromCommits(arguments.repository)
+            generateInfoFromCommits(arguments.repository, release.tagName)
         } else {
             processedInfo
         }
@@ -52,11 +52,70 @@ class ReleaseServiceImpl(
         )
     }
 
-    private suspend fun generateInfoFromCommits(repository: String): String {
-        // Fetch recent commits (limit to 10) to generate a changelog
+    private suspend fun generateInfoFromCommits(repository: String, currentTag: String): String {
+        // Get the previous release to determine the commit range
+        val previousReleases = with(json) {
+            networkService.client.rateLimitExempt()
+                .newCall(GET("https://api.github.com/repos/$repository/releases?per_page=2"))
+                .awaitSuccess()
+                .parseAs<List<GithubRelease>>()
+        }
+
+        // Determine the base tag for comparison (previous release or fallback)
+        val baseTag = if (previousReleases.size >= 2) {
+            previousReleases[1].tagName // Second most recent release
+        } else {
+            // Fallback: if no previous release, use commits from the last 30 days
+            val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)
+            return generateInfoFromRecentCommits(repository, thirtyDaysAgo)
+        }
+
+        // Use GitHub's compare API to get commits between the two releases
+        val compareUrl = "https://api.github.com/repos/$repository/compare/$baseTag...$currentTag"
+        val commitsResponse = with(json) {
+            try {
+                networkService.client.rateLimitExempt()
+                    .newCall(GET(compareUrl))
+                    .awaitSuccess()
+                    .parseAs<GitHubCompareResponse>()
+            } catch (e: Exception) {
+                // If compare fails (e.g., first release), fall back to recent commits
+                return generateInfoFromRecentCommits(repository, 0L)
+            }
+        }
+
+        val commits = commitsResponse.commits ?: return "No changelog available."
+        if (commits.isEmpty()) {
+            return "No changes detected between releases."
+        }
+
+        // Format commit messages into a changelog
+        val changelog = StringBuilder()
+        changelog.append("## Changes in this release\n\n")
+
+        commits.forEach { commitInfo ->
+            val commit = commitInfo.commit
+            val message = commit.message.trim()
+            // Take first line of commit message as summary
+            val summary = message.lines().firstOrNull() ?: message
+            // Clean up the summary (remove common prefixes like [feat], [fix], etc.)
+            val cleanSummary = summary.replace("""^\[.*?\]\s*""".toRegex(), "").trim()
+            if (cleanSummary.isNotBlank()) {
+                changelog.append("- $cleanSummary\n")
+            }
+        }
+
+        return changelog.toString().trimEnd()
+    }
+
+    private suspend fun generateInfoFromRecentCommits(repository: String, timestampMillis: Long): String {
+        val sinceParam = if (timestampMillis > 0) {
+            "&since=${java.time.Instant.ofEpochMilli(timestampMillis).toString()}"
+        } else ""
+        // Fetch recent commits to generate a changelog
         val commitsResponse = with(json) {
             networkService.client.rateLimitExempt()
-                .newCall(GET("https://api.github.com/repos/$repository/commits?per_page=10"))
+                .newCall(GET("https://api.github.com/repos/$repository/commits?per_page=10$sinceParam"))
                 .awaitSuccess()
                 .parseAs<List<GitHubCommit>>()
         }
@@ -125,3 +184,13 @@ data class GitHubCommit(
         @SerialName("message") val message: String
     )
 }
+
+// Data class for parsing GitHub compare API response
+@Serializable
+data class GitHubCompareResponse(
+    @SerialName("status") val status: String,
+    @SerialName("ahead_by") val aheadBy: Int,
+    @SerialName("behind_by") val behindBy: Int,
+    @SerialName("total_commits") val totalCommits: Int,
+    @SerialName("commits") val commits: List<GitHubCommit> = emptyList(),
+)
