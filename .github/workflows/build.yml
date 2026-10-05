@@ -25,6 +25,7 @@ jobs:
   build:
     name: Build, Test & (on main) Sign APK
     runs-on: ubuntu-24.04
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,10 +34,6 @@ jobs:
 
       - name: Dependency Review
         if: github.event_name == 'pull_request'
-        # This fork has the GitHub dependency graph disabled in repo settings, so this
-        # action errors out on every PR. Don't let that block the actual build - it is
-        # not a code problem.
-        continue-on-error: true
         uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
 
       - name: Count Commits
@@ -55,6 +52,16 @@ jobs:
           set -e
           echo "${{ env.COMMIT_COUNT }}"
           test ${{ env.COMMIT_COUNT }} -gt 1 || exit 1
+
+      - name: Count Commits (this fork)
+        # The in-app updater compares the release tag number against the app's
+        # COMMIT_COUNT, so the tag must be the git commit count, not the run number.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository != 'tsundoku-otaku/tsundoku'
+        run: |
+          set -e
+          commit_count=$(git rev-list --count HEAD)
+          echo "$commit_count"
+          echo "COMMIT_COUNT=$commit_count" >> $GITHUB_ENV
 
       - name: Set up JDK
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
@@ -78,7 +85,7 @@ jobs:
           key: debug-keystore-v1
 
       - name: Build release APK(s) (unsigned)
-        run: ./gradlew clean assembleNightly -Penable-updater
+        run: ./gradlew assembleNightly -Penable-updater
 
       - name: Upload unsigned APK(s)
         uses: actions/upload-artifact@v5
@@ -138,7 +145,9 @@ jobs:
           name: Tsundoku Nightly r${{ env.COMMIT_COUNT }}
           body: |
             All Hope Abandon Ye Who Enter Here
+
             <!-->
+
             > [!TIP]
             >
             > ### If you are unsure which version to download then go with `tsundoku-r${{ env.COMMIT_COUNT }}.apk`
@@ -166,16 +175,23 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository != 'tsundoku-otaku/tsundoku'
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
-          tag_name: nightly-${{ github.run_number }}
-          name: Nightly build ${{ github.run_number }}
+          tag_name: r${{ env.COMMIT_COUNT }}
+          name: Koware Nightly r${{ env.COMMIT_COUNT }}
+          # Everything before the <!--> marker is what the in-app dialog shows.
+          # It's empty on purpose so the app builds a changelog from commit messages.
           body: |
+            <!-->
+
             Automated nightly build from commit ${{ github.sha }}.
 
             Signed with Android's default debug keystore (this fork doesn't have
             the upstream signing secrets) — installable, but Android will treat
             it as a different signing identity than any store-signed version.
           files: app/build/outputs/apk/nightly/*.apk
-          prerelease: true
+          # Must NOT be a pre-release: the app uses GitHub's /releases/latest,
+          # which ignores pre-releases.
+          prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
