@@ -135,7 +135,7 @@ object HomeScreen : Screen() {
         // state (.hazeSource), and it's provided app-wide via LocalHazeState so
         // the floating nav bar AND any bottom sheet/dialog opened on top of a
         // Home tab can both read it for their Frosted background style.
-        val hazeState = remember { HazeState() }
+        val hazeState = LocalHazeState.current ?: remember { HazeState() }
 
         CompositionLocalProvider(LocalHazeState provides hazeState) {
             TabNavigator(

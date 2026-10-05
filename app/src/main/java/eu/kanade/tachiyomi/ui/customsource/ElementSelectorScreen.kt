@@ -54,12 +54,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import eu.kanade.presentation.components.AdaptiveSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -904,9 +903,8 @@ fun ElementSelectorScreen(
     }
 
     if (showSelectedSheet) {
-        ModalBottomSheet(
+        AdaptiveSheet(
             onDismissRequest = { showSelectedSheet = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             SelectedElementsPanel(
                 elements = selectedElements,

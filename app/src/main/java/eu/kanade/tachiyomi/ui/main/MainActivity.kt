@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -58,6 +59,7 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
+import tachiyomi.presentation.core.util.LocalHazeState
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.source.interactor.GetIncognitoState
@@ -184,123 +186,125 @@ class MainActivity : BaseActivity() {
                 )
             }
 
-            Navigator(
-                screen = HomeScreen,
-                disposeBehavior = NavigatorDisposeBehavior(disposeNestedNavigators = false, disposeSteps = true),
-            ) { navigator ->
-                LaunchedEffect(navigator) {
-                    this@MainActivity.navigator = navigator
-                    if (isLaunch) {
-                        // Mass-import restore/auto-resume deliberately NOT run here: starting its
-                        // foreground workers during cold start jammed the splash window (the
-                        // activity could fail to start). It now runs lazily when the mass-import
-                        // dialog is opened instead.
+            CompositionLocalProvider(LocalHazeState provides hazeState) {
+                Navigator(
+                    screen = HomeScreen,
+                    disposeBehavior = NavigatorDisposeBehavior(disposeNestedNavigators = false, disposeSteps = true),
+                ) { navigator ->
+                    LaunchedEffect(navigator) {
+                        this@MainActivity.navigator = navigator
+                        if (isLaunch) {
+                            // Mass-import restore/auto-resume deliberately NOT run here: starting its
+                            // foreground workers during cold start jammed the splash window (the
+                            // activity could fail to start). It now runs lazily when the mass-import
+                            // dialog is opened instead.
 
-                        // Set start screen
-                        handleIntentAction(intent, navigator, closeImportScreenOnDone = true)
+                            // Set start screen
+                            handleIntentAction(intent, navigator, closeImportScreenOnDone = true)
 
-                        // Reset Incognito Mode on relaunch
-                        preferences.incognitoMode.set(false)
+                            // Reset Incognito Mode on relaunch
+                            preferences.incognitoMode.set(false)
 
-                        // Show changelog popup if app was updated
-                        showUpdateChangelogIfNeeded(context)
+                            // Show changelog popup if app was updated
+                            showUpdateChangelogIfNeeded(context)
+                        }
                     }
-                }
 
-                LaunchedEffect(navigator.lastItem) {
-                    (navigator.lastItem as? BrowseSourceScreen)?.sourceId
-                        .let(getIncognitoState::subscribe)
-                        .collectLatest { incognito = it }
-                }
+                    LaunchedEffect(navigator.lastItem) {
+                        (navigator.lastItem as? BrowseSourceScreen)?.sourceId
+                            .let(getIncognitoState::subscribe)
+                            .collectLatest { incognito = it }
+                    }
 
-                val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)
-                Scaffold(
-                    topBar = {
-                        AppStateBanners(
-                            downloadedOnlyMode = downloadOnly,
-                            incognitoMode = incognito,
-                            indexing = indexing,
-                            modifier = Modifier.windowInsetsPadding(scaffoldInsets),
-                        )
-                    },
-                    contentWindowInsets = scaffoldInsets,
-                ) { contentPadding ->
-                    // Consume insets already used by app state banners
-                    Box {
-                        // Shows current screen
-                        DefaultNavigatorScreenTransition(
-                            navigator = navigator,
-                            modifier = Modifier
-                                .padding(contentPadding)
-                                .consumeWindowInsets(contentPadding)
-                                .hazeSource(hazeState),
-                        )
+                    val scaffoldInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Horizontal)
+                    Scaffold(
+                        topBar = {
+                            AppStateBanners(
+                                downloadedOnlyMode = downloadOnly,
+                                incognitoMode = incognito,
+                                indexing = indexing,
+                                modifier = Modifier.windowInsetsPadding(scaffoldInsets),
+                            )
+                        },
+                        contentWindowInsets = scaffoldInsets,
+                    ) { contentPadding ->
+                        // Consume insets already used by app state banners
+                        Box {
+                            // Shows current screen
+                            DefaultNavigatorScreenTransition(
+                                navigator = navigator,
+                                modifier = Modifier
+                                    .padding(contentPadding)
+                                    .consumeWindowInsets(contentPadding)
+                                    .hazeSource(hazeState),
+                            )
 
-                        // Draw navigation bar scrim when needed
-                        if (remember { isNavigationBarNeedsScrim() }) {
-                            val navBarShape = RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
-                            val navBarAlpha = navBarOpacityPercent / 100f
-                            val navBarSurfaceColor = MaterialTheme.colorScheme.surface
-                            val navBarSurfaceContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                            // Draw navigation bar scrim when needed
+                            if (remember { isNavigationBarNeedsScrim() }) {
+                                val navBarShape = RoundedCornerShape(topStart = navBarCornerRadius.dp, topEnd = navBarCornerRadius.dp)
+                                val navBarAlpha = navBarOpacityPercent / 100f
+                                val navBarSurfaceColor = MaterialTheme.colorScheme.surface
+                                val navBarSurfaceContainerColor = MaterialTheme.colorScheme.surfaceContainer
 
-                            when (navBarStyle) {
-                                BasePreferences.NavigationBarStyle.GLASS -> {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .fillMaxWidth()
-                                            .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                                            .clip(navBarShape)
-                                            .hazeEffect(state = hazeState) {
-                                                style = HazeStyle(
-                                                    backgroundColor = navBarSurfaceColor,
-                                                    tint = HazeTint(
-                                                        navBarSurfaceContainerColor.copy(
-                                                            alpha = navBarAlpha * 0.6f,
+                                when (navBarStyle) {
+                                    BasePreferences.NavigationBarStyle.GLASS -> {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .fillMaxWidth()
+                                                .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                                                .clip(navBarShape)
+                                                .hazeEffect(state = hazeState) {
+                                                    style = HazeStyle(
+                                                        backgroundColor = navBarSurfaceColor,
+                                                        tint = HazeTint(
+                                                            navBarSurfaceContainerColor.copy(
+                                                                alpha = navBarAlpha * 0.6f,
+                                                            ),
                                                         ),
-                                                    ),
-                                                    blurRadius = 20.dp,
-                                                    noiseFactor = 0f,
-                                                )
-                                            },
-                                    )
-                                }
-                                BasePreferences.NavigationBarStyle.SOLID -> {
-                                    Spacer(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .fillMaxWidth()
-                                            .windowInsetsBottomHeight(WindowInsets.navigationBars)
-                                            .clip(navBarShape)
-                                            .alpha(navBarAlpha)
-                                            .background(navBarSurfaceContainerColor),
-                                    )
+                                                        blurRadius = 20.dp,
+                                                        noiseFactor = 0f,
+                                                    )
+                                                },
+                                        )
+                                    }
+                                    BasePreferences.NavigationBarStyle.SOLID -> {
+                                        Spacer(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .fillMaxWidth()
+                                                .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                                                .clip(navBarShape)
+                                                .alpha(navBarAlpha)
+                                                .background(navBarSurfaceContainerColor),
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // Pop source-related screens when incognito mode is turned off
-                LaunchedEffect(Unit) {
-                    preferences.incognitoMode.changes()
-                        .drop(1)
-                        .filter { !it }
-                        .onEach {
-                            val currentScreen = navigator.lastItem
-                            if (currentScreen is BrowseSourceScreen ||
-                                (currentScreen is MangaScreen && currentScreen.fromSource)
-                            ) {
-                                navigator.popUntilRoot()
+                    // Pop source-related screens when incognito mode is turned off
+                    LaunchedEffect(Unit) {
+                        preferences.incognitoMode.changes()
+                            .drop(1)
+                            .filter { !it }
+                            .onEach {
+                                val currentScreen = navigator.lastItem
+                                if (currentScreen is BrowseSourceScreen ||
+                                    (currentScreen is MangaScreen && currentScreen.fromSource)
+                                ) {
+                                    navigator.popUntilRoot()
+                                }
                             }
-                        }
-                        .launchIn(this)
-                }
+                            .launchIn(this)
+                    }
 
-                HandleOnNewIntent(context = context, navigator = navigator)
-                CheckForUpdates()
-                ShowOnboarding()
-                // ShowDonationCampaign()
+                    HandleOnNewIntent(context = context, navigator = navigator)
+                    CheckForUpdates()
+                    ShowOnboarding()
+                    // ShowDonationCampaign()
+                }
             }
         }
 

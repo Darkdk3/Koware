@@ -37,6 +37,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +49,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import dev.chrisbanes.haze.HazeState
+import tachiyomi.presentation.core.util.LocalHazeState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -420,7 +423,9 @@ class ReaderActivity : BaseActivity() {
             }
         },
     ) {
-        val state by viewModel.state.collectAsState()
+        val hazeState = remember { HazeState() }
+        CompositionLocalProvider(LocalHazeState provides hazeState) {
+            val state by viewModel.state.collectAsState()
 
         // Re-enable system nav bar contrast (and therefore the OS blur-behind/frosted
         // scrim) only while a dialog/AdaptiveSheet is showing, matching how sheets look
@@ -731,6 +736,7 @@ class ReaderActivity : BaseActivity() {
                 },
             )
         }
+    }
     }
 
     /**
