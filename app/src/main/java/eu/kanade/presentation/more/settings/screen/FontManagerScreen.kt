@@ -38,7 +38,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import eu.kanade.presentation.components.AdaptiveSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -52,20 +51,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.tachiyomi.data.font.FontDownloadState
 import eu.kanade.tachiyomi.data.font.FontInfo
 import eu.kanade.tachiyomi.data.font.FontManager
@@ -82,9 +81,7 @@ class FontManagerScreen : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-        val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
-        val scope = rememberCoroutineScope()
         val screenModel = viewModel<FontManagerViewModel>()
         val state by screenModel.state.collectAsState()
 
@@ -213,7 +210,10 @@ class FontManagerScreen : Screen {
                             }
                         }
                     }
-                }
+                } // end LazyColumn
+            } // end else (not loading)  <-- FIX: this brace was missing
+        } // end Scaffold content lambda  <-- FIX: this brace was missing
+
         // Add Font Bottom Sheet
         if (showAddFontSheet) {
             AdaptiveSheet(
@@ -533,7 +533,7 @@ class FontManagerViewModel(
     private fun loadFonts() {
         mutableState.update { it.copy(isLoading = true) }
 
-        kotlinx.coroutines.MainScope().launch {
+        viewModelScope.launch {
             val systemFonts = fontManager.getSystemFonts()
             val customFonts = fontManager.getInstalledFonts()
             val currentFont = readerPreferences.novelFontFamily.get()
@@ -554,8 +554,8 @@ class FontManagerViewModel(
         mutableState.update { it.copy(selectedFontPath = font.path) }
     }
 
-    fun importFont(uri: android.net.Uri) {
-        kotlinx.coroutines.MainScope().launch {
+    fun importFont(uri: Uri) {
+        viewModelScope.launch {
             val result = fontManager.importFont(uri)
             result.fold(
                 onSuccess = { font ->
@@ -570,7 +570,7 @@ class FontManagerViewModel(
     }
 
     fun deleteFont(font: FontInfo) {
-        kotlinx.coroutines.MainScope().launch {
+        viewModelScope.launch {
             val success = fontManager.deleteFont(font)
             if (success) {
                 loadFonts()
@@ -589,7 +589,7 @@ class FontManagerViewModel(
     fun searchGoogleFonts(query: String) {
         mutableState.update { it.copy(isSearchingGoogleFonts = true) }
 
-        kotlinx.coroutines.MainScope().launch {
+        viewModelScope.launch {
             val fonts = fontManager.searchGoogleFonts(query)
             mutableState.update {
                 it.copy(
@@ -605,7 +605,7 @@ class FontManagerViewModel(
     }
 
     fun downloadGoogleFont(fontFamily: String) {
-        kotlinx.coroutines.MainScope().launch {
+        viewModelScope.launch {
             fontManager.downloadGoogleFont(fontFamily).collect { downloadState ->
                 when (downloadState) {
                     is FontDownloadState.Downloading -> {
@@ -613,7 +613,7 @@ class FontManagerViewModel(
                     }
                     is FontDownloadState.Success -> {
                         mutableState.update {
-                            it.copy(downloadProgress = null, message = "Font \"${fontFamily}\" downloaded")
+                            it.copy(downloadProgress = null, message = "Font \"$fontFamily\" downloaded")
                         }
                         loadFonts()
                     }
