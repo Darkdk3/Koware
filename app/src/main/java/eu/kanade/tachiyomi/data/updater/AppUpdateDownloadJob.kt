@@ -11,6 +11,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -36,7 +37,6 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
 
     override suspend fun doWork(): Result {
         val url = inputData.getString(EXTRA_DOWNLOAD_URL)
-
         if (url.isNullOrEmpty()) {
             return Result.failure()
         }
@@ -106,14 +106,12 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
 
     companion object {
         const val TAG = "AppUpdateDownload"
-
         const val PROGRESS = "progress"
-
         const val EXTRA_DOWNLOAD_URL = "DOWNLOAD_URL"
 
         fun updateApk(context: Context, url: String): File {
             // Use our app's identity, not the upstream asset name
-            val appName = context.packageName.substringAfterLast('.')  // e.g., "Koware"
+            val appName = context.packageName.substringAfterLast('.') // e.g., "Koware"
             val version = BuildConfig.VERSION_NAME
             val fileName = if (version.isNotEmpty()) "${appName}-${version}.apk" else "${appName}.apk"
             return File(context.externalCacheDir, fileName)
