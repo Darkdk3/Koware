@@ -61,7 +61,6 @@ import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import tachiyomi.presentation.core.util.LocalHazeState
 import eu.kanade.domain.base.BasePreferences
-import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.source.interactor.GetIncognitoState
 import eu.kanade.presentation.components.AppStateBanners
 import eu.kanade.presentation.components.DownloadedOnlyBannerBackgroundColor
@@ -87,7 +86,6 @@ import eu.kanade.tachiyomi.ui.deeplink.DeepLinkScreen
 import eu.kanade.tachiyomi.ui.home.HomeScreen
 import eu.kanade.tachiyomi.ui.library.ImportEpubScreen
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
-import eu.kanade.tachiyomi.BuildConfig
 import eu.kanade.tachiyomi.ui.more.NewUpdateScreen
 import eu.kanade.tachiyomi.ui.more.OnboardingScreen
 import eu.kanade.tachiyomi.ui.setting.SettingsScreen
@@ -109,7 +107,6 @@ import tachiyomi.core.common.Constants
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.library.service.LibraryPreferences
-import eu.kanade.tachiyomi.util.system.toast
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.util.collectAsState
@@ -119,7 +116,6 @@ class MainActivity : BaseActivity() {
 
     private val libraryPreferences: LibraryPreferences by injectLazy()
     private val preferences: BasePreferences by injectLazy()
-    private val uiPreferences: UiPreferences by injectLazy()
     private val downloadCache: DownloadCache by injectLazy()
     private val chapterCache: ChapterCache by injectLazy()
     private val getIncognitoState: GetIncognitoState by injectLazy()
@@ -129,15 +125,6 @@ class MainActivity : BaseActivity() {
     var ready = false
 
     private var navigator: Navigator? = null
-
-    private suspend fun showUpdateChangelogIfNeeded(context: Context) {
-        val currentVersionCode = BuildConfig.VERSION_CODE
-        val lastVersionCode = uiPreferences.lastVersionCode.get()
-        if (currentVersionCode > lastVersionCode) {
-            uiPreferences.lastVersionCode.set(currentVersionCode)
-            context.toast("App updated to v${BuildConfig.VERSION_NAME}! Check What's New in Settings > About")
-        }
-    }
 
     init {
         registerSecureActivity(this)
@@ -204,9 +191,6 @@ class MainActivity : BaseActivity() {
 
                             // Reset Incognito Mode on relaunch
                             preferences.incognitoMode.set(false)
-
-                            // Show changelog popup if app was updated
-                            showUpdateChangelogIfNeeded(context)
                         }
                     }
 
@@ -303,6 +287,7 @@ class MainActivity : BaseActivity() {
                     HandleOnNewIntent(context = context, navigator = navigator)
                     CheckForUpdates()
                     ShowOnboarding()
+                    ShowWhatsNew()
                     // ShowDonationCampaign()
                 }
             }
