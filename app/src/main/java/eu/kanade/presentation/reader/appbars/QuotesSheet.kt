@@ -152,7 +152,6 @@ fun QuotesSheet(
     // Show quote detail dialog when a quote is selected
     if (selectedQuote.value != null) {
         val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-
         AlertDialog(
             onDismissRequest = { selectedQuote.value = null },
             title = {
@@ -208,7 +207,6 @@ fun QuotesSheet(
     // Show edit dialog when a quote is being edited
     if (editingQuote.value != null) {
         val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-
         AlertDialog(
             onDismissRequest = { editingQuote.value = null },
             title = { Text(stringResource(TDMR.strings.quotes_edit_title)) },
@@ -318,7 +316,6 @@ fun QuotesSheet(
         if (currentIndex >= 0 && itemHeight.floatValue > 0) {
             val newTargetIndex = (currentIndex + (dragOffset.floatValue / itemHeight.floatValue).toInt())
                 .coerceIn(0, quotes.size - 1)
-
             if (newTargetIndex != targetIndex.intValue) {
                 targetIndex.intValue = newTargetIndex
                 // Update reorderedQuotes to show the item moving
@@ -335,7 +332,6 @@ fun QuotesSheet(
         // Properly compare lists to detect if reordering occurred
         val hasChanged = reorderedQuotes.size != quotes.size ||
             reorderedQuotes.zip(quotes).any { (reordered, original) -> reordered != original }
-
         if (hasChanged) {
             onQuoteReorder(reorderedQuotes.toList())
         }
@@ -343,6 +339,7 @@ fun QuotesSheet(
         targetIndex.intValue = -1
         dragOffset.floatValue = 0f
     }
+
     AdaptiveSheet(
         onDismissRequest = onDismiss,
     ) {
@@ -437,6 +434,7 @@ fun QuotesSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,
+                ) // <-- FIX: this closing parenthesis was missing
             }
         } else {
             Column(
@@ -662,7 +660,7 @@ private fun QuoteItem(
             }
             Text(
                 text = quote.paragraphIndex
-                    ?.let { "${quote.chapterName}  ·  ¶${it + 1}" }
+                    ?.let { "${quote.chapterName} · ¶${it + 1}" }
                     ?: quote.chapterName,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
