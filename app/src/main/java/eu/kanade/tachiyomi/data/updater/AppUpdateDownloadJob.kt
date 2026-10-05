@@ -60,7 +60,6 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setOngoing(true)
             .build()
-
         return ForegroundInfo(
             Notifications.ID_APP_UPDATER,
             notification,
@@ -101,6 +100,7 @@ class AppUpdateDownloadJob(private val context: Context, workerParams: WorkerPar
             .awaitSuccess()
 
         val apkFile = updateApk(context, url)
+
         response.body.source().saveTo(apkFile)
     }
 
