@@ -64,25 +64,60 @@ jobs:
           echo "COMMIT_COUNT=$commit_count" >> $GITHUB_ENV
 
       - name: Generate release notes (this fork)
-        # Notes = commit titles since the last published release. GitHub's default
-        # titles ("Update Foo.kt", "Create Foo.kt", "Delete Foo.kt") are skipped.
-        # The same notes are (1) baked into the APK for the "What's new" dialog and
-        # (2) used as the release body, which the update dialog shows.
+        # Zero typing. For every commit since the last release:
+        #   - adds a brand-new Kotlin file      -> "- feat: ..."  (shown as New)
+        #   - only changes existing files       -> "- fix: ..."   (shown as Fixes)
+        #   - only touches CI/build/docs files  -> skipped
+        # Text = the commit title (e.g. written by Copilot on github.com). GitHub's
+        # default titles ("Update Foo.kt") are replaced by a label built from the file name.
+        # Result is baked into the APK (What's new popup) and used as the release body.
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository != 'tsundoku-otaku/tsundoku'
         run: |
-          set -e
+          set +e
           prev_tag=$(git tag --list 'r[0-9]*' --sort=-version:refname | head -n 1)
           if [ -n "$prev_tag" ]; then
             range="$prev_tag..HEAD"
           else
-            range="-n 15"
+            range="HEAD~15..HEAD"
           fi
-          git log --no-merges --pretty='- %s' $range \
-            | grep -viE '^- (Update|Create|Delete) [^ ]+$' \
-            | head -n 30 > notes.md || true
+
+          : > raw_notes.txt
+          for sha in $(git rev-list --no-merges --reverse $range | head -n 40); do
+            title=$(git log -1 --pretty=%s "$sha")
+
+            # Files changed in this commit, ignoring CI/build/docs noise.
+            changes=$(git diff-tree --no-commit-id --name-status -r --root "$sha" \
+              | awk -F'\t' '$NF !~ /^(\.github|gradle)\// && $NF !~ /\.(md|lock)$/')
+            [ -z "$changes" ] && continue
+
+            # New = commit adds a brand-new Kotlin file. Otherwise it's a fix/change.
+            if echo "$changes" | awk -F'\t' '$1 == "A" && $NF ~ /\.kt$/ { found = 1 } END { exit !found }'; then
+              type="feat"
+            else
+              type="fix"
+            fi
+
+            # Default GitHub titles say nothing, so build readable text from the file name.
+            if echo "$title" | grep -qE '^(Update|Create|Delete) [^ ]+$'; then
+              first_file=$(echo "$changes" | head -n 1 | awk -F'\t' '{print $NF}')
+              name=$(basename "$first_file")
+              name="${name%.*}"
+              label=$(echo "$name" | sed -E 's/([a-z0-9])([A-Z])/\1 \2/g; s/[_-]+/ /g')
+              if [ "$type" = "feat" ]; then
+                title="Add $label"
+              else
+                title="Update $label"
+              fi
+            fi
+
+            echo "- $type: $title" >> raw_notes.txt
+          done
+
+          awk '!seen[$0]++' raw_notes.txt | head -n 30 > notes.md
           if [ ! -s notes.md ]; then
-            echo "- Internal changes and fixes" > notes.md
+            echo "- fix: Minor fixes and tweaks" > notes.md
           fi
+
           mkdir -p app/src/main/assets
           cp notes.md app/src/main/assets/whatsnew.md
           {
