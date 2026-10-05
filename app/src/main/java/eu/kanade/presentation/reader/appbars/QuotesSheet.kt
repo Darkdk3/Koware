@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import eu.kanade.presentation.components.AdaptiveSheet
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.reader.quote.Quote
 import tachiyomi.i18n.MR
@@ -342,27 +343,15 @@ fun QuotesSheet(
         targetIndex.intValue = -1
         dragOffset.floatValue = 0f
     }
-    if (quotes.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            // Dismiss area outside the sheet
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(onClick = onDismiss),
-            )
+    AdaptiveSheet(
+        onDismissRequest = onDismiss,
+    ) {
+        if (quotes.isEmpty()) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = sheetMaxHeight)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp))
                     .padding(16.dp)
-                    // Add bottom padding to keep quotes sheet above UI buttons
-                    .padding(bottom = 80.dp)
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDrag = { change, dragAmount ->
@@ -448,30 +437,13 @@ fun QuotesSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,
-                )
             }
-        }
-    } else {
-        Box(
-            modifier = Modifier
-                .fillMaxSize(),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            // Dismiss area outside the sheet
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(onClick = onDismiss),
-            )
+        } else {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = sheetMaxHeight)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(3.dp))
                     .padding(16.dp)
-                    // Add bottom padding to keep quotes sheet above UI buttons
-                    .padding(bottom = 80.dp)
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDrag = { change, dragAmount ->
