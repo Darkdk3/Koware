@@ -176,6 +176,7 @@ jobs:
         uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
         with:
           tag_name: r${{ env.COMMIT_COUNT }}
+          target_commitish: ${{ github.sha }}
           name: Koware Nightly r${{ env.COMMIT_COUNT }}
           # Everything before the <!--> marker is what the in-app dialog shows.
           # It's empty on purpose so the app builds a changelog from commit messages.
