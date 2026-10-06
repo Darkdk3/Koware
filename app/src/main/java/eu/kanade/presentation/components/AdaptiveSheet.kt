@@ -1,16 +1,26 @@
 package eu.kanade.presentation.components
 
+import android.content.Context
+import android.os.Build
+import android.view.WindowManager
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
 import cafe.adriel.voyager.core.annotation.InternalVoyagerApi
 import cafe.adriel.voyager.core.lifecycle.DisposableEffectIgnoringConfiguration
 import cafe.adriel.voyager.core.screen.Screen
@@ -23,6 +33,22 @@ import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import tachiyomi.presentation.core.components.AdaptiveSheet as AdaptiveSheetImpl
+
+/**
+ * Set to `true` by hosts whose content behind the sheet is NOT Compose (e.g. ReaderActivity, whose
+ * pages are native Views / a WebView). Haze can only blur Compose content registered through
+ * `hazeSource`, so there it would blur nothing and leave the sheet looking flat and see-through.
+ *
+ * When this is true, Frosted/Grainy sheets use the system's window blur-behind instead (Android 12+),
+ * which blurs whatever is behind the dialog window, native Views included. On older Android versions,
+ * or when the system has cross-window blur disabled (battery saver, some OEM settings), the sheet falls
+ * back to a solid surface so it stays readable.
+ */
+val LocalSheetWindowBlur = staticCompositionLocalOf { false }
+
+private fun isWindowBlurSupported(context: Context): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        context.getSystemService(WindowManager::class.java)?.isCrossWindowBlurEnabled == true
 
 @OptIn(InternalVoyagerApi::class)
 @Composable
@@ -76,6 +102,7 @@ fun AdaptiveSheet(
     content: @Composable () -> Unit,
 ) {
     val isTabletUi = isTabletUi()
+    val context = LocalContext.current
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val backgroundStyle by libraryPreferences.sheetBackgroundStyle.collectAsState()
     val opacityPercent by libraryPreferences.sheetOpacityPercent.collectAsState()
@@ -83,21 +110,24 @@ fun AdaptiveSheet(
     // just means no blur is applied - see LocalHazeState for why.
     val hazeState = LocalHazeState.current
 
-    val containerAlpha = when (backgroundStyle) {
-        LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
-        LibraryPreferences.NavBarBackgroundStyle.Transparent,
-        LibraryPreferences.NavBarBackgroundStyle.Frosted,
-        LibraryPreferences.NavBarBackgroundStyle.Grainy,
-        -> opacityPercent / 100f
-    }
-    val sheetHazeState = if (
-        backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
+    val wantsFrost = backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
         backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy
-    ) {
-        hazeState
-    } else {
-        null
+    val isNonComposeBackdrop = LocalSheetWindowBlur.current
+    val windowBlur = isNonComposeBackdrop && wantsFrost && remember(context) { isWindowBlurSupported(context) }
+
+    val containerAlpha = when {
+        // Nothing can blur the backdrop here, so stay opaque instead of showing the raw reader through.
+        isNonComposeBackdrop && wantsFrost && !windowBlur -> 1f
+        else -> when (backgroundStyle) {
+            LibraryPreferences.NavBarBackgroundStyle.Solid -> 1f
+            LibraryPreferences.NavBarBackgroundStyle.Transparent,
+            LibraryPreferences.NavBarBackgroundStyle.Frosted,
+            LibraryPreferences.NavBarBackgroundStyle.Grainy,
+            -> opacityPercent / 100f
+        }
     }
+    // Haze only where the backdrop is Compose content; reader sheets use window blur instead.
+    val sheetHazeState = if (wantsFrost && !isNonComposeBackdrop) hazeState else null
     val sheetNoiseFactor = if (backgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy) {
         0.65f
     } else {
@@ -108,6 +138,20 @@ fun AdaptiveSheet(
         onDismissRequest = onDismissRequest,
         properties = properties,
     ) {
+        if (windowBlur) {
+            val density = LocalDensity.current
+            val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
+            DisposableEffect(dialogWindow) {
+                if (dialogWindow != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    dialogWindow.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                    dialogWindow.attributes = dialogWindow.attributes.apply {
+                        blurBehindRadius = with(density) { 24.dp.roundToPx() }
+                    }
+                }
+                onDispose { }
+            }
+        }
+
         AdaptiveSheetImpl(
             isTabletUi = isTabletUi,
             enableImplicitDismiss = enableImplicitDismiss,
