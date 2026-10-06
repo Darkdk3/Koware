@@ -67,6 +67,7 @@ import com.google.android.material.transition.platform.MaterialContainerTransfor
 import com.hippo.unifile.UniFile
 import eu.kanade.core.util.ifSourcesLoaded
 import eu.kanade.domain.base.BasePreferences
+import eu.kanade.presentation.components.LocalSheetWindowBlur
 import eu.kanade.presentation.reader.DisplayRefreshHost
 import eu.kanade.presentation.reader.EstimatedStatusBarHeight
 import eu.kanade.presentation.manga.rememberCoverSeedColor
@@ -424,7 +425,13 @@ class ReaderActivity : BaseActivity() {
         },
     ) {
         val hazeState = remember { HazeState() }
-        CompositionLocalProvider(LocalHazeState provides hazeState) {
+        // LocalSheetWindowBlur: the reader's pages are native Views / a WebView, which Compose haze
+        // cannot blur. Reader sheets (AdaptiveSheet) therefore use the system window blur-behind
+        // instead of haze. See LocalSheetWindowBlur in AdaptiveSheet.kt.
+        CompositionLocalProvider(
+            LocalHazeState provides hazeState,
+            LocalSheetWindowBlur provides true,
+        ) {
             val state by viewModel.state.collectAsState()
 
         // Re-enable system nav bar contrast (and therefore the OS blur-behind/frosted
@@ -2255,157 +2262,4 @@ class ReaderActivity : BaseActivity() {
                         // resync brightness here, not just keep-screen-on: setNovelCustomBrightness
                         // above shares brightnessJob with setCustomBrightness, and if novel custom
                         // brightness was left active, leaving this branch to touch only
-                        // keepScreenOn would leave that job running and applying novel-preference
-                        // brightness to the new non-novel viewer.
-                        setCustomBrightness(readerPreferences.customBrightness.get())
-                        setKeepScreenOn(readerPreferences.keepScreenOn.get())
-                    }
-                }
-                .launchIn(lifecycleScope)
-
-            combine(
-                readerPreferences.grayscale.changes(),
-                readerPreferences.invertedColors.changes(),
-            ) { grayscale, invertedColors -> grayscale to invertedColors }
-                .onEach { (grayscale, invertedColors) ->
-                    setLayerPaint(grayscale, invertedColors)
-                }
-                .launchIn(lifecycleScope)
-
-            combine(
-                readerPreferences.fullscreen.changes(),
-                readerPreferences.drawUnderCutout.changes(),
-            ) { fullscreen, drawUnderCutout -> fullscreen to drawUnderCutout }
-                .onEach { (fullscreen, drawUnderCutout) ->
-                    updateViewerInset(fullscreen, drawUnderCutout)
-                }
-                .launchIn(lifecycleScope)
-
-            // Re-create viewer when novel rendering mode changes
-            readerPreferences.novelRenderingMode.changes()
-                .drop(1) // Skip initial value
-                .onEach {
-                    val currentViewer = viewModel.state.value.viewer
-                    // Only re-create if currently using a novel viewer
-                    if (currentViewer is NovelViewer || currentViewer is NovelWebViewViewer) {
-                        updateViewer()
-                        viewModel.state.value.viewerChapters?.let { chapters ->
-                            setChapters(chapters)
-                        }
-                        // Re-apply brightness for novel viewers
-                        setNovelCustomBrightness(readerPreferences.novelCustomBrightness.get())
-                    }
-                }
-                .launchIn(lifecycleScope)
-        }
-
-        /**
-         * Picks background color for [ReaderActivity] based on light/dark theme preference
-         */
-        private fun automaticBackgroundColor(): Int {
-            return if (baseContext.isNightMode()) {
-                grayBackgroundColor
-            } else {
-                Color.WHITE
-            }
-        }
-
-        /**
-         * Sets the display profile to [path].
-         */
-        private fun setDisplayProfile(path: String) {
-            val file = UniFile.fromUri(baseContext, path.toUri())
-            if (file != null && file.exists()) {
-                val inputStream = file.openInputStream()
-                val outputStream = ByteArrayOutputStream()
-                inputStream.use { input ->
-                    outputStream.use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                val data = outputStream.toByteArray()
-                SubsamplingScaleImageView.setDisplayProfile(data)
-                TachiyomiImageDecoder.displayProfile = data
-            }
-        }
-
-        /**
-         * Sets the keep screen on mode according to [enabled].
-         */
-        private fun setKeepScreenOn(enabled: Boolean) {
-            if (enabled) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            } else {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
-        }
-
-        /**
-         * Sets the custom brightness overlay according to [enabled].
-         */
-        private fun setCustomBrightness(enabled: Boolean) {
-            // Skip if using novel viewer with its own brightness setting
-            val viewer = viewModel.state.value.viewer
-            if (viewer is NovelViewer || viewer is NovelWebViewViewer) {
-                return
-            }
-            brightnessJob?.cancel()
-            brightnessJob = if (enabled) {
-                readerPreferences.customBrightnessValue.changes()
-                    .sample(0.1.seconds)
-                    .onEach(::setCustomBrightnessValue)
-                    .launchIn(lifecycleScope)
-            } else {
-                setCustomBrightnessValue(0)
-                null
-            }
-        }
-
-        /**
-         * Sets the novel-specific custom brightness overlay according to [enabled].
-         */
-        private fun setNovelCustomBrightness(enabled: Boolean) {
-            // Only apply if using novel viewer
-            val viewer = viewModel.state.value.viewer
-            if (viewer !is NovelViewer && viewer !is NovelWebViewViewer) {
-                return
-            }
-            brightnessJob?.cancel()
-            brightnessJob = if (enabled) {
-                readerPreferences.novelCustomBrightnessValue.changes()
-                    .sample(100)
-                    .onEach(::setCustomBrightnessValue)
-                    .launchIn(lifecycleScope)
-            } else {
-                setCustomBrightnessValue(0)
-                null
-            }
-        }
-
-        /**
-         * Sets the brightness of the screen. Range is [-75, 100].
-         * From -75 to -1 a semi-transparent black view is overlaid with the minimum brightness.
-         * From 1 to 100 it sets that value as brightness.
-         * 0 sets system brightness and hides the overlay.
-         */
-        private fun setCustomBrightnessValue(value: Int) {
-            // Calculate and set reader brightness.
-            val readerBrightness = when {
-                value > 0 -> {
-                    value / 100f
-                }
-                value < 0 -> {
-                    0.01f
-                }
-                else -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-            }
-            window.attributes = window.attributes.apply { screenBrightness = readerBrightness }
-
-            viewModel.setBrightnessOverlayValue(value)
-        }
-        private fun setLayerPaint(grayscale: Boolean, invertedColors: Boolean) {
-            val paint = if (grayscale || invertedColors) getCombinedPaint(grayscale, invertedColors) else null
-            binding.viewerContainer.setLayerType(LAYER_TYPE_HARDWARE, paint)
-        }
-    }
-}
+                        // keepScreenOn
