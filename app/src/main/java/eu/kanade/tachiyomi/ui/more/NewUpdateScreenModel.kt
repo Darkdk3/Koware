@@ -42,7 +42,6 @@ class NewUpdateScreenModel(
                 } else {
                     workInfo.progress.getString(AppUpdateDownloadJob.EXTRA_DOWNLOAD_URL)
                 }
-
                 if (url != null && url != downloadLink) {
                     return@map 0 to Stage.Available
                 }
@@ -82,9 +81,10 @@ class NewUpdateScreenModel(
         val apkFile = AppUpdateDownloadJob.updateApk(context, downloadLink)
         val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
             setDataAndType(apkFile.getUriCompat(context), ExtensionInstaller.APK_MIME)
-            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            // `context` is the Application context, which can only start activities in a new task.
+            flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK
         }
-        context.startActivity(intent)
+        runCatching { context.startActivity(intent) }
     }
 
     override fun onCleared() {
