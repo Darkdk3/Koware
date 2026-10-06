@@ -131,13 +131,20 @@ object HomeScreen : Screen() {
             BasePreferences.UiMode.BOTH -> if (isJoined) JOINED_TABS else TABS
         }
 
-        // Shared blur source: the tab content below is registered against this
-        // state (.hazeSource), and it's provided app-wide via LocalHazeState so
-        // the floating nav bar AND any bottom sheet/dialog opened on top of a
-        // Home tab can both read it for their Frosted background style.
-        val hazeState = LocalHazeState.current ?: remember { HazeState() }
+        // FIX: the floating nav bar now has its OWN HazeState, separate from the app-wide one.
+        //
+        // MainActivity wraps the whole Navigator (including this screen and its nav bar) in
+        // .hazeSource(appHazeState). When HomeScreen reused that same state for the nav bar's
+        // hazeEffect, the nav bar ended up blurring a source it is itself nested inside, which
+        // haze 1.x does not render. A dedicated state, whose source is ONLY the tab content Box
+        // below (a sibling of the nav bar, not an ancestor), fixes that.
+        //
+        // Sheets/dialogs are separate windows, so they keep reading the app-wide state that
+        // MainActivity provides via LocalHazeState.
+        val appHazeState = LocalHazeState.current
+        val navHazeState = remember { HazeState() }
 
-        CompositionLocalProvider(LocalHazeState provides hazeState) {
+        CompositionLocalProvider(LocalHazeState provides (appHazeState ?: navHazeState)) {
             TabNavigator(
                 tab = if (uiMode == BasePreferences.UiMode.MANGA_ONLY) LibraryTab else NovelsTab,
                 key = TabNavigatorKey,
@@ -195,7 +202,7 @@ object HomeScreen : Screen() {
                                             navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
                                             navBarBackgroundStyle == LibraryPreferences.NavBarBackgroundStyle.Grainy
                                         ) {
-                                            hazeState
+                                            navHazeState
                                         } else {
                                             null
                                         }
@@ -238,9 +245,9 @@ object HomeScreen : Screen() {
                                         end = contentPadding.calculateEndPadding(layoutDirection),
                                     )
                                     .consumeWindowInsets(contentPadding)
-                                    // Registers this content as the blur source for the
-                                    // floating nav bar's AND any sheet/dialog's Frosted style.
-                                    .hazeSource(hazeState),
+                                    // Registers the tab content as the blur source for the floating
+                                    // nav bar only (see navHazeState above).
+                                    .hazeSource(navHazeState),
                             ) {
                                 AnimatedContent(
                                     targetState = tabNavigator.current,
