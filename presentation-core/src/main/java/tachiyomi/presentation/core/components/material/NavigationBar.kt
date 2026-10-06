@@ -15,6 +15,7 @@ import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
@@ -52,9 +53,13 @@ fun NavigationBar(
         tonalElevation = tonalElevation,
         shape = shape,
         modifier = if (hazeState != null) {
-            modifier.hazeEffect(state = hazeState) {
-                style = HazeStyle(backgroundColor = containerColor, tint = null, noiseFactor = noiseFactor)
-            }
+            // clip(shape) first so the blur follows the rounded/pill corners instead of
+            // drawing as a rectangle behind them.
+            modifier
+                .clip(shape)
+                .hazeEffect(state = hazeState) {
+                    style = HazeStyle(backgroundColor = containerColor, tint = null, noiseFactor = noiseFactor)
+                }
         } else {
             modifier
         },
