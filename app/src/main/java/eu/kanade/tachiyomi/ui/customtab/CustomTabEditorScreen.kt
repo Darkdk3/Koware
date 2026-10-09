@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.ui.customtab
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,7 +30,9 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.presentation.util.Screen
 import eu.kanade.tachiyomi.util.system.toast
 
-object CustomTabEditorScreen : Screen() {
+class CustomTabEditorScreen(
+    private val saveId: String,
+) : Screen() {
 
     @Composable
     override fun Content() {
@@ -39,21 +41,24 @@ object CustomTabEditorScreen : Screen() {
 
         // Plain remember (not rememberSaveable): large text can overflow the
         // saved-state bundle and crash the app.
+        var name by remember {
+            mutableStateOf(CustomTabStorage.nameOf(context, saveId))
+        }
         var html by remember {
             mutableStateOf(
-                CustomTabStorage.read(context, CustomTabStorage.HTML)
+                CustomTabStorage.read(context, saveId, CustomTabStorage.HTML)
                     ?: CustomTabStorage.STARTER_HTML,
             )
         }
         var css by remember {
             mutableStateOf(
-                CustomTabStorage.read(context, CustomTabStorage.CSS)
+                CustomTabStorage.read(context, saveId, CustomTabStorage.CSS)
                     ?: CustomTabStorage.STARTER_CSS,
             )
         }
         var js by remember {
             mutableStateOf(
-                CustomTabStorage.read(context, CustomTabStorage.JS)
+                CustomTabStorage.read(context, saveId, CustomTabStorage.JS)
                     ?: CustomTabStorage.STARTER_JS,
             )
         }
@@ -62,7 +67,7 @@ object CustomTabEditorScreen : Screen() {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Edit custom tab") },
+                    title = { Text("Edit save") },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
                             Icon(
@@ -74,7 +79,14 @@ object CustomTabEditorScreen : Screen() {
                     actions = {
                         TextButton(
                             onClick = {
-                                CustomTabStorage.saveAll(context, html, css, js)
+                                CustomTabStorage.write(
+                                    context = context,
+                                    id = saveId,
+                                    name = name.trim().ifBlank { "Untitled" },
+                                    html = html,
+                                    css = css,
+                                    js = js,
+                                )
                                 context.toast("Saved")
                                 navigator.pop()
                             },
@@ -86,6 +98,16 @@ object CustomTabEditorScreen : Screen() {
             },
         ) { contentPadding ->
             Column(modifier = Modifier.padding(contentPadding)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Save name") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+
                 TabRow(selectedTabIndex = selected) {
                     listOf("HTML", "CSS", "JS").forEachIndexed { index, title ->
                         Tab(
@@ -110,7 +132,8 @@ object CustomTabEditorScreen : Screen() {
                         }
                     },
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .weight(1f)
                         .padding(8.dp),
                     textStyle = TextStyle(
                         fontFamily = FontFamily.Monospace,
