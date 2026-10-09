@@ -1,4 +1,3 @@
-
 package eu.kanade.presentation.more.settings.screen
 
 import androidx.compose.foundation.background
@@ -16,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.History
@@ -71,6 +71,7 @@ object SettingsNavBarScreen : Screen() {
         val opacityPercent by prefs.navBarOpacityPercent.collectAsState()
         val alwaysShowLabels by prefs.alwaysShowNavigationLabels.collectAsState()
         val customTabEnabled by customTabPrefs.enabled.collectAsState()
+        val customTabName by customTabPrefs.name.collectAsState()
 
         Scaffold(
             topBar = {
@@ -97,6 +98,8 @@ object SettingsNavBarScreen : Screen() {
                         style = style,
                         opacityPercent = opacityPercent,
                         alwaysShowLabels = alwaysShowLabels,
+                        customTabEnabled = customTabEnabled,
+                        customTabName = customTabName,
                     )
                 }
 
@@ -252,19 +255,28 @@ private fun NavBarPreview(
     style: LibraryPreferences.NavBarBackgroundStyle,
     opacityPercent: Int,
     alwaysShowLabels: Boolean,
+    customTabEnabled: Boolean,
+    customTabName: String,
 ) {
     val hazeState = remember { HazeState() }
     var selected by remember { mutableIntStateOf(0) }
 
-    val tabs = remember {
-        listOf(
-            PreviewTab("Library", Icons.Outlined.CollectionsBookmark),
-            PreviewTab("Updates", Icons.Outlined.NewReleases),
-            PreviewTab("History", Icons.Outlined.History),
-            PreviewTab("Browse", Icons.Outlined.Explore),
-            PreviewTab("More", Icons.Outlined.MoreHoriz),
-        )
+    // The custom tab sits just before More, same as in the real nav bar.
+    val tabs = remember(customTabEnabled, customTabName) {
+        buildList {
+            add(PreviewTab("Library", Icons.Outlined.CollectionsBookmark))
+            add(PreviewTab("Updates", Icons.Outlined.NewReleases))
+            add(PreviewTab("History", Icons.Outlined.History))
+            add(PreviewTab("Browse", Icons.Outlined.Explore))
+            if (customTabEnabled) {
+                add(PreviewTab(customTabName, Icons.Outlined.Code))
+            }
+            add(PreviewTab("More", Icons.Outlined.MoreHoriz))
+        }
     }
+
+    // Keeps the selection valid when the custom tab is switched off.
+    val selectedIndex = selected.coerceAtMost(tabs.lastIndex)
 
     val barShape = if (cornerRadiusDp < 0) {
         RoundedCornerShape(percent = 50)
@@ -346,7 +358,7 @@ private fun NavBarPreview(
             ) {
                 tabs.forEachIndexed { index, tab ->
                     NavigationBarItem(
-                        selected = selected == index,
+                        selected = selectedIndex == index,
                         onClick = {
                             selected = index
                         },
