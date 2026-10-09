@@ -2258,8 +2258,9 @@ class ReaderActivity : BaseActivity() {
                         setNovelCustomBrightness(readerPreferences.novelCustomBrightness.get())
                         setKeepScreenOn(readerPreferences.novelKeepScreenOn.get())
                     } else {
+
                         // Switch back to manga reader settings for non-novel viewers. Must also
                         // resync brightness here, not just keep-screen-on: setNovelCustomBrightness
-                        // above shares brightnessJob with setCustomBrightness, and if novel custom
-                        // brightness was left active, leaving this branch to touch only
-                        // keepScreenOn
+                        // shares brightnessJob with setCustomBrightness, and if novel custom
+                        // brightness was left active, touching only keepScreenOn would leave it applied.
+                        set
