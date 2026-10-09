@@ -52,6 +52,7 @@ import eu.kanade.presentation.more.settings.widget.AppThemeModePreferenceWidget
 import eu.kanade.presentation.more.settings.widget.AppThemePreferenceWidget
 import eu.kanade.presentation.theme.CustomTheme
 import eu.kanade.presentation.util.Screen
+import eu.kanade.tachiyomi.ui.customtab.CustomTabPreferences
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
@@ -173,6 +174,7 @@ private fun getCustomizeGroup(
     val navigator = LocalNavigator.currentOrThrow
     val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
     val basePreferences = remember { Injekt.get<BasePreferences>() }
+    val customTabPrefs = remember { Injekt.get<CustomTabPreferences>() }
 
     val customThemeEnabled by uiPreferences.customThemeEnabled.collectAsState()
     val savedRaw by uiPreferences.savedCustomThemes.collectAsState()
@@ -305,6 +307,12 @@ private fun getCustomizeGroup(
                 onClick = {
                     navigator.push(SettingsNavBarScreen)
                 },
+            ),
+
+            Preference.PreferenceItem.SwitchPreference(
+                preference = customTabPrefs.enabled,
+                title = "Custom tab",
+                subtitle = "Adds a tab you can build with HTML, CSS, and JS",
             ),
 
             Preference.PreferenceItem.TextPreference(
@@ -1015,5 +1023,3 @@ private val DateFormats = listOf(
     "dd MMM yyyy",
     "MMM dd, yyyy",
 )
-
- 
