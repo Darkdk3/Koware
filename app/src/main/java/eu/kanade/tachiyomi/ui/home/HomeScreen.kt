@@ -49,6 +49,8 @@ import eu.kanade.domain.source.service.SourcePreferences
 import eu.kanade.presentation.util.Screen
 import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.ui.browse.BrowseTab
+import eu.kanade.tachiyomi.ui.customtab.CustomTab
+import eu.kanade.tachiyomi.ui.customtab.CustomTabPreferences
 import eu.kanade.tachiyomi.ui.download.DownloadQueueScreen
 import eu.kanade.tachiyomi.ui.history.HistoryTab
 import eu.kanade.tachiyomi.ui.library.LibraryTab
@@ -122,13 +124,24 @@ object HomeScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
         val basePreferences = remember { Injekt.get<BasePreferences>() }
+        val customTabPreferences = remember { Injekt.get<CustomTabPreferences>() }
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
         val uiMode by basePreferences.uiMode.collectAsState()
         val alwaysShowNavLabels by libraryPreferences.alwaysShowNavigationLabels.collectAsState()
-        val tabs = when (uiMode) {
+        val customTabEnabled by customTabPreferences.enabled.collectAsState()
+        val baseTabs: List<eu.kanade.presentation.util.Tab> = when (uiMode) {
             BasePreferences.UiMode.MANGA_ONLY -> MANGA_TABS
             BasePreferences.UiMode.NOVEL_ONLY -> JOINED_TABS
             BasePreferences.UiMode.BOTH -> if (isJoined) JOINED_TABS else TABS
+        }
+
+        // The Custom tab sits just before More (always the last tab) when enabled.
+        val tabs: List<eu.kanade.presentation.util.Tab> = remember(baseTabs, customTabEnabled) {
+            if (customTabEnabled) {
+                baseTabs.dropLast(1) + CustomTab + baseTabs.last()
+            } else {
+                baseTabs
+            }
         }
 
         // FIX: the floating nav bar now has its OWN HazeState, separate from the app-wide one.
@@ -149,6 +162,18 @@ object HomeScreen : Screen() {
                 tab = if (uiMode == BasePreferences.UiMode.MANGA_ONLY) LibraryTab else NovelsTab,
                 key = TabNavigatorKey,
             ) { tabNavigator ->
+                // If the Custom tab gets turned off while it's the selected tab, fall back to
+                // the default tab so we don't sit on a tab that no longer exists in the bar.
+                LaunchedEffect(customTabEnabled) {
+                    if (!customTabEnabled && tabNavigator.current::class == CustomTab::class) {
+                        tabNavigator.current = if (uiMode == BasePreferences.UiMode.MANGA_ONLY) {
+                            LibraryTab
+                        } else {
+                            NovelsTab
+                        }
+                    }
+                }
+
                 // Provide usable navigator to content screen
                 CompositionLocalProvider(LocalNavigator provides navigator) {
                     Scaffold(
