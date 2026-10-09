@@ -1,3 +1,4 @@
+
 package eu.kanade.presentation.more.settings.screen
 
 import androidx.compose.foundation.background
@@ -27,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -45,6 +47,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import eu.kanade.presentation.util.Screen
+import eu.kanade.tachiyomi.ui.customtab.CustomTabPreferences
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.presentation.core.components.material.NavigationBar
 import tachiyomi.presentation.core.util.collectAsState
@@ -58,6 +61,7 @@ object SettingsNavBarScreen : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val prefs = remember { Injekt.get<LibraryPreferences>() }
+        val customTabPrefs = remember { Injekt.get<CustomTabPreferences>() }
 
         val widthPercent by prefs.navBarWidthPercent.collectAsState()
         val heightDp by prefs.navBarHeightDp.collectAsState()
@@ -66,6 +70,7 @@ object SettingsNavBarScreen : Screen() {
         val style by prefs.navBarBackgroundStyle.collectAsState()
         val opacityPercent by prefs.navBarOpacityPercent.collectAsState()
         val alwaysShowLabels by prefs.alwaysShowNavigationLabels.collectAsState()
+        val customTabEnabled by customTabPrefs.enabled.collectAsState()
 
         Scaffold(
             topBar = {
@@ -101,6 +106,7 @@ object SettingsNavBarScreen : Screen() {
                         .verticalScroll(rememberScrollState()),
                 ) {
                     SectionLabel("Background")
+
                     FlowRow(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -108,14 +114,19 @@ object SettingsNavBarScreen : Screen() {
                         LibraryPreferences.NavBarBackgroundStyle.entries.forEach { option ->
                             FilterChip(
                                 selected = option == style,
-                                onClick = { prefs.navBarBackgroundStyle.set(option) },
+                                onClick = {
+                                    prefs.navBarBackgroundStyle.set(option)
+                                },
                                 label = { Text(option.name) },
                             )
                         }
                     }
+
                     SliderRow(
                         label = "Opacity",
-                        valueText = if (style == LibraryPreferences.NavBarBackgroundStyle.Solid) {
+                        valueText = if (
+                            style == LibraryPreferences.NavBarBackgroundStyle.Solid
+                        ) {
                             "100%"
                         } else {
                             "$opacityPercent%"
@@ -124,11 +135,50 @@ object SettingsNavBarScreen : Screen() {
                         min = 0,
                         max = 100,
                         step = 5,
-                        enabled = style != LibraryPreferences.NavBarBackgroundStyle.Solid,
-                        onChange = { prefs.navBarOpacityPercent.set(it) },
+                        enabled = style !=
+                            LibraryPreferences.NavBarBackgroundStyle.Solid,
+                        onChange = {
+                            prefs.navBarOpacityPercent.set(it)
+                        },
                     )
 
+                    // Custom tab settings
+                    SectionLabel("Tabs")
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                horizontal = 16.dp,
+                                vertical = 12.dp,
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(
+                                text = "Custom tab",
+                                style = MaterialTheme.typography.bodyLarge,
+                            )
+
+                            Text(
+                                text = "Adds a tab you can build with HTML, CSS, and JS",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        Switch(
+                            checked = customTabEnabled,
+                            onCheckedChange = {
+                                customTabPrefs.enabled.set(it)
+                            },
+                        )
+                    }
+
                     SectionLabel("Size and shape")
+
                     SliderRow(
                         label = "Width",
                         valueText = "$widthPercent%",
@@ -136,8 +186,11 @@ object SettingsNavBarScreen : Screen() {
                         min = 50,
                         max = 100,
                         step = 5,
-                        onChange = { prefs.navBarWidthPercent.set(it) },
+                        onChange = {
+                            prefs.navBarWidthPercent.set(it)
+                        },
                     )
+
                     SliderRow(
                         label = "Height",
                         valueText = "${heightDp}dp",
@@ -145,8 +198,11 @@ object SettingsNavBarScreen : Screen() {
                         min = 56,
                         max = 120,
                         step = 4,
-                        onChange = { prefs.navBarHeightDp.set(it) },
+                        onChange = {
+                            prefs.navBarHeightDp.set(it)
+                        },
                     )
+
                     SliderRow(
                         label = "Item spacing",
                         valueText = "${itemSpacingDp}dp",
@@ -154,8 +210,11 @@ object SettingsNavBarScreen : Screen() {
                         min = 0,
                         max = 24,
                         step = 1,
-                        onChange = { prefs.navBarItemSpacingDp.set(it) },
+                        onChange = {
+                            prefs.navBarItemSpacingDp.set(it)
+                        },
                     )
+
                     SliderRow(
                         label = "Corner radius",
                         valueText = when {
@@ -167,8 +226,11 @@ object SettingsNavBarScreen : Screen() {
                         min = -1,
                         max = 56,
                         step = 1,
-                        onChange = { prefs.navBarCornerRadiusDp.set(it) },
+                        onChange = {
+                            prefs.navBarCornerRadiusDp.set(it)
+                        },
                     )
+
                     Box(modifier = Modifier.height(24.dp))
                 }
             }
@@ -176,7 +238,10 @@ object SettingsNavBarScreen : Screen() {
     }
 }
 
-private data class PreviewTab(val label: String, val icon: ImageVector)
+private data class PreviewTab(
+    val label: String,
+    val icon: ImageVector,
+)
 
 @Composable
 private fun NavBarPreview(
@@ -190,6 +255,7 @@ private fun NavBarPreview(
 ) {
     val hazeState = remember { HazeState() }
     var selected by remember { mutableIntStateOf(0) }
+
     val tabs = remember {
         listOf(
             PreviewTab("Library", Icons.Outlined.CollectionsBookmark),
@@ -200,20 +266,30 @@ private fun NavBarPreview(
         )
     }
 
-    // Same logic as HomeScreen so the preview matches the real bar.
     val barShape = if (cornerRadiusDp < 0) {
         RoundedCornerShape(percent = 50)
     } else {
         RoundedCornerShape(cornerRadiusDp.dp)
     }
-    val barAlpha = if (style == LibraryPreferences.NavBarBackgroundStyle.Solid) {
+
+    val barAlpha = if (
+        style == LibraryPreferences.NavBarBackgroundStyle.Solid
+    ) {
         1f
     } else {
         opacityPercent / 100f
     }
-    val blurred = style == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
-        style == LibraryPreferences.NavBarBackgroundStyle.Grainy
-    val noise = if (style == LibraryPreferences.NavBarBackgroundStyle.Grainy) 0.65f else 0f
+
+    val blurred =
+        style == LibraryPreferences.NavBarBackgroundStyle.Frosted ||
+            style == LibraryPreferences.NavBarBackgroundStyle.Grainy
+
+    val noise =
+        if (style == LibraryPreferences.NavBarBackgroundStyle.Grainy) {
+            0.65f
+        } else {
+            0f
+        }
 
     Box(
         modifier = Modifier
@@ -232,12 +308,14 @@ private fun NavBarPreview(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.primaryContainer),
             )
+
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.tertiaryContainer),
             )
+
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -245,11 +323,15 @@ private fun NavBarPreview(
                     .background(MaterialTheme.colorScheme.secondaryContainer),
             )
         }
+
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(
+                    horizontal = 16.dp,
+                    vertical = 12.dp,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             NavigationBar(
@@ -265,8 +347,15 @@ private fun NavBarPreview(
                 tabs.forEachIndexed { index, tab ->
                     NavigationBarItem(
                         selected = selected == index,
-                        onClick = { selected = index },
-                        icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
+                        onClick = {
+                            selected = index
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = tab.icon,
+                                contentDescription = tab.label,
+                            )
+                        },
                         label = {
                             Text(
                                 text = tab.label,
@@ -289,7 +378,12 @@ private fun SectionLabel(text: String) {
         text = text,
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+        modifier = Modifier.padding(
+            start = 16.dp,
+            end = 16.dp,
+            top = 16.dp,
+            bottom = 8.dp,
+        ),
     )
 }
 
@@ -309,21 +403,35 @@ private fun SliderRow(
     } else {
         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
     }
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+
+    Column(
+        modifier = Modifier.padding(
+            horizontal = 16.dp,
+            vertical = 4.dp,
+        ),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(text = label, style = MaterialTheme.typography.bodyMedium, color = textColor)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = textColor,
+            )
+
             Text(
                 text = valueText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
         Slider(
             value = value.toFloat(),
-            onValueChange = { onChange(it.roundToInt()) },
+            onValueChange = {
+                onChange(it.roundToInt())
+            },
             valueRange = min.toFloat()..max.toFloat(),
             steps = (max - min) / step - 1,
             enabled = enabled,
