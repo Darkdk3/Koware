@@ -34,10 +34,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
@@ -51,6 +54,7 @@ import eu.kanade.presentation.util.Tab
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import org.json.JSONObject
 import java.io.ByteArrayInputStream
 
 data object CustomTab : Tab {
@@ -88,6 +92,16 @@ data object CustomTab : Tab {
             "--muted:${colors.onSurfaceVariant.toCss()};" +
             "--primary:${colors.primary.toCss()}}"
 
+        // Same colors, as JSON, for Koware.getTheme().
+        val themeJson = JSONObject()
+            .put("isDark", colors.background.luminance() < 0.5f)
+            .put("background", colors.background.toCss())
+            .put("foreground", colors.onBackground.toCss())
+            .put("surface", colors.surfaceVariant.toCss())
+            .put("muted", colors.onSurfaceVariant.toCss())
+            .put("primary", colors.primary.toCss())
+            .toString()
+
         // Safe mode settings are part of the key so the page reloads when
         // they change.
         val document = remember(revision, themeVars, safeMode, allowedHosts) {
@@ -105,6 +119,7 @@ data object CustomTab : Tab {
             } else {
                 CustomTabWebView(
                     document = document,
+                    theme = themeJson,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -199,9 +214,13 @@ private fun EmptyState(onOpenEditor: () -> Unit) {
 @Composable
 private fun CustomTabWebView(
     document: String,
+    theme: String,
     modifier: Modifier = Modifier,
 ) {
     val preferences = remember { Injekt.get<CustomTabPreferences>() }
+    val scope = rememberCoroutineScope()
+    val latestTheme by rememberUpdatedState(theme)
+    val bridge = remember { KowareBridge { latestTheme } }
     val webViewHolder = remember { arrayOfNulls<WebView>(1) }
     var canGoBack by remember { mutableStateOf(false) }
 
@@ -220,6 +239,9 @@ private fun CustomTabWebView(
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = false
                 settings.allowContentAccess = false
+
+                // Koware JS API, only for the custom page's own origin.
+                installKowareBridge(this, scope, bridge)
 
                 webViewClient = object : WebViewClient() {
 
