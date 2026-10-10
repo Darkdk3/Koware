@@ -109,7 +109,7 @@ class CustomTabEditorScreen(
                 )
 
                 TabRow(selectedTabIndex = selected) {
-                    listOf("HTML", "CSS", "JS").forEachIndexed { index, title ->
+                    listOf("HTML", "CSS", "JS", "API").forEachIndexed { index, title ->
                         Tab(
                             selected = selected == index,
                             onClick = { selected = index },
@@ -118,28 +118,36 @@ class CustomTabEditorScreen(
                     }
                 }
 
-                OutlinedTextField(
-                    value = when (selected) {
-                        0 -> html
-                        1 -> css
-                        else -> js
-                    },
-                    onValueChange = {
-                        when (selected) {
-                            0 -> html = it
-                            1 -> css = it
-                            else -> js = it
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(8.dp),
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp,
-                    ),
-                )
+                if (selected == 3) {
+                    CustomTabApiReference(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = when (selected) {
+                            0 -> html
+                            1 -> css
+                            else -> js
+                        },
+                        onValueChange = {
+                            when (selected) {
+                                0 -> html = it
+                                1 -> css = it
+                                else -> js = it
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(8.dp),
+                        textStyle = TextStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                        ),
+                    )
+                }
             }
         }
     }
