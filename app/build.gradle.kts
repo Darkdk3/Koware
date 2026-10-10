@@ -1,3 +1,4 @@
+
 import mihon.gradle.Config
 import mihon.gradle.getBuildTime
 import mihon.gradle.getLatestCommitCount
@@ -60,7 +61,9 @@ android {
             }
         }
     } else if (keystorePropertiesFile.exists()) {
-        val keystoreProperties = FileInputStream(keystorePropertiesFile).use { Properties().apply { load(it) } }
+        val keystoreProperties = FileInputStream(keystorePropertiesFile).use {
+            Properties().apply { load(it) }
+        }
 
         signingConfigs {
             named("debug") {
@@ -143,9 +146,9 @@ android {
                 "libimagedecoder",
                 "libquickjs",
                 "libsqlite3x",
-            )
-                .map { "**/$it.so" }
+            ).map { "**/$it.so" }
         }
+
         resources {
             excludes += setOf(
                 "kotlin-tooling-metadata.json",
@@ -251,6 +254,9 @@ dependencies {
     implementation(libs.androidx.profileInstaller)
     implementation(libs.bundles.androidx.lifecycle)
 
+    // Required for WebViewCompat and WebViewFeature in KowareBridge.kt
+    implementation(libs.androidx.webkit)
+
     // Job scheduling
     implementation(libs.androidx.work)
 
@@ -348,12 +354,14 @@ androidComponents {
     onVariants { variant ->
         val resSource = variant.sources.res ?: return@onVariants
         val variantName = variant.name.replaceFirstChar { it.uppercase() }
+
         val replaceShortcutsPlaceholderTask = tasks.register<ReplaceShortcutsPlaceholderTask>(
             "replace${variantName}ShortcutPlaceholder",
         ) {
             applicationId.set(variant.applicationId)
             shortcutsFile.set(projectDir.resolve("src/main/shortcuts.xml"))
         }
+
         resSource.addGeneratedSourceDirectory(replaceShortcutsPlaceholderTask) { it.outputDir }
     }
 
