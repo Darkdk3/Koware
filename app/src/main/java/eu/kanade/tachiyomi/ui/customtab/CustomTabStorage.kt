@@ -264,14 +264,23 @@ object CustomTabStorage {
 
     private const val BASE_CSS = """
         *{box-sizing:border-box}
+        html{-webkit-tap-highlight-color:transparent;
+          -webkit-text-size-adjust:100%;touch-action:manipulation}
         html,body{margin:0;background:var(--bg);color:var(--fg);
-          font-family:Roboto,system-ui,sans-serif;line-height:1.5;font-size:16px}
-        body{padding:16px 16px 112px}
+          font-family:Roboto,system-ui,sans-serif;line-height:1.5;font-size:16px;
+          overscroll-behavior:none}
+        body{padding:16px 16px 112px;-webkit-user-select:none;user-select:none}
+        input,textarea,pre,code,[contenteditable]{
+          -webkit-user-select:text;user-select:text}
         h1,h2,h3{margin:0 0 8px}
         a{color:var(--primary)}
         button{background:var(--primary);color:var(--bg);border:0;
-          border-radius:20px;padding:10px 20px;font-size:16px}
+          border-radius:20px;padding:10px 20px;font-size:16px;
+          transition:transform .12s ease,opacity .12s ease}
+        button:active{transform:scale(.97);opacity:.85}
         img,video,iframe{max-width:100%}
+        @media (prefers-reduced-motion:reduce){
+          *{transition:none!important;animation:none!important}}
     """
 
     const val STARTER_HTML = """<h1 id="title">My custom tab</h1>
