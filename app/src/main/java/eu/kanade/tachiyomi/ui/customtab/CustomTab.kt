@@ -1,13 +1,5 @@
 package eu.kanade.tachiyomi.ui.customtab
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,11 +25,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -47,16 +36,16 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.presentation.util.Tab
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.io.ByteArrayInputStream
 
 data object CustomTab : Tab {
 
@@ -78,35 +67,53 @@ data object CustomTab : Tab {
         val context = LocalContext.current
         val navigator = LocalNavigator.currentOrThrow
         val colors = MaterialTheme.colorScheme
-        val preferences = remember { Injekt.get<CustomTabPreferences>() }
 
         val revision by CustomTabStorage.revision.collectAsState()
-        val safeMode by preferences.safeMode.collectAsState()
-        val allowedHosts by preferences.allowedHosts.collectAsState()
-        val activeId = remember(revision) { CustomTabStorage.activeId(context) }
-
         val theme = rememberCustomTabTheme()
 
-        // Safe mode settings are part of the key so the page reloads when
-        // they change.
-        val document = remember(revision, theme.vars, safeMode, allowedHosts) {
-            CustomTabStorage.buildDocument(context, theme.vars)
+        // Reading the files happens off the main thread, so opening the tab
+        // never waits on storage. The last page is reused until the new one is
+        // ready, so coming back to the tab doesn't flash.
+        val page by produceState<LoadedPage?>(
+            initialValue = CustomTabBrowserCache.lastPage,
+            revision,
+            theme.vars,
+        ) {
+            val loaded = withContext(Dispatchers.IO) {
+                val id = CustomTabStorage.activeId(context)
+                LoadedPage(
+                    activeId = id,
+                    document = if (id == null) {
+                        ""
+                    } else {
+                        CustomTabStorage.buildDocument(context, theme.vars)
+                    },
+                )
+            }
+            CustomTabBrowserCache.lastPage = loaded
+            value = loaded
         }
+
+        val loaded = page
+        val activeId = loaded?.activeId
 
         // statusBarsPadding keeps the page and the buttons below the status
         // bar, like the toolbar on the Novels tab.
         Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            if (activeId == null) {
-                EmptyState(
+            when {
+                loaded == null -> Unit
+
+                activeId == null -> EmptyState(
                     onOpenEditor = {
                         val save = CustomTabStorage.create(context, "My tab")
                         navigator.push(CustomTabEditorScreen(save.id))
                     },
                 )
-            } else {
-                CustomTabWebView(
-                    document = document,
+
+                else -> CustomTabWebView(
+                    document = loaded.document,
                     theme = theme.json,
+                    shared = true,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -124,7 +131,7 @@ data object CustomTab : Tab {
                             navigator.push(CustomTabEditorScreen(activeId))
                         },
                         modifier = Modifier.background(
-                            colors.surface.copy(alpha = 0.7f),
+                            colors.surfaceVariant.copy(alpha = 0.85f),
                             CircleShape,
                         ),
                     ) {
@@ -137,7 +144,7 @@ data object CustomTab : Tab {
                 IconButton(
                     onClick = { navigator.push(CustomTabSettingsScreen) },
                     modifier = Modifier.background(
-                        colors.surface.copy(alpha = 0.7f),
+                        colors.surfaceVariant.copy(alpha = 0.85f),
                         CircleShape,
                     ),
                 ) {
@@ -221,140 +228,6 @@ private fun EmptyState(onOpenEditor: () -> Unit) {
                 Text("Import files")
             }
         }
-    }
-}
-
-/**
- * The WebView that runs a custom page. Used by the tab and by the editors'
- * previews, so a preview behaves exactly like the real tab (same safe mode
- * rules, same Koware bridge).
- */
-@Composable
-internal fun CustomTabWebView(
-    document: String,
-    theme: String,
-    modifier: Modifier = Modifier,
-) {
-    val preferences = remember { Injekt.get<CustomTabPreferences>() }
-    val scope = rememberCoroutineScope()
-    val latestTheme by rememberUpdatedState(theme)
-    val bridge = remember { KowareBridge { latestTheme } }
-    val webViewHolder = remember { arrayOfNulls<WebView>(1) }
-    var canGoBack by remember { mutableStateOf(false) }
-
-    // Lets back go through pages visited inside the tab (safe mode off).
-    BackHandler(enabled = canGoBack) {
-        webViewHolder[0]?.goBack()
-    }
-
-    AndroidView(
-        modifier = modifier,
-        factory = { context ->
-            WebView(context).apply {
-                webViewHolder[0] = this
-                setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.allowFileAccess = false
-                settings.allowContentAccess = false
-
-                // Koware JS API, only for the custom page's own origin.
-                installKowareBridge(this, scope, bridge)
-
-                webViewClient = object : WebViewClient() {
-
-                    // Main-frame navigation (taps on links).
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView,
-                        request: WebResourceRequest,
-                    ): Boolean {
-                        val uri = request.url
-                        if (uri.host == CustomTabStorage.BASE_HOST) return false
-
-                        // Never follow intent:, tel:, and similar schemes.
-                        if (uri.scheme != "http" && uri.scheme != "https") {
-                            return true
-                        }
-
-                        // Safe mode off: free browsing inside the tab.
-                        if (!preferences.safeMode.get()) return false
-
-                        val allowed = uri.scheme == "https" &&
-                            CustomTabSafety.isAllowed(
-                                uri.host,
-                                preferences.allowedHosts.get(),
-                            )
-                        if (allowed) return false
-
-                        openInBrowser(context, uri)
-                        return true
-                    }
-
-                    // Every request, including iframes, images, and scripts.
-                    override fun shouldInterceptRequest(
-                        view: WebView,
-                        request: WebResourceRequest,
-                    ): WebResourceResponse? {
-                        if (!preferences.safeMode.get()) return null
-
-                        val uri = request.url
-                        if (uri.scheme != "http" && uri.scheme != "https") {
-                            return null
-                        }
-
-                        val allowed = uri.scheme == "https" &&
-                            CustomTabSafety.isAllowed(
-                                uri.host,
-                                preferences.allowedHosts.get(),
-                            )
-                        if (allowed) return null
-
-                        return WebResourceResponse(
-                            "text/plain",
-                            "utf-8",
-                            403,
-                            "Blocked by safe mode",
-                            emptyMap(),
-                            ByteArrayInputStream(ByteArray(0)),
-                        )
-                    }
-
-                    override fun doUpdateVisitedHistory(
-                        view: WebView,
-                        url: String?,
-                        isReload: Boolean,
-                    ) {
-                        canGoBack = view.canGoBack()
-                    }
-                }
-            }
-        },
-        update = { view ->
-            // Only reload when the document actually changed.
-            if (view.tag != document) {
-                view.tag = document
-                view.loadDataWithBaseURL(
-                    CustomTabStorage.BASE_URL,
-                    document,
-                    "text/html",
-                    "utf-8",
-                    null,
-                )
-            }
-        },
-        onRelease = {
-            webViewHolder[0] = null
-            it.destroy()
-        },
-    )
-}
-
-private fun openInBrowser(context: Context, uri: Uri) {
-    runCatching {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, uri)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
     }
 }
 
