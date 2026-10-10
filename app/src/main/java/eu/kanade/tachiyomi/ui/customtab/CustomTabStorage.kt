@@ -23,6 +23,7 @@ object CustomTabStorage {
     /** Base URL for the page. */
     const val BASE_URL = "https://koware.local/"
     const val BASE_HOST = "koware.local"
+    const val BASE_ORIGIN = "https://koware.local"
 
     data class Save(val id: String, val name: String)
 
@@ -187,6 +188,7 @@ object CustomTabStorage {
             </head>
             <body>
             $html
+            <script>${CustomTabApi.shim()}</script>
             <script>$js</script>
             </body>
             </html>
