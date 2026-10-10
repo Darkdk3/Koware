@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Code
@@ -108,7 +109,9 @@ data object CustomTab : Tab {
             CustomTabStorage.buildDocument(context, themeVars)
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        // statusBarsPadding keeps the page and the buttons below the status
+        // bar, like the toolbar on the Novels tab.
+        Box(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             if (activeId == null) {
                 EmptyState(
                     onOpenEditor = {
