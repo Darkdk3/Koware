@@ -52,10 +52,10 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import eu.kanade.presentation.util.Tab
+import org.json.JSONObject
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import org.json.JSONObject
 import java.io.ByteArrayInputStream
 
 data object CustomTab : Tab {
@@ -85,28 +85,12 @@ data object CustomTab : Tab {
         val allowedHosts by preferences.allowedHosts.collectAsState()
         val activeId = remember(revision) { CustomTabStorage.activeId(context) }
 
-        // App theme colors exposed to the page as CSS variables.
-        val themeVars = ":root{" +
-            "--bg:${colors.background.toCss()};" +
-            "--fg:${colors.onBackground.toCss()};" +
-            "--surface:${colors.surfaceVariant.toCss()};" +
-            "--muted:${colors.onSurfaceVariant.toCss()};" +
-            "--primary:${colors.primary.toCss()}}"
-
-        // Same colors, as JSON, for Koware.getTheme().
-        val themeJson = JSONObject()
-            .put("isDark", colors.background.luminance() < 0.5f)
-            .put("background", colors.background.toCss())
-            .put("foreground", colors.onBackground.toCss())
-            .put("surface", colors.surfaceVariant.toCss())
-            .put("muted", colors.onSurfaceVariant.toCss())
-            .put("primary", colors.primary.toCss())
-            .toString()
+        val theme = rememberCustomTabTheme()
 
         // Safe mode settings are part of the key so the page reloads when
         // they change.
-        val document = remember(revision, themeVars, safeMode, allowedHosts) {
-            CustomTabStorage.buildDocument(context, themeVars)
+        val document = remember(revision, theme.vars, safeMode, allowedHosts) {
+            CustomTabStorage.buildDocument(context, theme.vars)
         }
 
         // statusBarsPadding keeps the page and the buttons below the status
@@ -122,7 +106,7 @@ data object CustomTab : Tab {
             } else {
                 CustomTabWebView(
                     document = document,
-                    theme = themeJson,
+                    theme = theme.json,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -165,6 +149,32 @@ data object CustomTab : Tab {
             }
         }
     }
+}
+
+/** App colors, as CSS variables for the page and as JSON for Koware.getTheme(). */
+internal class CustomTabTheme(val vars: String, val json: String)
+
+@Composable
+internal fun rememberCustomTabTheme(): CustomTabTheme {
+    val colors = MaterialTheme.colorScheme
+
+    val vars = ":root{" +
+        "--bg:${colors.background.toCss()};" +
+        "--fg:${colors.onBackground.toCss()};" +
+        "--surface:${colors.surfaceVariant.toCss()};" +
+        "--muted:${colors.onSurfaceVariant.toCss()};" +
+        "--primary:${colors.primary.toCss()}}"
+
+    val json = JSONObject()
+        .put("isDark", colors.background.luminance() < 0.5f)
+        .put("background", colors.background.toCss())
+        .put("foreground", colors.onBackground.toCss())
+        .put("surface", colors.surfaceVariant.toCss())
+        .put("muted", colors.onSurfaceVariant.toCss())
+        .put("primary", colors.primary.toCss())
+        .toString()
+
+    return remember(vars, json) { CustomTabTheme(vars, json) }
 }
 
 @Composable
@@ -214,8 +224,13 @@ private fun EmptyState(onOpenEditor: () -> Unit) {
     }
 }
 
+/**
+ * The WebView that runs a custom page. Used by the tab and by the editors'
+ * previews, so a preview behaves exactly like the real tab (same safe mode
+ * rules, same Koware bridge).
+ */
 @Composable
-private fun CustomTabWebView(
+internal fun CustomTabWebView(
     document: String,
     theme: String,
     modifier: Modifier = Modifier,
