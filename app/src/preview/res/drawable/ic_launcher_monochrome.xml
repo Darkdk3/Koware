@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+  <!-- Themed icons render only this layer in a single system color, so build types are
+       told apart by ring shape: stable = solid, nightly = dashed, preview = dotted,
+       debug = double thin ring. Glyph must match ic_koware_fg. -->
+  <!-- Preview: dotted ring (12 dots, r=12, every 30deg on r=105) -->
+  <path
+      android:pathData="M 305.42 242.68 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 278.25 289.75 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 231.18 316.92 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 176.82 316.92 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 129.75 289.75 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 102.58 242.68 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 102.58 188.32 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 129.75 141.25 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 176.82 114.08 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 231.18 114.08 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 278.25 141.25 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 305.42 188.32 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0"
+      android:fillColor="#FFFFFF"/>
+  <!-- Koware glyph (片) - scaled 4x from ic_koware_fg -->
+  <path
+      android:pathData="M 174 146 L 193.6 146 L 193.6 179.6 L 224.4 179.6 L 224.4 143.2 L 241.2 143.2 L 241.2 179.6 L 258 179.6 L 266.4 171.2 L 280.4 182.4 L 280.4 196.4 L 193.6 196.4 L 193.6 224.4 L 232.8 224.4 L 241.2 213.2 L 252.4 221.6 L 258 227.2 L 252.4 232.8 L 252.4 283.2 L 246.8 288.8 L 235.6 288.8 L 232.8 283.2 L 232.8 241.2 L 193.6 241.2 L 193.6 255.2 L 162.8 288.8 L 151.6 283.2 L 174 244 Z"
+      android:fillColor="#FFFFFF"/>
+</vector>
