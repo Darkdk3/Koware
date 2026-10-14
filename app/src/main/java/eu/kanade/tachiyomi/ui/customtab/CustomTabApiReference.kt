@@ -1,4 +1,3 @@
-
 package eu.kanade.tachiyomi.ui.customtab
 
 import android.content.ClipData
@@ -11,10 +10,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,7 +35,9 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun CustomTabApiReference(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val expandedSections = remember { mutableStateMapOf<String, Boolean>() }
+    val expandedSections = remember {
+        mutableStateMapOf<String, Boolean>()
+    }
 
     val sections = remember {
         CustomTabApi.methods.groupBy { it.category }.toList()
@@ -306,7 +305,7 @@ private fun buildCompleteReference(): String = buildString {
     appendLine("Registered methods: ${CustomTabApi.methods.size}")
     appendLine()
     appendLine("All methods return promises. Use await inside an async function.")
-    appendLine("")
+    appendLine()
 
     CustomTabApi.methods.forEach { method ->
         appendLine(methodDocumentation(method))
