@@ -1,3 +1,4 @@
+
 package eu.kanade.tachiyomi.ui.customtab
 
 import android.content.Context
@@ -7,21 +8,22 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
 /**
- * Stores custom tab saves and provides built-in presets. Also builds the
- * single page the tab's WebView loads.
+ * Stores custom tab saves and provides built-in presets.
+ * Also builds the single page loaded by the tab's WebView.
  *
- * Layout: custom_tab/saves/<id>/{custom.html,custom.css,custom.js,name.txt,parts.txt}
- *         custom_tab/active.txt  (id of the save shown in the tab)
+ * Layout:
+ * custom_tab/saves/<id>/{custom.html,custom.css,custom.js,name.txt,parts.txt}
+ * custom_tab/active.txt (id of the save shown in the tab)
  */
 object CustomTabStorage {
 
     const val HTML = "custom.html"
     const val CSS = "custom.css"
     const val JS = "custom.js"
+
     private const val NAME = "name.txt"
     private const val PARTS = "parts.txt"
 
-    /** Base URL for the page. */
     const val BASE_URL = "https://koware.local/"
     const val BASE_HOST = "koware.local"
     const val BASE_ORIGIN = "https://koware.local"
@@ -37,8 +39,6 @@ object CustomTabStorage {
     )
 
     private val _revision = MutableStateFlow(0)
-
-    /** Bumps on every change, so screens and the tab know to refresh. */
     val revision: StateFlow<Int> = _revision.asStateFlow()
 
     private fun bump() {
@@ -63,7 +63,7 @@ object CustomTabStorage {
         return id.toString()
     }
 
-    /** Moves the old single-page files (before saves existed) into a save. */
+    /** Migrates older single-page files into a save. */
     private fun migrateLegacy(context: Context) {
         val root = root(context)
         val legacyHtml = File(root, HTML)
@@ -73,12 +73,15 @@ object CustomTabStorage {
         val dir = saveDir(context, id).apply { mkdirs() }
 
         File(dir, HTML).writeText(legacyHtml.readText())
+
         File(root, CSS).takeIf { it.exists() }?.let {
             File(dir, CSS).writeText(it.readText())
         }
+
         File(root, JS).takeIf { it.exists() }?.let {
             File(dir, JS).writeText(it.readText())
         }
+
         File(dir, NAME).writeText("My tab")
 
         legacyHtml.delete()
@@ -92,6 +95,7 @@ object CustomTabStorage {
 
     fun listSaves(context: Context): List<Save> {
         migrateLegacy(context)
+
         return savesDir(context)
             .listFiles { file -> file.isDirectory }
             .orEmpty()
@@ -103,16 +107,19 @@ object CustomTabStorage {
                     ?.trim()
                     .orEmpty()
                     .ifBlank { "Untitled" }
+
                 Save(id = dir.name, name = name)
             }
     }
 
     fun activeId(context: Context): String? {
         val saves = listSaves(context)
+
         val stored = activeFile(context)
             .takeIf { it.exists() }
             ?.readText()
             ?.trim()
+
         return saves.firstOrNull { it.id == stored }?.id
             ?: saves.firstOrNull()?.id
     }
@@ -126,8 +133,8 @@ object CustomTabStorage {
         listSaves(context).firstOrNull { it.id == id }?.name.orEmpty()
 
     fun read(context: Context, id: String, file: String): String? {
-        val f = File(saveDir(context, id), file)
-        return if (f.exists()) f.readText() else null
+        val fileOnDisk = File(saveDir(context, id), file)
+        return if (fileOnDisk.exists()) fileOnDisk.readText() else null
     }
 
     fun write(
@@ -139,36 +146,56 @@ object CustomTabStorage {
         js: String,
     ) {
         val dir = saveDir(context, id).apply { mkdirs() }
+
         File(dir, NAME).writeText(name)
         File(dir, HTML).writeText(html)
         File(dir, CSS).writeText(css)
         File(dir, JS).writeText(js)
+
         bump()
     }
 
-    /** Creates a save with the starter page and makes it the active one. */
+    /**
+     * Creates a completely blank custom tab.
+     * No sample heading, button, counter, CSS, or JavaScript.
+     */
     fun create(context: Context, name: String): Save {
         migrateLegacy(context)
+
         val id = newId(context)
-        write(context, id, name, STARTER_HTML, STARTER_CSS, STARTER_JS)
+
+        write(
+            context = context,
+            id = id,
+            name = name,
+            html = STARTER_HTML,
+            css = STARTER_CSS,
+            js = STARTER_JS,
+        )
+
         setActive(context, id)
+
         return Save(id, name)
     }
 
     fun duplicate(context: Context, id: String): Save {
         val newId = newId(context)
         val name = nameOf(context, id) + " copy"
+
         write(
-            context,
-            newId,
-            name,
-            read(context, id, HTML).orEmpty(),
-            read(context, id, CSS).orEmpty(),
-            read(context, id, JS).orEmpty(),
+            context = context,
+            id = newId,
+            name = name,
+            html = read(context, id, HTML).orEmpty(),
+            css = read(context, id, CSS).orEmpty(),
+            js = read(context, id, JS).orEmpty(),
         )
+
         File(saveDir(context, newId), PARTS)
             .writeText(disabledParts(context, id).joinToString(","))
+
         setActive(context, newId)
+
         return Save(newId, name)
     }
 
@@ -178,9 +205,8 @@ object CustomTabStorage {
     }
 
     /**
-     * Apply a preset to an existing save.
-     * This intentionally replaces that save's HTML, CSS, and JS, and switches
-     * every part back on.
+     * Applies a preset to an existing save.
+     * This replaces its HTML, CSS, and JavaScript.
      */
     fun applyPreset(
         context: Context,
@@ -188,6 +214,7 @@ object CustomTabStorage {
         preset: Preset,
     ) {
         File(saveDir(context, id), PARTS).delete()
+
         write(
             context = context,
             id = id,
@@ -198,7 +225,7 @@ object CustomTabStorage {
         )
     }
 
-    /** Parts (html, css, js) the user switched off. The tab skips them. */
+    /** Parts (HTML, CSS, JS) that the user has switched off. */
     fun disabledParts(context: Context, id: String): Set<String> =
         read(context, id, PARTS)
             ?.split(",")
@@ -207,17 +234,30 @@ object CustomTabStorage {
             ?.toSet()
             .orEmpty()
 
-    fun setPartEnabled(context: Context, id: String, part: String, enabled: Boolean) {
+    fun setPartEnabled(
+        context: Context,
+        id: String,
+        part: String,
+        enabled: Boolean,
+    ) {
         val updated = disabledParts(context, id).toMutableSet()
-        if (enabled) updated.remove(part) else updated.add(part)
+
+        if (enabled) {
+            updated.remove(part)
+        } else {
+            updated.add(part)
+        }
+
         val dir = saveDir(context, id).apply { mkdirs() }
         File(dir, PARTS).writeText(updated.joinToString(","))
+
         bump()
     }
 
-    /** The page for the active save. */
+    /** Builds the page for the active custom tab. */
     fun buildDocument(context: Context, themeVars: String): String {
         val id = activeId(context) ?: return ""
+
         return composeDocument(
             themeVars = themeVars,
             html = read(context, id, HTML).orEmpty(),
@@ -228,9 +268,8 @@ object CustomTabStorage {
     }
 
     /**
-     * Order matters: app theme variables, then the base stylesheet, then the
-     * user's CSS (so it can override anything), then the user's HTML and JS.
-     * Parts listed in [disabled] are left out.
+     * Order: theme variables, base CSS, user CSS, user HTML and user JS.
+     * Disabled parts are omitted.
      */
     fun composeDocument(
         themeVars: String,
@@ -283,30 +322,16 @@ object CustomTabStorage {
           *{transition:none!important;animation:none!important}}
     """
 
-    const val STARTER_HTML = """<h1 id="title">My custom tab</h1>
-<p class="card">Tap the pencil button to edit this page.</p>
-<button id="btn">Tap me</button>
-<p id="out"></p>
-"""
+    /** New custom tabs start with no content. */
+    const val STARTER_HTML = ""
 
-    const val STARTER_CSS = """.card {
-  background: var(--surface);
-  color: var(--muted);
-  padding: 12px 16px;
-  border-radius: 16px;
-}
-"""
+    const val STARTER_CSS = ""
 
-    const val STARTER_JS = """let taps = 0;
-document.getElementById('btn').addEventListener('click', () => {
-  taps += 1;
-  document.getElementById('out').textContent = 'Taps: ' + taps;
-});
-"""
+    const val STARTER_JS = ""
 
     /**
      * Built-in Custom Tab presets.
-     * The inspector uses only the existing Koware JS bridge.
+     * The inspector uses the existing Koware JavaScript bridge.
      */
     val PRESETS: List<Preset> = listOf(
         Preset(
@@ -512,12 +537,15 @@ async function inspectKoware() {
   } catch (error) {
     byId('status').textContent = 'Inspection failed';
     byId('bridge-status').textContent = 'Unavailable';
+
     byId('methods').replaceChildren(
       element('p', '', error.message || String(error))
     );
+
     byId('theme-colors').replaceChildren(
       element('p', '', 'Theme information unavailable.')
     );
+
     byId('theme-json').textContent = 'Unable to retrieve theme.';
   } finally {
     button.disabled = false;
