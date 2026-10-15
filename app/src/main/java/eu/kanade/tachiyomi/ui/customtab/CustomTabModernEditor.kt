@@ -1,3 +1,4 @@
+
 package eu.kanade.tachiyomi.ui.customtab
 
 import androidx.activity.compose.BackHandler
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Fullscreen
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -60,11 +62,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-private enum class ModernPage { Overview, Edit, Preview, Api }
+private enum class ModernPage {
+    Overview,
+    Edit,
+    Preview,
+    Api,
+    Simple,
+}
 
 /**
- * Modern editor: the three files are separate numbered parts, each edited on
- * its own screen, so they never look like one script running together.
+ * Modern editor with separate HTML, CSS and JavaScript screens,
+ * plus a visual Simple Mode for managing widgets.
  */
 @Composable
 internal fun CustomTabModernEditor(draft: CustomTabDraft) {
@@ -77,19 +85,20 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
     var saved by remember { mutableStateOf(true) }
     var firstRun by remember { mutableStateOf(true) }
 
-    // Saves by itself a moment after the last change.
     LaunchedEffect(draft.name, draft.html.text, draft.css.text, draft.js.text) {
         if (firstRun) {
             firstRun = false
             return@LaunchedEffect
         }
+
         saved = false
         delay(700)
-        withContext(Dispatchers.IO) { draft.save(context) }
+        withContext(Dispatchers.IO) {
+            draft.save(context)
+        }
         saved = true
     }
 
-    // Leaving early still keeps the last edits.
     DisposableEffect(Unit) {
         onDispose {
             if (!saved) draft.save(context)
@@ -111,12 +120,15 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                         IconButton(onClick = { navigator.pop() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
+                                contentDescription = "Back",
                             )
                         }
                     },
                     actions = {
-                        TextButton(onClick = { navigator.pop() }) {
+                        TextButton(onClick = {
+                            draft.save(context)
+                            navigator.pop()
+                        }) {
                             Text("Done")
                         }
                     },
@@ -164,6 +176,7 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                             )
                         }
                     }
+
                     CustomTabWebView(
                         document = document,
                         theme = theme.json,
@@ -171,6 +184,43 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                             .fillMaxWidth()
                             .height(200.dp),
                     )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Card(
+                    onClick = { page = ModernPage.Simple },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Widgets,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Simple Mode",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                text = "Add, arrange, and remove widgets",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        Icon(
+                            imageVector = Icons.Outlined.ChevronRight,
+                            contentDescription = null,
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -195,7 +245,9 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                         lines = draft.get(info.key).text.count { it == '\n' } + 1,
                         enabled = info.key !in draft.disabled,
                         isLast = index == CustomTabParts.lastIndex,
-                        onToggle = { draft.setEnabled(context, info.key, it) },
+                        onToggle = {
+                            draft.setEnabled(context, info.key, it)
+                        },
                         onOpen = {
                             partKey = info.key
                             page = ModernPage.Edit
@@ -238,6 +290,13 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
             }
         }
 
+        ModernPage.Simple -> {
+            CustomTabSimpleMode(
+                draft = draft,
+                onBack = { page = ModernPage.Overview },
+            )
+        }
+
         ModernPage.Edit -> {
             val info = CustomTabParts.first { it.key == partKey }
 
@@ -259,15 +318,19 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                             }
                         },
                         navigationIcon = {
-                            IconButton(onClick = { page = ModernPage.Overview }) {
+                            IconButton(onClick = {
+                                page = ModernPage.Overview
+                            }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = null,
+                                    contentDescription = "Back",
                                 )
                             }
                         },
                         actions = {
-                            FilledTonalButton(onClick = { page = ModernPage.Preview }) {
+                            FilledTonalButton(
+                                onClick = { page = ModernPage.Preview },
+                            ) {
                                 Icon(
                                     imageVector = Icons.Outlined.PlayArrow,
                                     contentDescription = null,
@@ -288,7 +351,10 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                         .imePadding(),
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(
+                            horizontal = 16.dp,
+                            vertical = 4.dp,
+                        ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         StepDot(step = info.step, enabled = true)
@@ -310,7 +376,9 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                     )
 
                     SymbolRow(
-                        onInsert = { draft.set(partKey, draft.get(partKey).insert(it)) },
+                        onInsert = {
+                            draft.set(partKey, draft.get(partKey).insert(it))
+                        },
                     )
                 }
             }
@@ -321,10 +389,12 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                 TopAppBar(
                     title = { Text("Preview") },
                     navigationIcon = {
-                        IconButton(onClick = { page = ModernPage.Overview }) {
+                        IconButton(onClick = {
+                            page = ModernPage.Overview
+                        }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
+                                contentDescription = "Back",
                             )
                         }
                     },
@@ -339,10 +409,13 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     CustomTabParts.forEach { info ->
-                        val on = info.key !in draft.disabled
+                        val enabled = info.key !in draft.disabled
+
                         FilterChip(
-                            selected = on,
-                            onClick = { draft.setEnabled(context, info.key, !on) },
+                            selected = enabled,
+                            onClick = {
+                                draft.setEnabled(context, info.key, !enabled)
+                            },
                             label = { Text("${info.step} ${info.title}") },
                             shape = RoundedCornerShape(percent = 50),
                         )
@@ -363,7 +436,10 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                         "the tab loads.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.padding(
+                        horizontal = 16.dp,
+                        vertical = 8.dp,
+                    ),
                 )
             }
         }
@@ -373,10 +449,12 @@ internal fun CustomTabModernEditor(draft: CustomTabDraft) {
                 TopAppBar(
                     title = { Text("API reference") },
                     navigationIcon = {
-                        IconButton(onClick = { page = ModernPage.Overview }) {
+                        IconButton(onClick = {
+                            page = ModernPage.Overview
+                        }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
+                                contentDescription = "Back",
                             )
                         }
                     },
@@ -419,7 +497,6 @@ private fun StepDot(step: Int, enabled: Boolean) {
     }
 }
 
-/** One numbered part on the overview, joined to the next by a vertical line. */
 @Composable
 private fun PartCard(
     info: PartInfo,
@@ -442,6 +519,7 @@ private fun PartCard(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             StepDot(step = info.step, enabled = enabled)
+
             if (!isLast) {
                 Box(
                     modifier = Modifier
@@ -474,7 +552,11 @@ private fun PartCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Switch(checked = enabled, onCheckedChange = onToggle)
+
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = onToggle,
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(6.dp))
