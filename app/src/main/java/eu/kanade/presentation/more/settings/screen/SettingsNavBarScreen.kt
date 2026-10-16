@@ -1,7 +1,9 @@
-
 package eu.kanade.presentation.more.settings.screen
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -18,6 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Explore
@@ -25,12 +31,14 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NewReleases
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -41,7 +49,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +86,8 @@ object SettingsNavBarScreen : Screen() {
         val customTabEnabled by customTabPrefs.enabled.collectAsState()
         val customTabName by customTabPrefs.name.collectAsState()
         val savedTabOrder by prefs.navBarItemOrder.collectAsState()
+
+        var reorderExpanded by remember { mutableStateOf(false) }
 
         val tabOrder = remember(savedTabOrder) {
             parseSettingsNavBarOrder(savedTabOrder)
@@ -192,68 +204,17 @@ object SettingsNavBarScreen : Screen() {
                         )
                     }
 
-                    SectionLabel("Reorder tabs")
-
-                    Text(
-                        text = "Use the arrows to change the order of navigation items. " +
-                            "Your order is saved automatically. Disabled tabs keep their positions.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(
-                            horizontal = 16.dp,
-                            vertical = 4.dp,
-                        ),
+                    ReorderTabsCard(
+                        tabOrder = tabOrder,
+                        customTabEnabled = customTabEnabled,
+                        expanded = reorderExpanded,
+                        onToggle = {
+                            reorderExpanded = !reorderExpanded
+                        },
+                        onOrderChanged = { updated ->
+                            prefs.navBarItemOrder.set(updated.joinToString(","))
+                        },
                     )
-
-                    tabOrder.forEachIndexed { index, key ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    horizontal = 16.dp,
-                                    vertical = 2.dp,
-                                ),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = settingsNavBarTabLabel(key),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-
-                            IconButton(
-                                enabled = index > 0,
-                                onClick = {
-                                    val updated = tabOrder.toMutableList()
-                                    val previous = updated[index - 1]
-                                    updated[index - 1] = updated[index]
-                                    updated[index] = previous
-                                    prefs.navBarItemOrder.set(updated.joinToString(","))
-                                },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.KeyboardArrowUp,
-                                    contentDescription = "Move ${settingsNavBarTabLabel(key)} up",
-                                )
-                            }
-
-                            IconButton(
-                                enabled = index < tabOrder.lastIndex,
-                                onClick = {
-                                    val updated = tabOrder.toMutableList()
-                                    val next = updated[index + 1]
-                                    updated[index + 1] = updated[index]
-                                    updated[index] = next
-                                    prefs.navBarItemOrder.set(updated.joinToString(","))
-                                },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = "Move ${settingsNavBarTabLabel(key)} down",
-                                )
-                            }
-                        }
-                    }
 
                     SectionLabel("Size and shape")
 
@@ -285,7 +246,7 @@ object SettingsNavBarScreen : Screen() {
                         label = "Item spacing",
                         valueText = "${itemSpacingDp}dp",
                         value = itemSpacingDp,
-                        min = -24,
+                        min = -16,
                         max = 24,
                         step = 1,
                         onChange = {
@@ -310,6 +271,169 @@ object SettingsNavBarScreen : Screen() {
                     )
 
                     Box(modifier = Modifier.height(24.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReorderTabsCard(
+    tabOrder: List<String>,
+    customTabEnabled: Boolean,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onOrderChanged: (List<String>) -> Unit,
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "reorderChevronRotation",
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .clickable(onClick = onToggle),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.SwapVert,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp),
+                ) {
+                    Text(
+                        text = "Reorder tabs",
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+
+                    Text(
+                        text = tabOrder
+                            .take(3)
+                            .joinToString(" · ") { settingsNavBarTabLabel(it) },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = if (expanded) "Collapse tab order" else "Expand tab order",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(rotation),
+                )
+            }
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+            ) {
+                Column(
+                    modifier = Modifier.padding(vertical = 6.dp),
+                ) {
+                    tabOrder.forEachIndexed { index, key ->
+                        val disabled = key == "custom" && !customTabEnabled
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .alpha(if (disabled) 0.45f else 1f)
+                                .padding(horizontal = 12.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "${index + 1}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(28.dp),
+                            )
+
+                            Icon(
+                                imageVector = settingsNavBarTabIcon(key),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp),
+                            )
+
+                            Text(
+                                text = settingsNavBarTabLabel(key),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 12.dp),
+                            )
+
+                            IconButton(
+                                enabled = index > 0,
+                                onClick = {
+                                    val updated = tabOrder.toMutableList()
+                                    val previous = updated[index - 1]
+                                    updated[index - 1] = updated[index]
+                                    updated[index] = previous
+                                    onOrderChanged(updated)
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowUp,
+                                    contentDescription = "Move ${settingsNavBarTabLabel(key)} up",
+                                )
+                            }
+
+                            IconButton(
+                                enabled = index < tabOrder.lastIndex,
+                                onClick = {
+                                    val updated = tabOrder.toMutableList()
+                                    val next = updated[index + 1]
+                                    updated[index + 1] = updated[index]
+                                    updated[index] = next
+                                    onOrderChanged(updated)
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = "Move ${settingsNavBarTabLabel(key)} down",
+                                )
+                            }
+                        }
+
+                        if (index < tabOrder.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(
+                                    alpha = 0.35f,
+                                ),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -527,6 +651,17 @@ private fun settingsNavBarTabLabel(key: String): String = when (key) {
     "custom" -> "Custom"
     "more" -> "More"
     else -> key
+}
+
+private fun settingsNavBarTabIcon(key: String): ImageVector = when (key) {
+    "novels" -> Icons.Outlined.Book
+    "library" -> Icons.Outlined.CollectionsBookmark
+    "updates" -> Icons.Outlined.NewReleases
+    "history" -> Icons.Outlined.History
+    "browse" -> Icons.Outlined.Explore
+    "custom" -> Icons.Outlined.Code
+    "more" -> Icons.Outlined.MoreHoriz
+    else -> Icons.Outlined.CollectionsBookmark
 }
 
 @Composable
