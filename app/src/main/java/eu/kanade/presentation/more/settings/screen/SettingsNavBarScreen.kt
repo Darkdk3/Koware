@@ -285,7 +285,7 @@ object SettingsNavBarScreen : Screen() {
                         label = "Item spacing",
                         valueText = "${itemSpacingDp}dp",
                         value = itemSpacingDp,
-                        min = 0,
+                        min = -24,
                         max = 24,
                         step = 1,
                         onChange = {
