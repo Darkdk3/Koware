@@ -1,3 +1,4 @@
+
 package eu.kanade.tachiyomi.ui.home
 
 import androidx.activity.compose.BackHandler
@@ -122,38 +123,48 @@ object HomeScreen : Screen() {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val libraryPreferences = remember { Injekt.get<tachiyomi.domain.library.service.LibraryPreferences>() }
+        val libraryPreferences = remember { Injekt.get<LibraryPreferences>() }
         val basePreferences = remember { Injekt.get<BasePreferences>() }
         val customTabPreferences = remember { Injekt.get<CustomTabPreferences>() }
         val isJoined by libraryPreferences.joinedLibrary.collectAsState()
         val uiMode by basePreferences.uiMode.collectAsState()
         val alwaysShowNavLabels by libraryPreferences.alwaysShowNavigationLabels.collectAsState()
         val customTabEnabled by customTabPreferences.enabled.collectAsState()
+        val savedNavBarOrder by libraryPreferences.navBarItemOrder.collectAsState()
+
+        val navBarOrder = remember(savedNavBarOrder) {
+            parseHomeNavBarOrder(savedNavBarOrder)
+        }
+
         val baseTabs: List<eu.kanade.presentation.util.Tab> = when (uiMode) {
             BasePreferences.UiMode.MANGA_ONLY -> MANGA_TABS
             BasePreferences.UiMode.NOVEL_ONLY -> JOINED_TABS
             BasePreferences.UiMode.BOTH -> if (isJoined) JOINED_TABS else TABS
         }
 
-        // The Custom tab sits just before More (always the last tab) when enabled.
-        val tabs: List<eu.kanade.presentation.util.Tab> = remember(baseTabs, customTabEnabled) {
-            if (customTabEnabled) {
-                baseTabs.dropLast(1) + CustomTab + baseTabs.last()
+        // Apply the saved order only to tabs currently available in this UI mode.
+        // Hidden tabs remain in the saved preference and keep their positions.
+        val tabs: List<eu.kanade.presentation.util.Tab> = remember(
+            baseTabs,
+            customTabEnabled,
+            navBarOrder,
+        ) {
+            val availableTabs = if (customTabEnabled) {
+                baseTabs + CustomTab
             } else {
                 baseTabs
             }
+
+            availableTabs.sortedBy { tab ->
+                val index = navBarOrder.indexOf(homeNavBarTabKey(tab))
+                if (index >= 0) index else Int.MAX_VALUE
+            }
         }
 
-        // FIX: the floating nav bar now has its OWN HazeState, separate from the app-wide one.
-        //
-        // MainActivity wraps the whole Navigator (including this screen and its nav bar) in
-        // .hazeSource(appHazeState). When HomeScreen reused that same state for the nav bar's
-        // hazeEffect, the nav bar ended up blurring a source it is itself nested inside, which
-        // haze 1.x does not render. A dedicated state, whose source is ONLY the tab content Box
-        // below (a sibling of the nav bar, not an ancestor), fixes that.
-        //
-        // Sheets/dialogs are separate windows, so they keep reading the app-wide state that
-        // MainActivity provides via LocalHazeState.
+        // The floating nav bar uses its own HazeState, separate from the app-wide one.
+        // MainActivity wraps the whole Navigator in appHazeState. A dedicated state whose
+        // source is only the tab content Box below avoids blurring an ancestor source.
+        // Sheets/dialogs keep using the app-wide state supplied by MainActivity.
         val appHazeState = LocalHazeState.current
         val navHazeState = remember { HazeState() }
 
@@ -162,8 +173,7 @@ object HomeScreen : Screen() {
                 tab = if (uiMode == BasePreferences.UiMode.MANGA_ONLY) LibraryTab else NovelsTab,
                 key = TabNavigatorKey,
             ) { tabNavigator ->
-                // If the Custom tab gets turned off while it's the selected tab, fall back to
-                // the default tab so we don't sit on a tab that no longer exists in the bar.
+                // If the Custom tab gets turned off while selected, fall back to a valid tab.
                 LaunchedEffect(customTabEnabled) {
                     if (!customTabEnabled && tabNavigator.current::class == CustomTab::class) {
                         tabNavigator.current = if (uiMode == BasePreferences.UiMode.MANGA_ONLY) {
@@ -174,7 +184,6 @@ object HomeScreen : Screen() {
                     }
                 }
 
-                // Provide usable navigator to content screen
                 CompositionLocalProvider(LocalNavigator provides navigator) {
                     Scaffold(
                         startBar = {
@@ -202,14 +211,13 @@ object HomeScreen : Screen() {
                                     val navBarCornerRadiusDp by libraryPreferences.navBarCornerRadiusDp.collectAsState()
                                     val navBarBackgroundStyle by libraryPreferences.navBarBackgroundStyle.collectAsState()
                                     val navBarOpacityPercent by libraryPreferences.navBarOpacityPercent.collectAsState()
+
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        // -1 = pill shape (fully rounded), 0 (default) = plain rectangle,
-                                        // >0 = custom corner radius
                                         val barShape = if (navBarCornerRadiusDp < 0) {
                                             RoundedCornerShape(percent = 50)
                                         } else {
@@ -238,6 +246,7 @@ object HomeScreen : Screen() {
                                         } else {
                                             0f
                                         }
+
                                         NavigationBar(
                                             shape = barShape,
                                             height = navBarHeightDp.dp,
@@ -249,7 +258,10 @@ object HomeScreen : Screen() {
                                             modifier = Modifier.fillMaxWidth(navBarWidthPercent / 100f),
                                         ) {
                                             tabs.fastForEach {
-                                                NavigationBarItem(it, alwaysShowLabel = alwaysShowNavLabels)
+                                                NavigationBarItem(
+                                                    it,
+                                                    alwaysShowLabel = alwaysShowNavLabels,
+                                                )
                                             }
                                         }
                                     }
@@ -270,15 +282,17 @@ object HomeScreen : Screen() {
                                         end = contentPadding.calculateEndPadding(layoutDirection),
                                     )
                                     .consumeWindowInsets(contentPadding)
-                                    // Registers the tab content as the blur source for the floating
-                                    // nav bar only (see navHazeState above).
                                     .hazeSource(navHazeState),
                             ) {
                                 AnimatedContent(
                                     targetState = tabNavigator.current,
                                     transitionSpec = {
-                                        materialFadeThroughIn(initialScale = 1f, durationMillis = TabFadeDuration) togetherWith
-                                            materialFadeThroughOut(durationMillis = TabFadeDuration)
+                                        materialFadeThroughIn(
+                                            initialScale = 1f,
+                                            durationMillis = TabFadeDuration,
+                                        ) togetherWith materialFadeThroughOut(
+                                            durationMillis = TabFadeDuration,
+                                        )
                                     },
                                     label = "tabContent",
                                 ) {
@@ -333,11 +347,15 @@ object HomeScreen : Screen() {
     }
 
     @Composable
-    private fun RowScope.NavigationBarItem(tab: eu.kanade.presentation.util.Tab, alwaysShowLabel: Boolean) {
+    private fun RowScope.NavigationBarItem(
+        tab: eu.kanade.presentation.util.Tab,
+        alwaysShowLabel: Boolean,
+    ) {
         val tabNavigator = LocalTabNavigator.current
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
         val selected = tabNavigator.current::class == tab::class
+
         NavigationBarItem(
             selected = selected,
             onClick = {
@@ -366,6 +384,7 @@ object HomeScreen : Screen() {
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
         val selected = tabNavigator.current::class == tab::class
+
         NavigationRailItem(
             selected = selected,
             onClick = {
@@ -464,4 +483,35 @@ object HomeScreen : Screen() {
         data class Browse(val toExtensions: Boolean = false) : Tab
         data class More(val toDownloads: Boolean) : Tab
     }
+}
+
+private val HomeNavBarDefaultOrder = listOf(
+    "novels",
+    "library",
+    "updates",
+    "history",
+    "browse",
+    "custom",
+    "more",
+)
+
+private fun parseHomeNavBarOrder(raw: String): List<String> {
+    val saved = raw.split(",")
+        .map(String::trim)
+        .filter { it in HomeNavBarDefaultOrder }
+        .distinct()
+
+    return saved + HomeNavBarDefaultOrder.filterNot { it in saved }
+}
+
+private fun homeNavBarTabKey(
+    tab: eu.kanade.presentation.util.Tab,
+): String = when {
+    tab === NovelsTab -> "novels"
+    tab === LibraryTab -> "library"
+    tab === UpdatesTab -> "updates"
+    tab === HistoryTab -> "history"
+    tab === BrowseTab -> "browse"
+    tab === CustomTab -> "custom"
+    else -> "more"
 }
