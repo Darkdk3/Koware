@@ -1,3 +1,4 @@
+
 package eu.kanade.presentation.more.settings.screen
 
 import androidx.compose.foundation.background
@@ -15,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Explore
@@ -33,7 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,6 +75,11 @@ object SettingsNavBarScreen : Screen() {
         val alwaysShowLabels by prefs.alwaysShowNavigationLabels.collectAsState()
         val customTabEnabled by customTabPrefs.enabled.collectAsState()
         val customTabName by customTabPrefs.name.collectAsState()
+        val savedTabOrder by prefs.navBarItemOrder.collectAsState()
+
+        val tabOrder = remember(savedTabOrder) {
+            parseSettingsNavBarOrder(savedTabOrder)
+        }
 
         Scaffold(
             topBar = {
@@ -81,14 +89,18 @@ object SettingsNavBarScreen : Screen() {
                         IconButton(onClick = { navigator.pop() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null,
+                                contentDescription = "Back",
                             )
                         }
                     },
                 )
             },
         ) { contentPadding ->
-            Column(modifier = Modifier.padding(contentPadding)) {
+            Column(
+                modifier = Modifier
+                    .padding(contentPadding)
+                    .fillMaxSize(),
+            ) {
                 Box(modifier = Modifier.padding(16.dp)) {
                     NavBarPreview(
                         widthPercent = widthPercent,
@@ -100,6 +112,7 @@ object SettingsNavBarScreen : Screen() {
                         alwaysShowLabels = alwaysShowLabels,
                         customTabEnabled = customTabEnabled,
                         customTabName = customTabName,
+                        tabOrder = tabOrder,
                     )
                 }
 
@@ -145,7 +158,6 @@ object SettingsNavBarScreen : Screen() {
                         },
                     )
 
-                    // Custom tab settings
                     SectionLabel("Tabs")
 
                     Row(
@@ -178,6 +190,69 @@ object SettingsNavBarScreen : Screen() {
                                 customTabPrefs.enabled.set(it)
                             },
                         )
+                    }
+
+                    SectionLabel("Reorder tabs")
+
+                    Text(
+                        text = "Use the arrows to change the order of navigation items. " +
+                            "Your order is saved automatically. Disabled tabs keep their positions.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(
+                            horizontal = 16.dp,
+                            vertical = 4.dp,
+                        ),
+                    )
+
+                    tabOrder.forEachIndexed { index, key ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = 16.dp,
+                                    vertical = 2.dp,
+                                ),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = settingsNavBarTabLabel(key),
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f),
+                            )
+
+                            IconButton(
+                                enabled = index > 0,
+                                onClick = {
+                                    val updated = tabOrder.toMutableList()
+                                    val previous = updated[index - 1]
+                                    updated[index - 1] = updated[index]
+                                    updated[index] = previous
+                                    prefs.navBarItemOrder.set(updated.joinToString(","))
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowUp,
+                                    contentDescription = "Move ${settingsNavBarTabLabel(key)} up",
+                                )
+                            }
+
+                            IconButton(
+                                enabled = index < tabOrder.lastIndex,
+                                onClick = {
+                                    val updated = tabOrder.toMutableList()
+                                    val next = updated[index + 1]
+                                    updated[index + 1] = updated[index]
+                                    updated[index] = next
+                                    prefs.navBarItemOrder.set(updated.joinToString(","))
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = "Move ${settingsNavBarTabLabel(key)} down",
+                                )
+                            }
+                        }
                     }
 
                     SectionLabel("Size and shape")
@@ -242,6 +317,7 @@ object SettingsNavBarScreen : Screen() {
 }
 
 private data class PreviewTab(
+    val key: String,
     val label: String,
     val icon: ImageVector,
 )
@@ -257,26 +333,65 @@ private fun NavBarPreview(
     alwaysShowLabels: Boolean,
     customTabEnabled: Boolean,
     customTabName: String,
+    tabOrder: List<String>,
 ) {
     val hazeState = remember { HazeState() }
-    var selected by remember { mutableIntStateOf(0) }
+    var selectedKey by remember { mutableStateOf("library") }
 
-    // The custom tab sits just before More, same as in the real nav bar.
-    val tabs = remember(customTabEnabled, customTabName) {
+    val tabs = remember(customTabEnabled, customTabName, tabOrder) {
         buildList {
-            add(PreviewTab("Library", Icons.Outlined.CollectionsBookmark))
-            add(PreviewTab("Updates", Icons.Outlined.NewReleases))
-            add(PreviewTab("History", Icons.Outlined.History))
-            add(PreviewTab("Browse", Icons.Outlined.Explore))
+            add(
+                PreviewTab(
+                    "library",
+                    "Library",
+                    Icons.Outlined.CollectionsBookmark,
+                ),
+            )
+            add(
+                PreviewTab(
+                    "updates",
+                    "Updates",
+                    Icons.Outlined.NewReleases,
+                ),
+            )
+            add(
+                PreviewTab(
+                    "history",
+                    "History",
+                    Icons.Outlined.History,
+                ),
+            )
+            add(
+                PreviewTab(
+                    "browse",
+                    "Browse",
+                    Icons.Outlined.Explore,
+                ),
+            )
             if (customTabEnabled) {
-                add(PreviewTab(customTabName, Icons.Outlined.Code))
+                add(
+                    PreviewTab(
+                        "custom",
+                        customTabName,
+                        Icons.Outlined.Code,
+                    ),
+                )
             }
-            add(PreviewTab("More", Icons.Outlined.MoreHoriz))
+            add(
+                PreviewTab(
+                    "more",
+                    "More",
+                    Icons.Outlined.MoreHoriz,
+                ),
+            )
+        }.sortedBy { tab ->
+            val index = tabOrder.indexOf(tab.key)
+            if (index >= 0) index else Int.MAX_VALUE
         }
     }
 
-    // Keeps the selection valid when the custom tab is switched off.
-    val selectedIndex = selected.coerceAtMost(tabs.lastIndex)
+    val selectedIndex = tabs.indexOfFirst { it.key == selectedKey }
+        .coerceAtLeast(0)
 
     val barShape = if (cornerRadiusDp < 0) {
         RoundedCornerShape(percent = 50)
@@ -360,7 +475,7 @@ private fun NavBarPreview(
                     NavigationBarItem(
                         selected = selectedIndex == index,
                         onClick = {
-                            selected = index
+                            selectedKey = tab.key
                         },
                         icon = {
                             Icon(
@@ -382,6 +497,36 @@ private fun NavBarPreview(
             }
         }
     }
+}
+
+private val SettingsNavBarDefaultOrder = listOf(
+    "novels",
+    "library",
+    "updates",
+    "history",
+    "browse",
+    "custom",
+    "more",
+)
+
+private fun parseSettingsNavBarOrder(raw: String): List<String> {
+    val saved = raw.split(",")
+        .map(String::trim)
+        .filter { it in SettingsNavBarDefaultOrder }
+        .distinct()
+
+    return saved + SettingsNavBarDefaultOrder.filterNot { it in saved }
+}
+
+private fun settingsNavBarTabLabel(key: String): String = when (key) {
+    "novels" -> "Novels"
+    "library" -> "Library"
+    "updates" -> "Updates"
+    "history" -> "History"
+    "browse" -> "Browse"
+    "custom" -> "Custom"
+    "more" -> "More"
+    else -> key
 }
 
 @Composable
