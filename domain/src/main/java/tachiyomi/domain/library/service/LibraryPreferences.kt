@@ -353,7 +353,7 @@ class LibraryPreferences(
      */
     val navBarCornerRadiusDp: Preference<Int> = preferenceStore.getInt("pref_nav_bar_corner_radius_dp", 0)
 
-    /** Background rendering style for the floating nav bar. See [NavBarBackgroundStyle]. */
+    /** Background rendering style for the navigation bar. See [NavBarBackgroundStyle]. */
     val navBarBackgroundStyle: Preference<NavBarBackgroundStyle> = preferenceStore.getEnum(
         "pref_nav_bar_background_style",
         NavBarBackgroundStyle.Solid,
@@ -361,6 +361,12 @@ class LibraryPreferences(
 
     /** Opacity of the nav bar background, as a percentage. Only applies when the style isn't Solid. */
     val navBarOpacityPercent: Preference<Int> = preferenceStore.getInt("pref_nav_bar_opacity_percent", 100)
+
+    /** Saved order of navigation tabs; hidden tabs retain their order when the UI mode changes. */
+    val navBarItemOrder: Preference<String> = preferenceStore.getString(
+        "pref_nav_bar_item_order",
+        "novels,library,updates,history,browse,custom,more",
+    )
 
     // --- AdaptiveSheet (bottom sheet / dialog) background customization ---
     // Reuses NavBarBackgroundStyle since sheets support the same Solid/Transparent/Frosted styles.
@@ -436,8 +442,8 @@ class LibraryPreferences(
 
     /**
      * When true, the manga details screen's whole color scheme (not just one element) is
-     * regenerated from a dominant color extracted from the cover, via the existing
-     * TachiyomiTheme(seedColor) overload + materialkolor infra already present but unused.
+     * regenerated from a dominant color extracted from the cover, via the existing TachiyomiTheme(seedColor)
+     * overload + materialkolor infra already present but unused.
      */
     val mangaDetailsCoverTheme: Preference<Boolean> = preferenceStore.getBoolean(
         "pref_manga_details_cover_theme",
