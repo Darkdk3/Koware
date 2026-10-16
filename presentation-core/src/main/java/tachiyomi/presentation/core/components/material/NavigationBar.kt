@@ -1,3 +1,4 @@
+
 package tachiyomi.presentation.core.components.material
 
 import androidx.compose.foundation.layout.Arrangement
@@ -26,9 +27,10 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
 
 /**
- * Floating M3-style navbar with no horizontal spacer, an adjustable [height] and
- * [itemSpacing], a configurable [shape] (plain rectangle by default), and an optional
- * frosted-glass background driven by [hazeState].
+ * Floating M3-style navbar with adjustable height and item spacing.
+ *
+ * Negative itemSpacing values bring navigation items closer together
+ * and allow them to overlap. Positive values increase the spacing.
  *
  * @see [androidx.compose.material3.NavigationBar]
  */
@@ -53,12 +55,14 @@ fun NavigationBar(
         tonalElevation = tonalElevation,
         shape = shape,
         modifier = if (hazeState != null) {
-            // clip(shape) first so the blur follows the rounded/pill corners instead of
-            // drawing as a rectangle behind them.
             modifier
                 .clip(shape)
                 .hazeEffect(state = hazeState) {
-                    style = HazeStyle(backgroundColor = containerColor, tint = null, noiseFactor = noiseFactor)
+                    style = HazeStyle(
+                        backgroundColor = containerColor,
+                        tint = null,
+                        noiseFactor = noiseFactor,
+                    )
                 }
         } else {
             modifier
@@ -70,11 +74,10 @@ fun NavigationBar(
                 .windowInsetsPadding(windowInsets)
                 .height(height)
                 .selectableGroup(),
-            horizontalArrangement = if (itemSpacing > 0.dp) {
-                Arrangement.spacedBy(itemSpacing, Alignment.CenterHorizontally)
-            } else {
-                Arrangement.Start
-            },
+            horizontalArrangement = Arrangement.spacedBy(
+                space = itemSpacing,
+                alignment = Alignment.CenterHorizontally,
+            ),
             content = content,
         )
     }
