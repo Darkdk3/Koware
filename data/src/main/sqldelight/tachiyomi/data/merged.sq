@@ -1,0 +1,81 @@
+
+import kotlin.Boolean;
+
+CREATE TABLE merged (
+    _id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    info_manga INTEGER AS Boolean NOT NULL DEFAULT 0,
+    get_chapter_updates INTEGER AS Boolean NOT NULL DEFAULT 1,
+    chapter_sort_mode INTEGER NOT NULL DEFAULT 0,
+    chapter_priority INTEGER NOT NULL DEFAULT 0,
+    download_chapters INTEGER AS Boolean NOT NULL DEFAULT 1,
+    merge_id INTEGER NOT NULL,
+    manga_id INTEGER NOT NULL,
+    manga_url TEXT NOT NULL,
+    manga_source_id INTEGER NOT NULL,
+
+    FOREIGN KEY(merge_id) REFERENCES mangas (_id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(manga_id) REFERENCES mangas (_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX merged_merge_id_index
+ON merged(merge_id);
+
+getReferencesById:
+SELECT *
+FROM merged
+WHERE merge_id = :mergeId;
+
+getReferencesByIds:
+SELECT *
+FROM merged
+WHERE merge_id IN :mergeIds;
+
+getById:
+SELECT *
+FROM merged
+WHERE _id = :id;
+
+insert:
+INSERT INTO merged (
+    info_manga,
+    get_chapter_updates,
+    chapter_sort_mode,
+    chapter_priority,
+    download_chapters,
+    merge_id,
+    manga_id,
+    manga_url,
+    manga_source_id
+)
+VALUES (
+    :info_manga,
+    :get_chapter_updates,
+    :chapter_sort_mode,
+    :chapter_priority,
+    :download_chapters,
+    :merge_id,
+    :manga_id,
+    :manga_url,
+    :manga_source_id
+);
+
+updateSettings:
+UPDATE merged
+SET
+    info_manga = :isInfoManga,
+    get_chapter_updates = :getChapterUpdates,
+    chapter_sort_mode = :chapterSortMode,
+    chapter_priority = :chapterPriority,
+    download_chapters = :downloadChapters
+WHERE _id = :id;
+
+deleteById:
+DELETE FROM merged
+WHERE _id = :id;
+
+deleteByMergeId:
+DELETE FROM merged
+WHERE merge_id = :mergeId;
