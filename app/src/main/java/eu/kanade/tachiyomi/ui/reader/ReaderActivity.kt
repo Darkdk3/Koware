@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import dev.chrisbanes.haze.HazeState
 import tachiyomi.presentation.core.util.LocalHazeState
+import eu.kanade.presentation.components.LocalSheetWindowBlur
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -424,7 +425,10 @@ class ReaderActivity : BaseActivity() {
         },
     ) {
         val hazeState = remember { HazeState() }
-        CompositionLocalProvider(LocalHazeState provides hazeState) {
+        CompositionLocalProvider(
+            LocalHazeState provides hazeState,
+            LocalSheetWindowBlur provides true,
+        ) {
             val state by viewModel.state.collectAsState()
 
         // Re-enable system nav bar contrast (and therefore the OS blur-behind/frosted
