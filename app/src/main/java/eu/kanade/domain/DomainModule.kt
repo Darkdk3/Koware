@@ -1,3 +1,4 @@
+
 package eu.kanade.domain
 
 import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
@@ -48,6 +49,7 @@ import tachiyomi.data.category.CategoryRepositoryImpl
 import tachiyomi.data.chapter.ChapterRepositoryImpl
 import tachiyomi.data.history.HistoryRepositoryImpl
 import tachiyomi.data.manga.MangaRepositoryImpl
+import tachiyomi.data.merged.MergedMangaRepositoryImpl
 import tachiyomi.data.release.ReleaseServiceImpl
 import tachiyomi.data.source.SourceRepositoryImpl
 import tachiyomi.data.source.StubSourceRepositoryImpl
@@ -97,6 +99,12 @@ import tachiyomi.domain.manga.interactor.SetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.SetMangaChapterFlags
 import tachiyomi.domain.manga.interactor.UpdateMangaNotes
 import tachiyomi.domain.manga.repository.MangaRepository
+import tachiyomi.domain.merged.interactor.CreateMerge
+import tachiyomi.domain.merged.interactor.DeleteMerge
+import tachiyomi.domain.merged.interactor.DeleteMergeGroup
+import tachiyomi.domain.merged.interactor.GetMergedReferences
+import tachiyomi.domain.merged.interactor.UpdateMergedSettings
+import tachiyomi.domain.merged.repository.MergedMangaRepository
 import tachiyomi.domain.release.interactor.GetApplicationRelease
 import tachiyomi.domain.release.service.ReleaseService
 import tachiyomi.domain.source.interactor.GetRemoteManga
@@ -132,15 +140,29 @@ class DomainModule : InjektModule {
         addFactory { DeleteCategory(get(), get(), get()) }
 
         addSingletonFactory<MangaRepository> { MangaRepositoryImpl(get()) }
+
+        // Merged manga repository and use cases.
+        addSingletonFactory<MergedMangaRepository> {
+            MergedMangaRepositoryImpl(get())
+        }
+        addFactory { CreateMerge(get(), get(), get()) }
+        addFactory { GetMergedReferences(get()) }
+        addFactory { UpdateMergedSettings(get()) }
+        addFactory { DeleteMerge(get()) }
+        addFactory { DeleteMergeGroup(get()) }
+
         addFactory { GetDuplicateLibraryManga(get(), get()) }
         addFactory { FindDuplicateNovels(get()) }
         addFactory { SearchMangaMetadata(get()) }
         addFactory { GetFavorites(get()) }
         addFactory { GetFavoritesEntry(get()) }
-        // Singleton so all screens share the same cached SharedFlow for library queries
+
+        // Singleton so all screens share the same cached SharedFlow for library queries.
         addSingletonFactory { GetLibraryManga(get(), get()) }
-        // Singleton for library cache management
+
+        // Singleton for library cache management.
         addSingletonFactory { RefreshLibraryCache(get()) }
+
         addFactory { GetMangaWithChapters(get(), get()) }
         addFactory { GetMangaByUrlAndSourceId(get()) }
         addFactory { GetManga(get()) }
@@ -159,9 +181,11 @@ class DomainModule : InjektModule {
         addFactory { GetExcludedScanlators(get()) }
         addFactory { SetExcludedScanlators(get()) }
         addSingletonFactory { MassImport(get(), get(), get(), get()) }
+
         addFactory {
             MigrateMangaUseCase(
-                get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get(),
+                get(), get(), get(), get(), get(), get(), get(),
+                get(), get(), get(), get(), get(), get(),
             )
         }
 
@@ -186,7 +210,12 @@ class DomainModule : InjektModule {
         addFactory { UpdateChapter(get()) }
         addFactory { SetReadStatus(get(), get(), get(), get(), get(), get()) }
         addFactory { ShouldUpdateDbChapter() }
-        addFactory { SyncChaptersWithSource(get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
+        addFactory {
+            SyncChaptersWithSource(
+                get(), get(), get(), get(), get(),
+                get(), get(), get(), get(), get(),
+            )
+        }
         addFactory { GetAvailableScanlators(get()) }
         addFactory { FilterChaptersForDownload(get(), get(), get()) }
         addFactory { RemoveChapters(get()) }
@@ -208,8 +237,10 @@ class DomainModule : InjektModule {
         addFactory { GetUpdates(get()) }
         addFactory { ClearUpdatesCache(get()) }
 
-        // Translation
-        addSingletonFactory<TranslatedChapterRepository> { TranslatedChapterRepositoryImpl(get(), get()) }
+        // Translation.
+        addSingletonFactory<TranslatedChapterRepository> {
+            TranslatedChapterRepositoryImpl(get(), get())
+        }
 
         addSingletonFactory<SourceRepository> { SourceRepositoryImpl(get(), get()) }
         addSingletonFactory<StubSourceRepository> { StubSourceRepositoryImpl(get()) }
@@ -227,10 +258,14 @@ class DomainModule : InjektModule {
         addFactory { ToggleSource(get()) }
         addFactory { ToggleSourcePin(get()) }
         addFactory { DeleteSourcePinGroup(get()) }
-        addSingletonFactory { TrustExtension(get(), get()) } // Singleton to enable caching of trusted fingerprints
+        addSingletonFactory {
+            TrustExtension(get(), get())
+        } // Singleton to enable caching of trusted fingerprints.
 
         addSingletonFactory { ExtensionStoreService(get(), get()) }
-        addSingletonFactory<ExtensionStoreRepository> { ExtensionStoreRepositoryImpl(get(), get()) }
+        addSingletonFactory<ExtensionStoreRepository> {
+            ExtensionStoreRepositoryImpl(get(), get())
+        }
         addFactory { AddExtensionStore(get()) }
         addFactory { GetExtensionStoreCountAsFlow(get()) }
         addFactory { GetExtensionStores(get()) }
@@ -241,6 +276,10 @@ class DomainModule : InjektModule {
         addFactory { GetIncognitoState(get(), get(), get()) }
         addFactory { ManageFilterPresets(get()) }
 
-        addFactory { UpdateMangaFromRemote(get(), get(), get(), get(), get(), get(), get(), get()) }
+        addFactory {
+            UpdateMangaFromRemote(
+                get(), get(), get(), get(), get(), get(), get(), get(),
+            )
+        }
     }
 }
