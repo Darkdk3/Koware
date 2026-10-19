@@ -66,6 +66,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import logcat.LogPriority
 import mihon.core.viewmodel.StateViewModel
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
@@ -94,6 +96,7 @@ import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.FindDuplicateNovels
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
+import tachiyomi.domain.merged.interactor.CreateMerge
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
@@ -153,6 +156,7 @@ class MangaViewModel(
     private val getLibraryManga: GetLibraryManga = Injekt.get(),
     private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
     private val networkToLocalManga: NetworkToLocalManga = Injekt.get(),
+    private val createMerge: CreateMerge = Injekt.get(),
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
 ) : StateViewModel<MangaViewModel.State>(State.Loading) {
 
@@ -209,6 +213,12 @@ class MangaViewModel(
 
     // In-flight "More from this source" load, so a newer load can cancel an older one.
     private var suggestionsJob: Job? = null
+
+    /**
+     * One-shot event carrying the new merged manga ID after a successful merge.
+     */
+    private val _mergeCompletedEvent = Channel<Long>()
+    val mergeCompletedEvent = _mergeCompletedEvent.receiveAsFlow()
 
     override fun onCleared() {
         val currentManga = manga
@@ -1504,7 +1514,41 @@ class MangaViewModel(
 
     // Track sheet - end
 
-    sealed interface Dialog {
+    /**
+ * Links the selected duplicate to the manga currently open under a new merged library entry.
+ * On success, emits the new merged manga ID so the UI can navigate to it.
+ */
+fun mergeManga(duplicate: Manga) {
+    val manga = successState?.manga ?: return
+
+    if (manga.id == duplicate.id) return
+
+    viewModelScope.launchIO {
+        when (val result = createMerge.await(listOf(manga, duplicate))) {
+            is CreateMerge.Result.Success -> {
+                withUIContext {
+                    snackbarHostState.showSnackbar(
+                        message = "Merged \"${duplicate.title}\" into one entry",
+                    )
+                }
+
+                _mergeCompletedEvent.send(result.mergedMangaId)
+            }
+
+            is CreateMerge.Result.InternalError -> {
+                logcat(LogPriority.ERROR, result.error)
+
+                withUIContext {
+                    snackbarHostState.showSnackbar(
+                        message = "Something went wrong merging",
+                    )
+                }
+            }
+        }
+    }
+}
+
+sealed interface Dialog {
         data class ChangeCategory(
             val manga: Manga,
             val initialSelection: List<CheckboxState<Category>>,
