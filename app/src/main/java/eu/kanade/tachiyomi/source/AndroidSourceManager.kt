@@ -1,3 +1,4 @@
+
 package eu.kanade.tachiyomi.source
 
 import android.content.Context
@@ -10,6 +11,7 @@ import eu.kanade.tachiyomi.source.UnmeteredSource
 import eu.kanade.tachiyomi.source.custom.CustomSourceManager
 import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.source.online.HttpSource
+import eu.kanade.tachiyomi.source.online.all.MergedSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -71,6 +73,7 @@ class AndroidSourceManager(
                             Injekt.get(),
                         ),
                         LocalNovelSource.ID to LocalNovelSource(),
+                        MergedSource.ID to MergedSource(),
                     ),
                 )
 
@@ -94,10 +97,7 @@ class AndroidSourceManager(
                 mutableMap
             }.collectLatest { sources ->
                 sourcesMapFlow.value = sources
-                // Keeps PerHostDynamicRateLimitInterceptor's per-host state bounded by "hosts
-                // with a currently installed source" instead of growing for the app's whole
-                // process lifetime - fires on every source-set change (extension install/
-                // uninstall/enable/disable, custom sources, JS plugins), not just uninstalls.
+                // Keeps PerHostDynamicRateLimitInterceptor's per-host state bounded by "hosts with a currently installed source" instead of growing for the app's whole process lifetime - fires on every source-set change (extension install/uninstall/enable/disable, custom sources, JS plugins), not just uninstalls.
                 networkHelper.rateLimitInterceptor.pruneToHosts(
                     sources.values.mapNotNullTo(mutableSetOf()) { it.rateLimitHost() },
                 )
