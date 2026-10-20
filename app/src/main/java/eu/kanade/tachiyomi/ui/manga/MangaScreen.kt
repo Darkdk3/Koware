@@ -307,6 +307,9 @@ class MangaScreen(
                         onConfirm = { viewModel.toggleFavorite(onRemoved = {}, skipDuplicateCheck = true) },
                         onOpenManga = { navigator.push(MangaScreen(it.id)) },
                         onMigrate = { viewModel.showMigrateDialog(it) },
+                        onMerge = { duplicate ->
+                            viewModel.mergeManga(duplicate)
+                        },
                         canAddAnyway = dialog.canAddAnyway,
                     )
                 }
