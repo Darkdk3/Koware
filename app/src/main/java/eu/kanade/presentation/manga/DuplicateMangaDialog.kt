@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -84,6 +85,7 @@ fun DuplicateMangaDialog(
     onConfirm: () -> Unit,
     onOpenManga: (manga: Manga) -> Unit,
     onMigrate: (manga: Manga) -> Unit,
+    onMerge: (Manga) -> Unit = {},
     modifier: Modifier = Modifier,
     canAddAnyway: Boolean = true,
 ) {
@@ -132,6 +134,7 @@ fun DuplicateMangaDialog(
                         onMigrate = { onMigrate(it.manga) },
                         onDismissRequest = onDismissRequest,
                         onOpenManga = { onOpenManga(it.manga) },
+                        onMerge = onMerge,
                     )
                 }
             }
@@ -178,6 +181,7 @@ private fun DuplicateMangaListItem(
     onDismissRequest: () -> Unit,
     onOpenManga: () -> Unit,
     onMigrate: () -> Unit,
+    onMerge: (Manga) -> Unit = {},
 ) {
     val source = getSource()
     val manga = duplicate.manga
@@ -286,6 +290,15 @@ private fun DuplicateMangaListItem(
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1,
             )
+        }
+
+        TextButton(
+            onClick = {
+                onMerge(manga)
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Merge")
         }
     }
 }
