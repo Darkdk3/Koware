@@ -115,6 +115,12 @@ class MangaScreen(
 
         val state by viewModel.state.collectAsStateWithLifecycle()
 
+        LaunchedEffect(viewModel.mergeCompletedEvent) {
+            viewModel.mergeCompletedEvent.collect { mergedMangaId ->
+                navigator.push(MangaScreen(mergedMangaId))
+            }
+        }
+
         if (state is MangaViewModel.State.Loading) {
             LoadingScreen()
             return
