@@ -11,6 +11,7 @@ import eu.kanade.tachiyomi.source.isNovelSource
 import eu.kanade.tachiyomi.ui.browse.discover.AiRecommendationResult
 import eu.kanade.tachiyomi.ui.browse.discover.GetAiRecommendations
 import eu.kanade.tachiyomi.ui.browse.discover.RecommendableItem
+import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -19,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -29,6 +31,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.GetManga
 import tachiyomi.domain.manga.model.Manga
@@ -43,6 +46,7 @@ import uy.kohesive.injekt.api.get
  * Kept local because MyAnimeListApi.CLIENT_ID is private.
  */
 private const val MAL_CLIENT_ID = "d0464a21fd4f1ee11cd033ed3b476946"
+private const val NOVELUPDATES_BASE_URL = "https://www.novelupdates.com"
 
 /**
  * Wraps a [Manga] for the generic AI recommendation pool.
@@ -73,15 +77,20 @@ sealed interface MangaRecommendationsUiState {
     data class Success(
         val manga: Manga,
         val sourceName: String,
-        val sourceSuggestions: List<Manga>,
+        val sourceSuggestions: List<Manga> = emptyList(),
+        val sourceSuggestionsLoading: Boolean = false,
         val groupedSourceSuggestions: Map<String, List<Manga>> = emptyMap(),
+        val groupedSourceSuggestionsLoading: Boolean = false,
         val relatedGroups: List<RelatedGroup> = emptyList(),
-        val aiPicks: List<Manga>,
-        val aiScores: List<Int?>,
-        val aiMessage: String?,
-        val trackedOn: List<String>,
+        val relatedGroupsLoading: Boolean = false,
+        val aiPicks: List<Manga> = emptyList(),
+        val aiScores: List<Int?> = emptyList(),
+        val aiMessage: String? = null,
+        val aiLoading: Boolean = false,
+        val trackedOn: List<String> = emptyList(),
         val trackerSuggestions: List<Manga> = emptyList(),
         val trackerMessage: String? = null,
+        val trackerLoading: Boolean = false,
     ) : MangaRecommendationsUiState
 }
 
@@ -101,8 +110,38 @@ class MangaRecommendationsViewModel(
     private val networkToLocalManga: tachiyomi.domain.manga.interactor.NetworkToLocalManga = Injekt.get()
     private val libraryPreferences: tachiyomi.domain.library.service.LibraryPreferences = Injekt.get()
     private val networkHelper: NetworkHelper = Injekt.get()
+    private val preferenceStore: PreferenceStore = Injekt.get()
+
+    /**
+     * When on, the source-suggestion sections search across other catalogue
+     * sources in addition to the current one. When off, only the current
+     * source is searched. Toggled from the Recommendations screen settings
+     * dropdown; defaults to true to preserve existing behaviour.
+     */
+    private val searchOtherSourcesPref: tachiyomi.core.common.preference.Preference<Boolean> =
+        preferenceStore.getBoolean("rec_search_other_sources", true)
 
     init { load() }
+
+    /**
+     * Applies [transform] to the current [MangaRecommendationsUiState.Success] atomically.
+     *
+     * Each recommendation section updates the state independently, so a plain
+     * read-modify-write would let two concurrent jobs clobber each other's
+     * results. This keeps every update atomic and leaves the state untouched
+     * while the manga itself is still loading.
+     */
+    private fun updateSuccess(
+        transform: (MangaRecommendationsUiState.Success) -> MangaRecommendationsUiState.Success,
+    ) {
+        _state.update { current ->
+            if (current is MangaRecommendationsUiState.Success) {
+                transform(current)
+            } else {
+                current
+            }
+        }
+    }
 
     private fun load() {
         viewModelScope.launch {
@@ -112,23 +151,122 @@ class MangaRecommendationsViewModel(
             }
             val source = sourceManager.getOrStub(manga.source)
             val sourceName = source.getNameForMangaInfo()
+            val catalogueSource = source as? CatalogueSource
 
-            val suggestions = loadSourceSuggestions(source as? CatalogueSource, manga)
-            val groupedSuggestions = loadGroupedSourceSuggestions(source as? CatalogueSource, manga, suggestions)
-
-            // "More like this" rows (keyword-grouped, Komikku-style). Skips anything already shown above.
-            val relatedGroups = runCatching {
-                loadRelatedGroups(
-                    source = source as? CatalogueSource,
+            // Publish the hero right away so the screen never waits on the
+            // recommendation network calls; every section fills itself in.
+            // The write is atomic and happens before any section job starts,
+            // so no job can be clobbered by it.
+            _state.update {
+                MangaRecommendationsUiState.Success(
                     manga = manga,
-                    alreadyShown = suggestions + groupedSuggestions.values.flatten(),
+                    sourceName = sourceName,
+                    // Every section starts empty with its loading flag set, then
+                    // fills itself in independently.
+                    sourceSuggestions = emptyList(),
+                    sourceSuggestionsLoading = true,
+                    groupedSourceSuggestions = emptyMap(),
+                    groupedSourceSuggestionsLoading = true,
+                    relatedGroups = emptyList(),
+                    relatedGroupsLoading = true,
+                    aiPicks = emptyList(),
+                    aiScores = emptyList(),
+                    aiMessage = null,
+                    aiLoading = true,
+                    trackedOn = emptyList(),
+                    trackerSuggestions = emptyList(),
+                    trackerMessage = null,
+                    trackerLoading = true,
                 )
+            }
+
+            // Fetch the current source's own suggestions once and share the
+            // result so the "More from this source" and "More from sources"
+            // sections agree without hitting the source twice. The deferred is
+            // cancelled together with the ViewModel.
+            val currentSourceSuggestions = viewModelScope.async {
+                loadSourceSuggestions(catalogueSource, manga)
+            }
+
+            // Each section gets its own job so a slow or failing one cannot hold
+            // back the others, and none of them can reset the screen to Loading.
+            loadSourceSuggestionsSection(currentSourceSuggestions)
+            loadGroupedSourceSuggestionsSection(catalogueSource, manga, currentSourceSuggestions)
+            loadRelatedGroupsSection(catalogueSource, manga)
+            loadAiSection(catalogueSource, manga)
+            loadTrackerSection(catalogueSource, manga)
+        }
+    }
+
+    /** "More from this source" — the open entry's own source. */
+    private fun loadSourceSuggestionsSection(
+        currentSourceSuggestions: kotlinx.coroutines.Deferred<List<Manga>>,
+    ) {
+        viewModelScope.launch {
+            val results = runCatching { currentSourceSuggestions.await() }
+                .getOrElse {
+                    logcat(LogPriority.ERROR, it) { "Failed to load source suggestions" }
+                    emptyList()
+                }
+            updateSuccess { current ->
+                current.copy(
+                    sourceSuggestions = results,
+                    sourceSuggestionsLoading = false,
+                )
+            }
+        }
+    }
+
+    /** "More from sources" — one row per catalogue source, including other sources. */
+    private fun loadGroupedSourceSuggestionsSection(
+        source: CatalogueSource?,
+        manga: Manga,
+        currentSourceSuggestions: kotlinx.coroutines.Deferred<List<Manga>>,
+    ) {
+        viewModelScope.launch {
+            val results = runCatching {
+                // The current source's own results always seed the grouped rows,
+                // so turning the "search other sources" toggle off still shows them.
+                loadGroupedSourceSuggestions(source, manga, currentSourceSuggestions.await())
+            }.getOrElse {
+                logcat(LogPriority.ERROR, it) { "Failed to load grouped source suggestions" }
+                emptyMap()
+            }
+            updateSuccess { current ->
+                current.copy(
+                    groupedSourceSuggestions = results,
+                    groupedSourceSuggestionsLoading = false,
+                )
+            }
+        }
+    }
+
+    /** "More like this" rows (keyword-grouped, Komikku-style). */
+    private fun loadRelatedGroupsSection(source: CatalogueSource?, manga: Manga) {
+        viewModelScope.launch {
+            val results = runCatching {
+                loadRelatedGroups(source = source, manga = manga, alreadyShown = emptyList())
             }.getOrElse {
                 logcat(LogPriority.ERROR, it) { "Failed to load related groups" }
                 emptyList()
             }
+            updateSuccess { current ->
+                current.copy(
+                    relatedGroups = results,
+                    relatedGroupsLoading = false,
+                )
+            }
+        }
+    }
 
-            val aiCandidatePool = loadAiCandidatePool(source as? CatalogueSource, manga)
+    /** "AI picks" — candidate pool plus the AI ranking step. */
+    private fun loadAiSection(source: CatalogueSource?, manga: Manga) {
+        viewModelScope.launch {
+            val aiCandidatePool = runCatching { loadAiCandidatePool(source, manga) }
+                .getOrElse {
+                    logcat(LogPriority.ERROR, it) { "Failed to build AI candidate pool" }
+                    emptyList()
+                }
 
             val aiResult = if (
                 translationPreferences.aiFeaturesEnabled().get() &&
@@ -164,35 +302,47 @@ class MangaRecommendationsViewModel(
                 is AiRecommendationResult.Success -> null
             }
 
-            val tracks = getTracks.await(mangaId)
+            updateSuccess { current ->
+                current.copy(
+                    aiPicks = picks,
+                    aiScores = scores,
+                    aiMessage = aiMessage,
+                    aiLoading = false,
+                )
+            }
+        }
+    }
+
+    /** "Tracker recommendations" — AniList, MyAnimeList and NovelUpdates. */
+    private fun loadTrackerSection(source: CatalogueSource?, manga: Manga) {
+        viewModelScope.launch {
+            val tracks = runCatching { getTracks.await(mangaId) }.getOrElse {
+                logcat(LogPriority.ERROR, it) { "Failed to load tracks" }
+                emptyList()
+            }
             val trackedOn = tracks.mapNotNull { track ->
                 trackerManager.get(track.trackerId)?.name
             }
 
             val trackerResult = runCatching {
-                loadTrackerSuggestions(tracks, manga, source as? CatalogueSource)
+                loadTrackerSuggestions(tracks, manga, source)
             }.getOrElse {
                 logcat(LogPriority.ERROR, it) { "Failed to load tracker suggestions" }
                 TrackerSuggestionResult(emptyList(), "Unexpected error: ${it.message}")
             }
 
-            _state.value = MangaRecommendationsUiState.Success(
-                manga = manga,
-                sourceName = sourceName,
-                sourceSuggestions = suggestions,
-                groupedSourceSuggestions = groupedSuggestions,
-                relatedGroups = relatedGroups,
-                aiPicks = picks,
-                aiScores = scores,
-                aiMessage = aiMessage,
-                trackedOn = trackedOn,
-                trackerSuggestions = trackerResult.suggestions,
-                trackerMessage = trackerResult.message,
-            )
+            updateSuccess { current ->
+                current.copy(
+                    trackedOn = trackedOn,
+                    trackerSuggestions = trackerResult.suggestions,
+                    trackerMessage = trackerResult.message,
+                    trackerLoading = false,
+                )
+            }
         }
     }
 
-    // --- Tracker recommendations (AniList + MyAnimeList) --------------------
+    // --- Tracker recommendations (AniList + MyAnimeList + NovelUpdates) ------
 
     private data class TrackerSuggestionResult(
         val suggestions: List<Manga>,
@@ -201,11 +351,12 @@ class MangaRecommendationsViewModel(
 
     /**
      * Names of trackers we know how to fetch recommendations from.
-     * NovelUpdates and Notion (and anything else) have no public
-     * recommendations API, so they're intentionally excluded rather
-     * than silently failing.
+     * AniList and MyAnimeList expose a public recommendations API; NovelUpdates
+     * has none, so its recommendations are scraped from the series page using
+     * its recommendation section. Notion (and anything else) is intentionally
+     * excluded rather than silently failing.
      */
-    private enum class SupportedTracker { ANILIST, MYANIMELIST }
+    private enum class SupportedTracker { ANILIST, MYANIMELIST, NOVELUPDATES }
 
     private suspend fun loadTrackerSuggestions(
         tracks: List<Track>,
@@ -224,11 +375,13 @@ class MangaRecommendationsViewModel(
 
         val aniListId = runCatching { trackerManager.aniList.id }.getOrNull()
         val malId = runCatching { trackerManager.myAnimeList.id }.getOrNull()
+        val novelUpdatesId = runCatching { trackerManager.novelUpdates.id }.getOrNull()
 
         val supportedTracks = tracks.mapNotNull { track ->
             when (track.trackerId) {
                 aniListId -> SupportedTracker.ANILIST to track
                 malId -> SupportedTracker.MYANIMELIST to track
+                novelUpdatesId -> SupportedTracker.NOVELUPDATES to track
                 else -> null
             }
         }
@@ -256,6 +409,9 @@ class MangaRecommendationsViewModel(
                         }
                         SupportedTracker.MYANIMELIST -> fetchWithRetry {
                             fetchMalRecommendationTitles(track.remoteId)
+                        }
+                        SupportedTracker.NOVELUPDATES -> fetchWithRetry {
+                            fetchNovelUpdatesRecommendationTitles(track.remoteId)
                         }
                     }
                 }
@@ -399,6 +555,54 @@ class MangaRecommendationsViewModel(
             }
         }
 
+    /**
+     * Fetches NovelUpdates recommendations using the series page.
+     * NovelUpdates has no official recommendations API; this scrapes the
+     * "Related Series" section from the series page.
+     * Returns a list of recommended series titles.
+     */
+    private suspend fun fetchNovelUpdatesRecommendationTitles(remoteId: Long): List<String> =
+        withContext(Dispatchers.IO) {
+            val seriesUrl = "$NOVELUPDATES_BASE_URL/series/?p=$remoteId"
+            val request = Request.Builder()
+                .url(seriesUrl)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:141.0) Gecko/20100101 Firefox/141.0")
+                .header("Referer", "$NOVELUPDATES_BASE_URL/")
+                .get()
+                .build()
+
+            try {
+                networkHelper.client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        logcat(LogPriority.WARN) { "NovelUpdates recs: HTTP ${response.code}" }
+                        return@use emptyList()
+                    }
+                    val document = response.asJsoup()
+
+                    // Extract "Related Series" from the series page
+                    // The related series links are typically in .related_series_box or similar
+                    val currentTitle = document.select("h1.entry-title, div.seriestitle, h1.seriestitle").text()
+                    val relatedTitles = document.select("a[href*=/series/]")
+                        .mapNotNull { element ->
+                            val href = element.attr("href")
+                            val title = element.text().trim()
+                            if (href.startsWith("http") || title.isBlank() || title == currentTitle) {
+                                null
+                            } else {
+                                title
+                            }
+                        }
+                        .distinct()
+                        .take(15)
+
+                    relatedTitles
+                }
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, e) { "NovelUpdates recs: failed to fetch recommendations" }
+                emptyList()
+            }
+        }
+
     // --- Source / AI logic ---------------------------------------------------
 
     /**
@@ -476,11 +680,17 @@ class MangaRecommendationsViewModel(
             groupedResults[source.getNameForMangaInfo()] = primarySuggestions
         }
 
-        val otherSources = sourceManager.getOnlineSources()
-            .filterIsInstance<CatalogueSource>()
-            .filter { it.id != source?.id && it.isNovelSource == manga.isNovel }
-            .shuffled()
-            .take(4)
+        // Honor the "search other sources" toggle: when off, only the current source
+        // contributes to the "More from sources" grouped rows.
+        val otherSources = if (searchOtherSourcesPref.get()) {
+            sourceManager.getOnlineSources()
+                .filterIsInstance<CatalogueSource>()
+                .filter { it.id != source?.id && it.isNovelSource == manga.isNovel }
+                .shuffled()
+                .take(4)
+        } else {
+            emptyList()
+        }
 
         otherSources.map { other ->
             async {
@@ -561,11 +771,18 @@ class MangaRecommendationsViewModel(
         manga: Manga,
     ): List<MangaRecommendable> {
         return coroutineScope {
-            val otherSources = sourceManager.getOnlineSources()
-                .filterIsInstance<CatalogueSource>()
-                .filter { it.id != currentSource?.id && it.isNovelSource() == manga.isNovel }
-                .shuffled()
-                .take(6)
+            // Honor the "search other sources" toggle for the AI candidate pool.
+            // When off, only use the current source for candidates.
+            val searchOther = searchOtherSourcesPref.get()
+            val otherSources = if (searchOther) {
+                sourceManager.getOnlineSources()
+                    .filterIsInstance<CatalogueSource>()
+                    .filter { it.id != currentSource?.id && it.isNovelSource() == manga.isNovel }
+                    .shuffled()
+                    .take(6)
+            } else {
+                emptyList()
+            }
 
             val allSources = listOfNotNull(currentSource) + otherSources
 

@@ -84,6 +84,7 @@ class RecommendationRowPreferences(
     val showRelatedRows: Preference<Boolean> = store.getBoolean("rec_show_related_rows", true)
     val showAiRows: Preference<Boolean> = store.getBoolean("rec_show_ai_rows", true)
     val showTrackerRows: Preference<Boolean> = store.getBoolean("rec_show_tracker_rows", true)
+    val searchOtherSources: Preference<Boolean> = store.getBoolean("rec_search_other_sources", true)
 
     val sourceMaxRows: Preference<Int> = store.getInt("rec_source_max_rows", 5)
     val relatedMaxRows: Preference<Int> = store.getInt("rec_related_max_rows", 4)
@@ -132,6 +133,7 @@ class MangaRecommendationsScreen(
         val showRelated by prefs.showRelatedRows.watch()
         val showAi by prefs.showAiRows.watch()
         val showTracker by prefs.showTrackerRows.watch()
+        val searchOtherSources by prefs.searchOtherSources.watch()
         val sourceMaxRows by prefs.sourceMaxRows.watch()
         val relatedMaxRows by prefs.relatedMaxRows.watch()
         val hiddenSourceRows by prefs.hiddenSourceRows.watch()
@@ -179,6 +181,9 @@ class MangaRecommendationsScreen(
                                 CheckableMenuItem("Tracker recommendations", settings.showTracker) {
                                     prefs.showTrackerRows.set(!settings.showTracker)
                                 }
+                                CheckableMenuItem("Search other sources", searchOtherSources) {
+                                    prefs.searchOtherSources.set(!searchOtherSources)
+                                }
                             }
                         }
                     },
@@ -203,6 +208,7 @@ class MangaRecommendationsScreen(
                         state = s,
                         settings = settings,
                         prefs = prefs,
+                        searchOtherSources = searchOtherSources,
                         onMangaClick = { navigator.push(eu.kanade.tachiyomi.ui.manga.MangaScreen(it.id)) },
                         onKeywordClick = { navigator.push(BrowseSourceScreen(s.manga.source, it)) },
                         onKeywordLongClick = { navigator.push(GlobalSearchScreen(it)) },
@@ -220,18 +226,22 @@ private fun RecommendationsContent(
     state: MangaRecommendationsUiState.Success,
     settings: RowSettings,
     prefs: RecommendationRowPreferences,
+    searchOtherSources: Boolean,
     onMangaClick: (Manga) -> Unit,
     onKeywordClick: (String) -> Unit,
     onKeywordLongClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // "More from sources" rows: one per source (falls back to a single row for the current source).
-    val sourceRows: List<Pair<String, List<Manga>>> = when {
-        state.groupedSourceSuggestions.isNotEmpty() -> state.groupedSourceSuggestions.toList()
-        state.sourceSuggestions.isNotEmpty() -> listOf("This source" to state.sourceSuggestions)
-        else -> emptyList()
-    }
-    val visibleSourceRows = sourceRows
+    // "More from this source" — the open entry's own source only.
+    val currentSourceSuggestions = state.sourceSuggestions.toList()
+    val visibleCurrentSourceSuggestions = currentSourceSuggestions
+        .filter { it.url != state.manga.url }
+        .distinctBy { it.url }
+
+    // "More from sources" — one row per other catalogue source (only when toggle is on).
+    val groupedSourceRows: List<Pair<String, List<Manga>>> =
+        if (searchOtherSources) state.groupedSourceSuggestions.toList() else emptyList()
+    val visibleSourceRows = groupedSourceRows
         .filter { it.first !in settings.hiddenSourceRows }
         .take(settings.sourceMaxRows)
 
@@ -246,12 +256,58 @@ private fun RecommendationsContent(
         // Hero — cover + title + source
         item { MangaHero(state.manga, state.sourceName) }
 
-        // More from sources — header keeps its dropdown even if every row is hidden
-        if (settings.showSource && sourceRows.isNotEmpty()) {
+        // More from this source — the open entry's own source only.
+        if (settings.showSource && visibleCurrentSourceSuggestions.isNotEmpty()) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 4.dp)
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "More from this source",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = {}) {
+                        Icon(Icons.Outlined.Tune, contentDescription = null)
+                    }
+                }
+            }
+            item {
+                SuggestionRow(
+                    suggestions = visibleCurrentSourceSuggestions,
+                    onMangaClick = onMangaClick,
+                )
+            }
+        }
+
+        // Loading indicator for "More from this source" section
+        if (settings.showSource && state.sourceSuggestionsLoading) {
+            item {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            }
+        }
+
+        // More from sources — one row per other catalogue source (only when toggle is on).
+        if (settings.showSource && visibleSourceRows.isNotEmpty()) {
+            item { Spacer(Modifier.height(8.dp)) }
             item {
                 SectionHeaderWithMenu(
                     title = "More from sources",
-                    rowLabels = sourceRows.map { it.first },
+                    rowLabels = visibleSourceRows.map { it.first },
                     hiddenRows = settings.hiddenSourceRows,
                     maxRows = settings.sourceMaxRows,
                     onToggleRow = { prefs.hiddenSourceRows.toggle(it) },
@@ -276,53 +332,93 @@ private fun RecommendationsContent(
             }
         }
 
-        // More like this — one row per genre / author keyword
-        if (settings.showRelated && state.relatedGroups.isNotEmpty()) {
-            item { Spacer(Modifier.height(8.dp)) }
-            item {
-                SectionHeaderWithMenu(
-                    title = "More like this",
-                    rowLabels = state.relatedGroups.map { it.keyword },
-                    hiddenRows = settings.hiddenRelatedRows,
-                    maxRows = settings.relatedMaxRows,
-                    onToggleRow = { prefs.hiddenRelatedRows.toggle(it) },
-                    onMaxRowsChange = { prefs.relatedMaxRows.set(it) },
-                )
-            }
-            items(visibleRelatedGroups, key = { "related_${it.keyword}" }) { group ->
-                Column(Modifier.padding(bottom = 8.dp)) {
-                    // Tap: browse this source for the keyword. Long-press: global search.
-                    Text(
-                        text = "${group.keyword} ›",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .combinedClickable(
-                                onClick = { onKeywordClick(group.keyword) },
-                                onLongClick = { onKeywordLongClick(group.keyword) },
-                            )
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+        // More like this — with loading indicator
+        if (settings.showRelated) {
+            if (state.relatedGroupsLoading) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
                     )
-                    SuggestionRow(
-                        suggestions = group.mangas,
-                        onMangaClick = onMangaClick,
+                }
+            } else if (visibleRelatedGroups.isNotEmpty()) {
+                item { Spacer(Modifier.height(8.dp)) }
+                item {
+                    SectionHeaderWithMenu(
+                        title = "More like this",
+                        rowLabels = state.relatedGroups.map { it.keyword },
+                        hiddenRows = settings.hiddenRelatedRows,
+                        maxRows = settings.relatedMaxRows,
+                        onToggleRow = { prefs.hiddenRelatedRows.toggle(it) },
+                        onMaxRowsChange = { prefs.relatedMaxRows.set(it) },
                     )
+                }
+                items(visibleRelatedGroups, key = { "related_${it.keyword}" }) { group ->
+                    Column(Modifier.padding(bottom = 8.dp)) {
+                        // Tap: browse this source for the keyword. Long-press: global search.
+                        Text(
+                            text = "${group.keyword} ›",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .combinedClickable(
+                                    onClick = { onKeywordClick(group.keyword) },
+                                    onLongClick = { onKeywordLongClick(group.keyword) },
+                                )
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        SuggestionRow(
+                            suggestions = group.mangas,
+                            onMangaClick = onMangaClick,
+                        )
+                    }
                 }
             }
         }
 
-        // AI picks for this novel
+        // AI picks for this novel — with loading indicator
         if (settings.showAi) {
             item { Spacer(Modifier.height(8.dp)) }
-            item { AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage, onMangaClick) }
+            if (state.aiLoading) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            } else {
+                AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage, onMangaClick)
+            }
         }
 
         // Tracker recommendations — only when a tracker is linked
         if (settings.showTracker && state.trackedOn.isNotEmpty()) {
             item { Spacer(Modifier.height(8.dp)) }
-            item {
+            if (state.trackerLoading) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+            } else {
                 TrackerRecommendationsSection(
                     trackedOn = state.trackedOn,
                     message = state.trackerMessage,
