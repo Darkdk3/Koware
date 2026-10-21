@@ -3,6 +3,7 @@ package eu.kanade.domain.ui
 import com.materialkolor.PaletteStyle
 import eu.kanade.domain.ui.model.AppTheme
 import eu.kanade.domain.ui.model.MangaDetailsStyle
+import eu.kanade.domain.ui.model.MergeButtonLocation
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
 import eu.kanade.domain.ui.model.UiStyle
@@ -54,6 +55,11 @@ class UiPreferences(
     val mangaDetailsStyle: Preference<MangaDetailsStyle> = preferenceStore.getEnum(
         "pref_manga_details_style",
         MangaDetailsStyle.LEGACY,
+    )
+
+    val mergeButtonLocation: Preference<MergeButtonLocation> = preferenceStore.getEnum(
+        "pref_merge_button_location",
+        MergeButtonLocation.INFO,
     )
 
     val lastVersionCode: Preference<Int> = preferenceStore.getInt("last_version_code", 0)
