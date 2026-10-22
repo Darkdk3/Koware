@@ -41,6 +41,7 @@ import com.materialkolor.PaletteStyle
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.MangaDetailsStyle
+import eu.kanade.domain.ui.model.MergeButtonLocation
 import eu.kanade.domain.ui.model.TabletUiMode
 import eu.kanade.domain.ui.model.ThemeMode
 import eu.kanade.domain.ui.model.UiStyle
@@ -363,6 +364,18 @@ private fun getMangaDetailsGroup(
     return Preference.PreferenceGroup(
         title = "Manga details screen",
         preferenceItems = listOf(
+            Preference.PreferenceItem.ListPreference(
+                preference = uiPreferences.mergeButtonLocation,
+                entries = MergeButtonLocation.entries.associateWith {
+                    when (it) {
+                        MergeButtonLocation.TOOLBAR -> "Toolbar"
+                        MergeButtonLocation.INFO -> "Info"
+                    }
+                },
+                title = "Merge button location",
+                subtitle = "Choose where the Merge button appears on the manga details screen",
+            ),
+
             Preference.PreferenceItem.SwitchPreference(
                 preference = libraryPreferences.mangaDetailsHideBackdrop,
                 title = "Hide backdrop image",
