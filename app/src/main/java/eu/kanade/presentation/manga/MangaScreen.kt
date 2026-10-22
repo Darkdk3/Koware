@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SmallExtendedFloatingActionButton
@@ -52,6 +53,7 @@ import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.unit.dp
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.domain.ui.model.MangaDetailsStyle
+import eu.kanade.domain.ui.model.MergeButtonLocation
 import eu.kanade.domain.ui.model.UiStyle
 import eu.kanade.presentation.components.relativeDateText
 import eu.kanade.presentation.manga.components.ChapterDownloadAction
@@ -172,6 +174,7 @@ fun MangaScreen(
     val uiPreferences = remember { Injekt.get<UiPreferences>() }
     val uiStyle by uiPreferences.uiStyle.collectAsState()
     val mangaDetailsStyle by uiPreferences.mangaDetailsStyle.collectAsState()
+    val mergeButtonLocation by uiPreferences.mergeButtonLocation.collectAsState()
     val modernStyle = uiStyle == UiStyle.MODERN && mangaDetailsStyle == MangaDetailsStyle.MODERN
 
     if (!isTabletUi) {
@@ -179,6 +182,7 @@ fun MangaScreen(
             state = state,
             snackbarHostState = snackbarHostState,
             nextUpdate = nextUpdate,
+            mergeButtonLocation = mergeButtonLocation,
             modernStyle = modernStyle,
             chapterSwipeStartAction = chapterSwipeStartAction,
             chapterSwipeEndAction = chapterSwipeEndAction,
@@ -236,6 +240,7 @@ fun MangaScreen(
             chapterSwipeStartAction = chapterSwipeStartAction,
             chapterSwipeEndAction = chapterSwipeEndAction,
             nextUpdate = nextUpdate,
+            mergeButtonLocation = mergeButtonLocation,
             modernStyle = modernStyle,
             navigateUp = navigateUp,
             onChapterClicked = onChapterClicked,
@@ -292,6 +297,7 @@ private fun MangaScreenSmallImpl(
     state: MangaViewModel.State.Success,
     snackbarHostState: SnackbarHostState,
     nextUpdate: Instant?,
+    mergeButtonLocation: MergeButtonLocation,
     modernStyle: Boolean,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
@@ -400,7 +406,12 @@ private fun MangaScreenSmallImpl(
                 onClickRefresh = onRefresh,
                 onClickMigrate = onMigrateClicked,
                 onClickSimilarNovels = onSimilarNovelsClicked,
-                onClickFindDuplicates = onFindDuplicatesClicked,
+                onClickFindDuplicates = onFindDuplicatesClicked.takeIf {
+                    mergeButtonLocation != MergeButtonLocation.TOOLBAR
+                },
+                onClickMerge = onFindDuplicatesClicked.takeIf {
+                    mergeButtonLocation == MergeButtonLocation.TOOLBAR
+                },
                 onClickEditNotes = onEditNotesClicked,
                 onClickEdit = onEditClicked,
                 onClickClearCustomInfo = onClearCustomInfoClicked,
@@ -521,6 +532,29 @@ private fun MangaScreenSmallImpl(
                         )
                     }
 
+                    if (
+                        mergeButtonLocation == MergeButtonLocation.INFO &&
+                        onFindDuplicatesClicked != null
+                    ) {
+                        item(
+                            key = "merge-button-info",
+                            contentType = MangaScreenItem.INFO_BOX,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Button(
+                                    onClick = onFindDuplicatesClicked,
+                                ) {
+                                    Text("Merge")
+                                }
+                            }
+                        }
+                    }
+
                     item(
                         key = MangaScreenItem.ACTION_ROW,
                         contentType = MangaScreenItem.ACTION_ROW,
@@ -633,6 +667,7 @@ fun MangaScreenLargeImpl(
     state: MangaViewModel.State.Success,
     snackbarHostState: SnackbarHostState,
     nextUpdate: Instant?,
+    mergeButtonLocation: MergeButtonLocation,
     modernStyle: Boolean,
     chapterSwipeStartAction: LibraryPreferences.ChapterSwipeAction,
     chapterSwipeEndAction: LibraryPreferences.ChapterSwipeAction,
@@ -734,7 +769,12 @@ fun MangaScreenLargeImpl(
                 onClickRefresh = onRefresh,
                 onClickMigrate = onMigrateClicked,
                 onClickSimilarNovels = onSimilarNovelsClicked,
-                onClickFindDuplicates = onFindDuplicatesClicked,
+                onClickFindDuplicates = onFindDuplicatesClicked.takeIf {
+                    mergeButtonLocation != MergeButtonLocation.TOOLBAR
+                },
+                onClickMerge = onFindDuplicatesClicked.takeIf {
+                    mergeButtonLocation == MergeButtonLocation.TOOLBAR
+                },
                 onClickEditNotes = onEditNotesClicked,
                 onClickEdit = onEditClicked,
                 onClickClearCustomInfo = onClearCustomInfoClicked,
@@ -854,6 +894,23 @@ fun MangaScreenLargeImpl(
                             doSearch = onSearch,
                             modernStyle = modernStyle,
                         )
+                        if (
+                            mergeButtonLocation == MergeButtonLocation.INFO &&
+                            onFindDuplicatesClicked != null
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Button(
+                                    onClick = onFindDuplicatesClicked,
+                                ) {
+                                    Text("Merge")
+                                }
+                            }
+                        }
                         MangaActionRow(
                             favorite = state.manga.favorite,
                             trackingCount = state.trackingCount,
