@@ -42,6 +42,7 @@ fun MangaToolbar(
     onClickMigrate: (() -> Unit)?,
     onClickSimilarNovels: (() -> Unit)?,
     onClickFindDuplicates: (() -> Unit)?,
+    onClickMerge: (() -> Unit)? = null,
     onClickEditNotes: () -> Unit,
     onClickEdit: (() -> Unit)?,
     onClickClearCustomInfo: (() -> Unit)? = null,
@@ -205,6 +206,14 @@ fun MangaToolbar(
                             AppBar.OverflowAction(
                                 title = "Find Duplicates",
                                 onClick = onClickFindDuplicates,
+                            ),
+                        )
+                    }
+                    if (onClickMerge != null) {
+                        add(
+                            AppBar.OverflowAction(
+                                title = "Merge",
+                                onClick = onClickMerge,
                             ),
                         )
                     }
