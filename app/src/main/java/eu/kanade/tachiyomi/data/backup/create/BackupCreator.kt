@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.data.backup.create.creators.SourcesBackupCreator
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.backup.models.BackupMergedReference
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSource
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
@@ -28,6 +29,9 @@ import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.manga.interactor.GetFavorites
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.manga.repository.MangaRepository
+import tachiyomi.domain.merged.interactor.GetMergedReferences
+import tachiyomi.domain.merged.model.MergedMangaReference
+import tachiyomi.domain.source.service.SourceManager
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -46,7 +50,8 @@ class BackupCreator(
     private val getFavorites: GetFavorites = Injekt.get(),
     private val backupPreferences: BackupPreferences = Injekt.get(),
     private val mangaRepository: MangaRepository = Injekt.get(),
-    private val sourceManager: tachiyomi.domain.source.service.SourceManager = Injekt.get(),
+    private val sourceManager: SourceManager = Injekt.get(),
+    private val getMergedReferences: GetMergedReferences = Injekt.get(),
 
     private val categoriesBackupCreator: CategoriesBackupCreator = CategoriesBackupCreator(),
     private val mangaBackupCreator: MangaBackupCreator = MangaBackupCreator(),
@@ -55,46 +60,36 @@ class BackupCreator(
     private val sourcesBackupCreator: SourcesBackupCreator = SourcesBackupCreator(),
 ) {
 
-    /**
-     * Batch size for processing manga during backup.
-     * Slightly larger batches improve throughput without large memory spikes.
-     */
     private val mangaBatchSize = 20
-
-    /**
-     * How many lightweight favorite rows to pull from the DB per keyset page. Kept well above
-     * mangaBatchSize but small enough that a 200k library is never fully resident at once.
-     */
     private val mangaPageSize = 500L
-
-    /**
-     * Maximum number of manga to hold in memory at once before flushing.
-     * For very large libraries, we process in memory-bounded segments.
-     */
     private val maxMangaInMemory = 200
 
-    suspend fun backup(uri: Uri, options: BackupOptions, onProgress: ((Int, Int) -> Unit)? = null): String {
+    suspend fun backup(
+        uri: Uri,
+        options: BackupOptions,
+        onProgress: ((Int, Int) -> Unit)? = null,
+    ): String {
         var file: UniFile? = null
+
         try {
             file = if (isAutoBackup) {
-                // Get dir of file and create
                 val dir = UniFile.fromUri(context, uri)
 
-                // Delete older backups
                 dir?.listFiles { _, filename -> FILENAME_REGEX.matches(filename) }
                     .orEmpty()
                     .sortedByDescending { it.name }
                     .drop(MAX_AUTO_BACKUPS - 1)
                     .forEach { it.delete() }
 
-                // Create new file to place backup
                 dir?.createFile(getFilename())
             } else {
                 UniFile.fromUri(context, uri)
             }
 
             if (file == null || !file.isFile) {
-                throw IllegalStateException(context.stringResource(MR.strings.create_backup_file_error))
+                throw IllegalStateException(
+                    context.stringResource(MR.strings.create_backup_file_error),
+                )
             }
 
             val backupCategories = backupCategories(options)
@@ -106,18 +101,21 @@ class BackupCreator(
             (outputStream as? FileOutputStream)?.channel?.truncate(0)
             val gzipOut = outputStream.sink().gzip().buffer()
 
-            // Track source IDs as we process manga for backupSources field
             val sourceIds = mutableSetOf<Long>()
-            var written = 0
-            val approxTotal = if (options.libraryEntries) mangaRepository.getFavoritesCount().toInt() else 0
+            val mergedReferences = linkedMapOf<String, BackupMergedReference>()
 
-            // Filter a batch by content-type options, fetch full details for the survivors, then
-            // stream each BackupManga straight to the output so only one is resident at a time.
+            var written = 0
+            val approxTotal = if (options.libraryEntries) {
+                mangaRepository.getFavoritesCount().toInt()
+            } else {
+                0
+            }
+
             suspend fun processBatch(batch: List<Manga>) {
                 val filtered = batch.filter { manga ->
-                    // manga.isNovel is reliable for stub/uninstalled sources; fall back to the live
-                    // source check for entries that haven't been migrated.
-                    val isNovel = manga.isNovel || sourceManager.getOrStub(manga.source).isNovelSource()
+                    val isNovel = manga.isNovel ||
+                        sourceManager.getOrStub(manga.source).isNovelSource()
+
                     when {
                         options.includeManga && options.includeNovels -> true
                         options.includeManga && !isNovel -> true
@@ -125,69 +123,152 @@ class BackupCreator(
                         else -> false
                     }
                 }
+
                 if (filtered.isEmpty()) return
+
                 val fullBatch = filtered.map { manga ->
-                    if (manga.description == null) mangaRepository.getMangaById(manga.id) else manga
+                    if (manga.description == null) {
+                        mangaRepository.getMangaById(manga.id)
+                    } else {
+                        manga
+                    }
                 }
-                mangaBackupCreator.backupMangaStream(fullBatch, options).collect { m ->
-                    sourceIds.add(m.source)
-                    val bytes = parser.encodeToByteArray(BackupManga.serializer(), m)
+
+                mangaBackupCreator.backupMangaStream(fullBatch, options).collect { backupManga ->
+                    sourceIds.add(backupManga.source)
+
+                    val bytes = parser.encodeToByteArray(
+                        BackupManga.serializer(),
+                        backupManga,
+                    )
+
                     writeProtoField(gzipOut.outputStream(), 1, bytes)
+
+                    /*
+                     * Save merge-reference information for each virtual merged manga.
+                     *
+                     * The virtual manga's source ID and URL identify the merge entry.
+                     * The original manga's source ID and URL are saved in each reference.
+                     */
+                    val sourceManga = fullBatch.firstOrNull {
+                        it.url == backupManga.url &&
+                            it.source == backupManga.source
+                    }
+
+                    if (sourceManga != null) {
+                        val references = getMergedReferences.await(sourceManga.id)
+
+                        references.forEach { reference ->
+                            val backupReference = reference.toBackupMergedReference(
+                                mergeManga = sourceManga,
+                            )
+
+                            val key = buildString {
+                                append(backupReference.mergeMangaSourceId)
+                                append('|')
+                                append(backupReference.mergeMangaUrl)
+                                append('|')
+                                append(backupReference.mangaSourceId)
+                                append('|')
+                                append(backupReference.mangaUrl)
+                            }
+
+                            mergedReferences[key] = backupReference
+                        }
+                    }
                 }
+
                 written += filtered.size
                 onProgress?.invoke(written, approxTotal.coerceAtLeast(written))
-                // Push deflated output to disk each batch so buffered bytes don't accumulate
-                // across a very large backup.
+
                 gzipOut.flush()
                 kotlinx.coroutines.yield()
             }
 
             try {
-                // Field 1: backupManga (repeated). Favorites are keyset-paged so a very large
-                // library is never fully materialised in memory at once.
                 if (options.libraryEntries) {
                     var afterId = 0L
+
                     while (true) {
-                        val page = mangaRepository.getFavoritesEntryPaged(afterId, mangaPageSize)
+                        val page = mangaRepository.getFavoritesEntryPaged(
+                            afterId,
+                            mangaPageSize,
+                        )
+
                         if (page.isEmpty()) break
+
                         afterId = page.last().id
-                        page.chunked(mangaBatchSize).forEach { processBatch(it) }
+
+                        page.chunked(mangaBatchSize).forEach { batch ->
+                            processBatch(batch)
+                        }
                     }
                 }
+
                 if (options.readEntries) {
                     mangaRepository.getReadMangaNotInLibrary()
                         .chunked(mangaBatchSize)
-                        .forEach { processBatch(it) }
+                        .forEach { batch ->
+                            processBatch(batch)
+                        }
                 }
 
-                logcat(LogPriority.INFO) { "Backup: All manga streamed ($written entries), writing metadata..." }
+                logcat(LogPriority.INFO) {
+                    "Backup: All manga streamed ($written entries), writing metadata..."
+                }
 
                 val backupSources = sourcesBackupCreator.forSourceIds(sourceIds)
 
-                // Field 2: backupCategories (repeated)
-                backupCategories.forEach { c ->
-                    val bytes = parser.encodeToByteArray(BackupCategory.serializer(), c)
+                backupCategories.forEach { category ->
+                    val bytes = parser.encodeToByteArray(
+                        BackupCategory.serializer(),
+                        category,
+                    )
                     writeProtoField(gzipOut.outputStream(), 2, bytes)
                 }
-                // Field 101: backupSources (repeated)
-                backupSources.forEach { s ->
-                    val bytes = parser.encodeToByteArray(BackupSource.serializer(), s)
+
+                backupSources.forEach { source ->
+                    val bytes = parser.encodeToByteArray(
+                        BackupSource.serializer(),
+                        source,
+                    )
                     writeProtoField(gzipOut.outputStream(), 101, bytes)
                 }
-                // Field 104: backupPreferences (repeated)
-                backupAppPrefs.forEach { p ->
-                    val bytes = parser.encodeToByteArray(BackupPreference.serializer(), p)
+
+                backupAppPrefs.forEach { preference ->
+                    val bytes = parser.encodeToByteArray(
+                        BackupPreference.serializer(),
+                        preference,
+                    )
                     writeProtoField(gzipOut.outputStream(), 104, bytes)
                 }
-                // Field 105: backupSourcePreferences (repeated)
-                backupSourcePrefs.forEach { sp ->
-                    val bytes = parser.encodeToByteArray(BackupSourcePreferences.serializer(), sp)
+
+                backupSourcePrefs.forEach { sourcePreference ->
+                    val bytes = parser.encodeToByteArray(
+                        BackupSourcePreferences.serializer(),
+                        sourcePreference,
+                    )
                     writeProtoField(gzipOut.outputStream(), 105, bytes)
                 }
-                // Field 106: backupExtensionStores (repeated)
-                backupExtensionStores.forEach { er ->
-                    val bytes = parser.encodeToByteArray(BackupExtensionStore.serializer(), er)
+
+                backupExtensionStores.forEach { extensionStore ->
+                    val bytes = parser.encodeToByteArray(
+                        BackupExtensionStore.serializer(),
+                        extensionStore,
+                    )
                     writeProtoField(gzipOut.outputStream(), 106, bytes)
+                }
+
+                /*
+                 * Field 107 stores merge-reference records.
+                 * Backup.kt already declares this field as backupMergedReferences.
+                 */
+                mergedReferences.values.forEach { reference ->
+                    val bytes = parser.encodeToByteArray(
+                        BackupMergedReference.serializer(),
+                        reference,
+                    )
+                    writeProtoField(gzipOut.outputStream(), 107, bytes)
                 }
 
                 gzipOut.flush()
@@ -196,75 +277,121 @@ class BackupCreator(
             }
 
             val fileUri = file.uri
-            logcat(LogPriority.INFO) { "Backup: Write complete, validating..." }
 
-            // Make sure it's a valid backup file
+            logcat(LogPriority.INFO) {
+                "Backup: Write complete, validating..."
+            }
+
             BackupFileValidator(context).validate(fileUri)
 
             if (isAutoBackup) {
-                backupPreferences.lastAutoBackupTimestamp.set(Clock.System.now().toEpochMilliseconds())
+                backupPreferences.lastAutoBackupTimestamp.set(
+                    Clock.System.now().toEpochMilliseconds(),
+                )
             }
 
             return fileUri.toString()
         } catch (e: Exception) {
             logcat(LogPriority.ERROR, e)
+
             try {
                 file?.delete()
             } catch (deleteError: Exception) {
-                logcat(LogPriority.WARN, deleteError) { "Failed to delete partial backup file" }
+                logcat(LogPriority.WARN, deleteError) {
+                    "Failed to delete partial backup file"
+                }
             }
+
             throw e
         }
     }
 
-    /** Write a single protobuf length-delimited field (wire type 2) to the stream. */
-    private fun writeProtoField(out: OutputStream, fieldNumber: Int, data: ByteArray) {
-        // Tag = (fieldNumber << 3) | 2 (length-delimited)
+    private fun MergedMangaReference.toBackupMergedReference(
+        mergeManga: Manga,
+    ) = BackupMergedReference(
+        mergeMangaUrl = mergeManga.url,
+        mergeMangaSourceId = mergeManga.source,
+        mangaUrl = mangaUrl,
+        mangaSourceId = mangaSourceId,
+        isInfoManga = isInfoManga,
+        getChapterUpdates = getChapterUpdates,
+        chapterSortMode = chapterSortMode,
+        chapterPriority = chapterPriority,
+        downloadChapters = downloadChapters,
+    )
+
+    private fun writeProtoField(
+        out: OutputStream,
+        fieldNumber: Int,
+        data: ByteArray,
+    ) {
         writeVarint(out, (fieldNumber.toLong() shl 3) or 2L)
         writeVarint(out, data.size.toLong())
         out.write(data)
     }
 
-    /** Write a varint (variable-length integer) in protobuf encoding. */
-    private fun writeVarint(out: OutputStream, value: Long) {
+    private fun writeVarint(
+        out: OutputStream,
+        value: Long,
+    ) {
         var v = value
+
         while (v and 0x7FL.inv() != 0L) {
             out.write(((v and 0x7F) or 0x80).toInt())
             v = v ushr 7
         }
+
         out.write((v and 0x7F).toInt())
     }
 
-    private suspend fun backupCategories(options: BackupOptions): List<BackupCategory> {
+    private suspend fun backupCategories(
+        options: BackupOptions,
+    ): List<BackupCategory> {
         if (!options.categories) return emptyList()
 
         return categoriesBackupCreator()
     }
 
-    private fun backupAppPreferences(options: BackupOptions): List<BackupPreference> {
+    private fun backupAppPreferences(
+        options: BackupOptions,
+    ): List<BackupPreference> {
         if (!options.appSettings) return emptyList()
 
-        return preferenceBackupCreator.createApp(includePrivatePreferences = options.privateSettings)
+        return preferenceBackupCreator.createApp(
+            includePrivatePreferences = options.privateSettings,
+        )
     }
 
-    private suspend fun backupExtensionStores(options: BackupOptions): List<BackupExtensionStore> {
+    private suspend fun backupExtensionStores(
+        options: BackupOptions,
+    ): List<BackupExtensionStore> {
         if (!options.extensionStores) return emptyList()
 
         return extensionStoresBackupCreator()
     }
 
-    private fun backupSourcePreferences(options: BackupOptions): List<BackupSourcePreferences> {
+    private fun backupSourcePreferences(
+        options: BackupOptions,
+    ): List<BackupSourcePreferences> {
         if (!options.sourceSettings) return emptyList()
 
-        return preferenceBackupCreator.createSource(includePrivatePreferences = options.privateSettings)
+        return preferenceBackupCreator.createSource(
+            includePrivatePreferences = options.privateSettings,
+        )
     }
 
     companion object {
         private const val MAX_AUTO_BACKUPS: Int = 4
-        private val FILENAME_REGEX = """${BuildConfig.APPLICATION_ID}_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}.tachibk""".toRegex()
+
+        private val FILENAME_REGEX =
+            """${BuildConfig.APPLICATION_ID}_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}.tachibk""".toRegex()
 
         fun getFilename(): String {
-            val date = SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.ENGLISH).format(Date())
+            val date = SimpleDateFormat(
+                "yyyy-MM-dd_HH-mm",
+                Locale.ENGLISH,
+            ).format(Date())
+
             return "${BuildConfig.APPLICATION_ID}_$date.tachibk"
         }
     }
