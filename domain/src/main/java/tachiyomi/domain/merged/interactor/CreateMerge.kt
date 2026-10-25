@@ -1,12 +1,12 @@
-
 package tachiyomi.domain.merged.interactor
 
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.withNonCancellableContext
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
-import tachiyomi.domain.manga.interactor.UpdateManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.MangaUpdate
+import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.merged.model.MergedMangaReference
 import tachiyomi.domain.merged.repository.MergedMangaRepository
 import java.util.UUID
@@ -24,7 +24,7 @@ import java.util.UUID
 class CreateMerge(
     private val mergedMangaRepository: MergedMangaRepository,
     private val networkToLocalManga: NetworkToLocalManga,
-    private val updateManga: UpdateManga,
+    private val mangaRepository: MangaRepository,
 ) {
 
     suspend fun await(mangaToLink: List<Manga>): Result =
@@ -48,9 +48,12 @@ class CreateMerge(
                     ),
                 )
 
-                updateManga.awaitUpdateFavorite(
-                    virtualManga.id,
-                    true,
+                // Add the virtual merge entry to the library.
+                mangaRepository.update(
+                    MangaUpdate(
+                        id = virtualManga.id,
+                        favorite = true,
+                    ),
                 )
 
                 val references = mangaToLink.mapIndexed { index, manga ->
@@ -75,9 +78,11 @@ class CreateMerge(
                 mangaToLink
                     .filter { it.favorite }
                     .forEach { manga ->
-                        updateManga.awaitUpdateFavorite(
-                            manga.id,
-                            false,
+                        mangaRepository.update(
+                            MangaUpdate(
+                                id = manga.id,
+                                favorite = false,
+                            ),
                         )
                     }
 
