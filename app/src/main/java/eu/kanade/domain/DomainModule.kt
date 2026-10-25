@@ -99,6 +99,7 @@ import tachiyomi.domain.manga.interactor.SetCustomMangaInfo
 import tachiyomi.domain.manga.interactor.SetMangaChapterFlags
 import tachiyomi.domain.manga.interactor.UpdateMangaNotes
 import tachiyomi.domain.manga.repository.MangaRepository
+import tachiyomi.domain.merged.interactor.AddMergeSource
 import tachiyomi.domain.merged.interactor.CreateMerge
 import tachiyomi.domain.merged.interactor.DeleteMerge
 import tachiyomi.domain.merged.interactor.DeleteMergeGroup
@@ -146,6 +147,7 @@ class DomainModule : InjektModule {
             MergedMangaRepositoryImpl(get())
         }
         addFactory { CreateMerge(get(), get(), get()) }
+        addFactory { AddMergeSource(get(), get()) }
         addFactory { GetMergedReferences(get()) }
         addFactory { UpdateMergedSettings(get()) }
         addFactory { DeleteMerge(get()) }
