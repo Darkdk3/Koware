@@ -113,7 +113,6 @@ android {
             versionNameSuffix = debug.versionNameSuffix
             signingConfig = debug.signingConfig
             matchingFallbacks.addAll(commonMatchingFallbacks)
-            buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLatestCommitTime = false)}\"")
         }
 
         create("benchmark") {
@@ -173,7 +172,7 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
-        aidl = true
+        aidl = false
     }
 
     lint {
@@ -266,7 +265,7 @@ dependencies {
     // Networking
     implementation(libs.bundles.okhttp)
     implementation(libs.okio)
-    implementation(libs.conscrypt) // TLS 1.3 support for Android < 10
+    implementation(libs.conscrypt)
 
     // Data serialization (JSON, protobuf, xml)
     implementation(libs.bundles.serialization)
@@ -274,7 +273,7 @@ dependencies {
     // HTML parser
     implementation(libs.jsoup)
 
-    // JavaScript engine (for JS plugins)
+    // JavaScript engine
     // implementation(libs.bundles.js.engine)
     implementation("io.github.dokar3:quickjs-kt:1.0.0-alpha13")
 
@@ -295,7 +294,7 @@ dependencies {
     }
     implementation(libs.image.decoder)
 
-    // Cover palette extraction (dominant color for cover-based theming)
+    // Cover palette extraction
     implementation(libs.palette.ktx)
 
     // UI libraries
@@ -330,19 +329,19 @@ dependencies {
     testImplementation(libs.bundles.test)
     testRuntimeOnly(libs.junit.platform.launcher)
 
-    // Android Instrumentation Tests (for auto-discovery extension testing)
+    // Android Instrumentation Tests
     androidTestImplementation(libs.androidx.test.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
 
-    // For detecting memory leaks; see https://square.github.io/leakcanary/
+    // Leak detection
     // debugImplementation(libs.leakCanary.android)
     implementation(libs.leakCanary.plumber)
     testImplementation(libs.kotlinx.coroutines.test)
 
-    // media for tts notification
+    // TTS notification media
     implementation(libs.androidx.media)
 
-    // ML Kit text recognition (bundled, on-device)
+    // ML Kit
     implementation(libs.mlkit.text.recognition)
     implementation(libs.mlkit.text.recognition.chinese)
     implementation(libs.mlkit.text.recognition.japanese)
