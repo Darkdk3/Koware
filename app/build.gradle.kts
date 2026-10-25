@@ -172,7 +172,7 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
-        aidl = false
+        aidl = true
     }
 
     lint {
