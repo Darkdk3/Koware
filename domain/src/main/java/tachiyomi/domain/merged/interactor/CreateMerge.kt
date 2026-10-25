@@ -12,115 +12,130 @@ import tachiyomi.domain.merged.repository.MergedMangaRepository
 import java.util.UUID
 
 /**
- * Creates a virtual merged manga and links the selected manga entries to it.
+ * Creates a merged manga or adds a source to an existing merge.
  *
- * The first selected manga becomes the information-primary manga.
- * Selection order determines chapter priority.
- *
- * Original manga entries are retained because the merged source relies on
- * them to retrieve chapters. Favorited originals are unfavorited only after
- * all merge references have been inserted successfully.
+ * If one of the selected entries is already a merged manga, the other
+ * entry is added to that merge instead of creating another virtual entry.
  */
 class CreateMerge(
     private val mergedMangaRepository: MergedMangaRepository,
     private val networkToLocalManga: NetworkToLocalManga,
     private val mangaRepository: MangaRepository,
+    private val addMergeSource: AddMergeSource,
 ) {
 
     suspend fun await(mangaToLink: List<Manga>): Result =
         withNonCancellableContext {
             try {
-                validateMangaToLink(mangaToLink)
+                validateSelection(mangaToLink)
 
-                val primary = mangaToLink.first()
-
-                // Keep this ID synchronized with MergedSource.ID in the app module.
-                val virtualManga = networkToLocalManga(
-                    Manga.create().copy(
-                        source = MERGED_SOURCE_ID,
-                        url = "merged://${UUID.randomUUID()}",
-                        title = primary.title,
-                        thumbnailUrl = primary.thumbnailUrl,
-                        initialized = true,
-                        isNovel = primary.isNovel,
-                    ),
-                )
-
-                // Add the virtual merged entry to the library.
-                val addedToLibrary = mangaRepository.update(
-                    MangaUpdate(
-                        id = virtualManga.id,
-                        favorite = true,
-                    ),
-                )
-
-                if (!addedToLibrary) {
-                    error(
-                        "Could not add the merged manga to the library. " +
-                            "Merged manga ID: ${virtualManga.id}",
-                    )
+                val mergedEntries = mangaToLink.filter {
+                    it.source == MERGED_SOURCE_ID
                 }
 
-                // Create one reference for each selected original manga.
-                // The first selected manga is the information-primary entry.
-                val references = mangaToLink.mapIndexed { index, manga ->
-                    MergedMangaReference(
-                        id = 0L,
-                        isInfoManga = index == 0,
-                        getChapterUpdates = true,
-                        chapterSortMode = 0,
-                        chapterPriority = index,
-                        downloadChapters = true,
-                        mergeId = virtualManga.id,
-                        mangaId = manga.id,
-                        mangaUrl = manga.url,
-                        mangaSourceId = manga.source,
-                    )
-                }
-
-                // insertAll is transactional in the repository implementation.
-                mergedMangaRepository.insertAll(references)
-
-                // Only unfavorite the originals after references have been saved.
-                val originalsToUnfavorite = mangaToLink
-                    .filter { it.favorite }
-                    .map { manga ->
-                        MangaUpdate(
-                            id = manga.id,
-                            favorite = false,
-                        )
+                // Existing merge selected: add the other manga to it.
+                if (mergedEntries.isNotEmpty()) {
+                    require(mergedEntries.size == 1) {
+                        "Select only one existing merged manga."
                     }
 
-                if (originalsToUnfavorite.isNotEmpty()) {
-                    val updated = mangaRepository.updateAll(
-                        originalsToUnfavorite,
+                    val existingMerge = mergedEntries.single()
+                    val mangaToAdd = mangaToLink.first {
+                        it.id != existingMerge.id
+                    }
+
+                    val addResult = addMergeSource.await(
+                        mergeId = existingMerge.id,
+                        manga = mangaToAdd,
                     )
 
-                    if (!updated) {
-                        error(
-                            "Merge references were created, but the original " +
-                                "manga could not be removed from the library.",
-                        )
+                    return@withNonCancellableContext when (addResult) {
+                        AddMergeSource.Result.Success -> {
+                            Result.Success(existingMerge.id)
+                        }
+
+                        is AddMergeSource.Result.InternalError -> {
+                            Result.InternalError(addResult.error)
+                        }
                     }
                 }
 
-                Result.Success(
-                    mergedMangaId = virtualManga.id,
-                )
+                // No existing merge selected: create a new one.
+                createNewMerge(mangaToLink)
             } catch (e: Exception) {
-                logcat(
-                    LogPriority.ERROR,
-                    e,
-                )
-
+                logcat(LogPriority.ERROR, e)
                 Result.InternalError(e)
             }
         }
 
-    /**
-     * Rejects invalid selections before creating a virtual manga entry.
-     */
-    private fun validateMangaToLink(
+    private suspend fun createNewMerge(
+        mangaToLink: List<Manga>,
+    ): Result {
+        val primary = mangaToLink.first()
+
+        val virtualManga = networkToLocalManga(
+            Manga.create().copy(
+                source = MERGED_SOURCE_ID,
+                url = "merged://${UUID.randomUUID()}",
+                title = primary.title,
+                thumbnailUrl = primary.thumbnailUrl,
+                initialized = true,
+                isNovel = primary.isNovel,
+            ),
+        )
+
+        val references = mangaToLink.mapIndexed { index, manga ->
+            MergedMangaReference(
+                id = 0L,
+                isInfoManga = index == 0,
+                getChapterUpdates = true,
+                chapterSortMode = 0,
+                chapterPriority = index,
+                downloadChapters = true,
+                mergeId = virtualManga.id,
+                mangaId = manga.id,
+                mangaUrl = manga.url,
+                mangaSourceId = manga.source,
+            )
+        }
+
+        // Persist all source references before favoriting the virtual entry.
+        mergedMangaRepository.insertAll(references)
+
+        val addedToLibrary = mangaRepository.update(
+            MangaUpdate(
+                id = virtualManga.id,
+                favorite = true,
+            ),
+        )
+
+        check(addedToLibrary) {
+            "Could not add the merged manga to the library."
+        }
+
+        // Remove the originals from the library only after the merge exists.
+        val originalsToUnfavorite = mangaToLink
+            .filter { it.favorite }
+            .map {
+                MangaUpdate(
+                    id = it.id,
+                    favorite = false,
+                )
+            }
+
+        if (originalsToUnfavorite.isNotEmpty()) {
+            val updated = mangaRepository.updateAll(originalsToUnfavorite)
+
+            check(updated) {
+                "The merge was created, but the original manga could not " +
+                    "be removed from the library."
+            }
+        }
+
+        return Result.Success(virtualManga.id)
+    }
+
+    private fun validateSelection(
         mangaToLink: List<Manga>,
     ) {
         require(mangaToLink.size >= 2) {
@@ -135,12 +150,16 @@ class CreateMerge(
             "Every selected manga must already exist in the database."
         }
 
-        require(mangaToLink.none { it.source == MERGED_SOURCE_ID }) {
-            "A merged manga cannot be selected as an original manga."
-        }
-
         require(mangaToLink.map { it.isNovel }.distinct().size == 1) {
             "Manga and novels cannot be merged together."
+        }
+
+        val mergedEntries = mangaToLink.filter {
+            it.source == MERGED_SOURCE_ID
+        }
+
+        require(mergedEntries.size <= 1) {
+            "Only one existing merged manga can be selected."
         }
     }
 
@@ -156,13 +175,6 @@ class CreateMerge(
     }
 
     companion object {
-
-        /**
-         * Mirrors:
-         * eu.kanade.tachiyomi.source.online.all.MergedSource.ID
-         *
-         * Keep this value synchronized with the app module.
-         */
-        const val MERGED_SOURCE_ID = 4577113990024601157L
+        const val MERGED_SOURCE_ID: Long = 4577113990024601157L
     }
 }
