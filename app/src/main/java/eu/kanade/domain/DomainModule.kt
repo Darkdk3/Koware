@@ -1,4 +1,3 @@
-
 package eu.kanade.domain
 
 import eu.kanade.domain.chapter.interactor.GetAvailableScanlators
@@ -146,7 +145,7 @@ class DomainModule : InjektModule {
         addSingletonFactory<MergedMangaRepository> {
             MergedMangaRepositoryImpl(get())
         }
-        addFactory { CreateMerge(get(), get(), get()) }
+        addFactory { CreateMerge(get(), get(), get(), get()) }
         addFactory { AddMergeSource(get(), get()) }
         addFactory { GetMergedReferences(get()) }
         addFactory { UpdateMergedSettings(get()) }
