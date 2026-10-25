@@ -1,3 +1,4 @@
+
 package eu.kanade.tachiyomi.ui.manga.recommendations
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -80,17 +81,32 @@ import uy.kohesive.injekt.api.get
 class RecommendationRowPreferences(
     store: PreferenceStore = Injekt.get<PreferenceStore>(),
 ) {
-    val showSourceRows: Preference<Boolean> = store.getBoolean("rec_show_source_rows", true)
-    val showRelatedRows: Preference<Boolean> = store.getBoolean("rec_show_related_rows", true)
-    val showAiRows: Preference<Boolean> = store.getBoolean("rec_show_ai_rows", true)
-    val showTrackerRows: Preference<Boolean> = store.getBoolean("rec_show_tracker_rows", true)
-    val searchOtherSources: Preference<Boolean> = store.getBoolean("rec_search_other_sources", true)
+    val showSourceRows: Preference<Boolean> =
+        store.getBoolean("rec_show_source_rows", true)
 
-    val sourceMaxRows: Preference<Int> = store.getInt("rec_source_max_rows", 5)
-    val relatedMaxRows: Preference<Int> = store.getInt("rec_related_max_rows", 4)
+    val showRelatedRows: Preference<Boolean> =
+        store.getBoolean("rec_show_related_rows", true)
 
-    val hiddenSourceRows: Preference<Set<String>> = store.getStringSet("rec_hidden_source_rows", emptySet())
-    val hiddenRelatedRows: Preference<Set<String>> = store.getStringSet("rec_hidden_related_rows", emptySet())
+    val showAiRows: Preference<Boolean> =
+        store.getBoolean("rec_show_ai_rows", true)
+
+    val showTrackerRows: Preference<Boolean> =
+        store.getBoolean("rec_show_tracker_rows", true)
+
+    val searchOtherSources: Preference<Boolean> =
+        store.getBoolean("rec_search_other_sources", true)
+
+    val sourceMaxRows: Preference<Int> =
+        store.getInt("rec_source_max_rows", 5)
+
+    val relatedMaxRows: Preference<Int> =
+        store.getInt("rec_related_max_rows", 4)
+
+    val hiddenSourceRows: Preference<Set<String>> =
+        store.getStringSet("rec_hidden_source_rows", emptySet())
+
+    val hiddenRelatedRows: Preference<Set<String>> =
+        store.getStringSet("rec_hidden_related_rows", emptySet())
 }
 
 private data class RowSettings(
@@ -123,12 +139,15 @@ class MangaRecommendationsScreen(
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+
         val vm: MangaRecommendationsViewModel = viewModel(
             factory = MangaRecommendationsViewModel.Factory(mangaId),
         )
+
         val state by vm.state.collectAsState()
 
         val prefs = remember { RecommendationRowPreferences() }
+
         val showSource by prefs.showSourceRows.watch()
         val showRelated by prefs.showRelatedRows.watch()
         val showAi by prefs.showAiRows.watch()
@@ -156,32 +175,59 @@ class MangaRecommendationsScreen(
                     title = { Text("Recommendations") },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                            Icon(
+                                Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = "Back",
+                            )
                         }
                     },
                     actions = {
                         var menuOpen by remember { mutableStateOf(false) }
+
                         Box {
                             IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Outlined.Tune, contentDescription = "Choose recommendation types")
+                                Icon(
+                                    Icons.Outlined.Tune,
+                                    contentDescription = "Choose recommendation types",
+                                )
                             }
+
                             DropdownMenu(
                                 expanded = menuOpen,
                                 onDismissRequest = { menuOpen = false },
                             ) {
-                                CheckableMenuItem("More from sources", settings.showSource) {
+                                CheckableMenuItem(
+                                    "More from sources",
+                                    settings.showSource,
+                                ) {
                                     prefs.showSourceRows.set(!settings.showSource)
                                 }
-                                CheckableMenuItem("More like this", settings.showRelated) {
+
+                                CheckableMenuItem(
+                                    "More like this",
+                                    settings.showRelated,
+                                ) {
                                     prefs.showRelatedRows.set(!settings.showRelated)
                                 }
-                                CheckableMenuItem("AI picks", settings.showAi) {
+
+                                CheckableMenuItem(
+                                    "AI picks",
+                                    settings.showAi,
+                                ) {
                                     prefs.showAiRows.set(!settings.showAi)
                                 }
-                                CheckableMenuItem("Tracker recommendations", settings.showTracker) {
+
+                                CheckableMenuItem(
+                                    "Tracker recommendations",
+                                    settings.showTracker,
+                                ) {
                                     prefs.showTrackerRows.set(!settings.showTracker)
                                 }
-                                CheckableMenuItem("Search other sources", searchOtherSources) {
+
+                                CheckableMenuItem(
+                                    "Search other sources",
+                                    searchOtherSources,
+                                ) {
                                     prefs.searchOtherSources.set(!searchOtherSources)
                                 }
                             }
@@ -201,17 +247,30 @@ class MangaRecommendationsScreen(
                             .fillMaxSize()
                             .padding(innerPadding),
                         contentAlignment = Alignment.Center,
-                    ) { CircularProgressIndicator() }
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
+
                 is MangaRecommendationsUiState.Success -> {
                     RecommendationsContent(
                         state = s,
                         settings = settings,
                         prefs = prefs,
                         searchOtherSources = searchOtherSources,
-                        onMangaClick = { navigator.push(eu.kanade.tachiyomi.ui.manga.MangaScreen(it.id)) },
-                        onKeywordClick = { navigator.push(BrowseSourceScreen(s.manga.source, it)) },
-                        onKeywordLongClick = { navigator.push(GlobalSearchScreen(it)) },
+                        onMangaClick = {
+                            navigator.push(
+                                eu.kanade.tachiyomi.ui.manga.MangaScreen(it.id),
+                            )
+                        },
+                        onKeywordClick = {
+                            navigator.push(
+                                BrowseSourceScreen(s.manga.source, it),
+                            )
+                        },
+                        onKeywordLongClick = {
+                            navigator.push(GlobalSearchScreen(it))
+                        },
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
@@ -234,13 +293,20 @@ private fun RecommendationsContent(
 ) {
     // "More from this source" — the open entry's own source only.
     val currentSourceSuggestions = state.sourceSuggestions.toList()
+
     val visibleCurrentSourceSuggestions = currentSourceSuggestions
         .filter { it.url != state.manga.url }
         .distinctBy { it.url }
 
-    // "More from sources" — one row per other catalogue source (only when toggle is on).
+    // "More from sources" — one row per other catalogue source.
+    // Only search other sources when the setting is enabled.
     val groupedSourceRows: List<Pair<String, List<Manga>>> =
-        if (searchOtherSources) state.groupedSourceSuggestions.toList() else emptyList()
+        if (searchOtherSources) {
+            state.groupedSourceSuggestions.toList()
+        } else {
+            emptyList()
+        }
+
     val visibleSourceRows = groupedSourceRows
         .filter { it.first !in settings.hiddenSourceRows }
         .take(settings.sourceMaxRows)
@@ -253,8 +319,13 @@ private fun RecommendationsContent(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 32.dp),
     ) {
-        // Hero — cover + title + source
-        item { MangaHero(state.manga, state.sourceName) }
+        // Hero — cover + title + source.
+        item {
+            MangaHero(
+                manga = state.manga,
+                sourceName = state.sourceName,
+            )
+        }
 
         // More from this source — the open entry's own source only.
         if (settings.showSource && visibleCurrentSourceSuggestions.isNotEmpty()) {
@@ -271,11 +342,16 @@ private fun RecommendationsContent(
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f),
                     )
+
                     IconButton(onClick = {}) {
-                        Icon(Icons.Outlined.Tune, contentDescription = null)
+                        Icon(
+                            Icons.Outlined.Tune,
+                            contentDescription = null,
+                        )
                     }
                 }
             }
+
             item {
                 SuggestionRow(
                     suggestions = visibleCurrentSourceSuggestions,
@@ -284,7 +360,7 @@ private fun RecommendationsContent(
             }
         }
 
-        // Loading indicator for "More from this source" section
+        // Loading indicator for "More from this source".
         if (settings.showSource && state.sourceSuggestionsLoading) {
             item {
                 Box(
@@ -301,20 +377,31 @@ private fun RecommendationsContent(
             }
         }
 
-        // More from sources — one row per other catalogue source (only when toggle is on).
+        // More from sources — one row per other catalogue source.
         if (settings.showSource && visibleSourceRows.isNotEmpty()) {
-            item { Spacer(Modifier.height(8.dp)) }
+            item {
+                Spacer(Modifier.height(8.dp))
+            }
+
             item {
                 SectionHeaderWithMenu(
                     title = "More from sources",
                     rowLabels = visibleSourceRows.map { it.first },
                     hiddenRows = settings.hiddenSourceRows,
                     maxRows = settings.sourceMaxRows,
-                    onToggleRow = { prefs.hiddenSourceRows.toggle(it) },
-                    onMaxRowsChange = { prefs.sourceMaxRows.set(it) },
+                    onToggleRow = {
+                        prefs.hiddenSourceRows.toggle(it)
+                    },
+                    onMaxRowsChange = {
+                        prefs.sourceMaxRows.set(it)
+                    },
                 )
             }
-            items(visibleSourceRows, key = { "source_${it.first}" }) { row ->
+
+            items(
+                visibleSourceRows,
+                key = { "source_${it.first}" },
+            ) { row ->
                 Column(Modifier.padding(bottom = 8.dp)) {
                     Text(
                         text = row.first,
@@ -322,8 +409,12 @@ private fun RecommendationsContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(
+                            horizontal = 16.dp,
+                            vertical = 4.dp,
+                        ),
                     )
+
                     SuggestionRow(
                         suggestions = row.second,
                         onMangaClick = onMangaClick,
@@ -332,35 +423,49 @@ private fun RecommendationsContent(
             }
         }
 
-        // More like this — with loading indicator
+        // More like this — with loading indicator.
         if (settings.showRelated) {
             if (state.relatedGroupsLoading) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
+                item {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
                 }
             } else if (visibleRelatedGroups.isNotEmpty()) {
-                item { Spacer(Modifier.height(8.dp)) }
+                item {
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 item {
                     SectionHeaderWithMenu(
                         title = "More like this",
                         rowLabels = state.relatedGroups.map { it.keyword },
                         hiddenRows = settings.hiddenRelatedRows,
                         maxRows = settings.relatedMaxRows,
-                        onToggleRow = { prefs.hiddenRelatedRows.toggle(it) },
-                        onMaxRowsChange = { prefs.relatedMaxRows.set(it) },
+                        onToggleRow = {
+                            prefs.hiddenRelatedRows.toggle(it)
+                        },
+                        onMaxRowsChange = {
+                            prefs.relatedMaxRows.set(it)
+                        },
                     )
                 }
-                items(visibleRelatedGroups, key = { "related_${it.keyword}" }) { group ->
+
+                items(
+                    visibleRelatedGroups,
+                    key = { "related_${it.keyword}" },
+                ) { group ->
                     Column(Modifier.padding(bottom = 8.dp)) {
-                        // Tap: browse this source for the keyword. Long-press: global search.
+                        // Tap: browse this source for the keyword.
+                        // Long-press: global search.
                         Text(
                             text = "${group.keyword} ›",
                             style = MaterialTheme.typography.labelLarge,
@@ -369,11 +474,19 @@ private fun RecommendationsContent(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .combinedClickable(
-                                    onClick = { onKeywordClick(group.keyword) },
-                                    onLongClick = { onKeywordLongClick(group.keyword) },
+                                    onClick = {
+                                        onKeywordClick(group.keyword)
+                                    },
+                                    onLongClick = {
+                                        onKeywordLongClick(group.keyword)
+                                    },
                                 )
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(
+                                    horizontal = 16.dp,
+                                    vertical = 8.dp,
+                                ),
                         )
+
                         SuggestionRow(
                             suggestions = group.mangas,
                             onMangaClick = onMangaClick,
@@ -383,48 +496,68 @@ private fun RecommendationsContent(
             }
         }
 
-        // AI picks for this novel — with loading indicator
+        // AI picks for this novel — with loading indicator.
         if (settings.showAi) {
-            item { Spacer(Modifier.height(8.dp)) }
+            item {
+                Spacer(Modifier.height(8.dp))
+            }
+
             if (state.aiLoading) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
+                item {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
                 }
             } else {
-                AiPicksSection(state.aiPicks, state.aiScores, state.aiMessage, onMangaClick)
+                item {
+                    AiPicksSection(
+                        picks = state.aiPicks,
+                        scores = state.aiScores,
+                        message = state.aiMessage,
+                        onMangaClick = onMangaClick,
+                    )
+                }
             }
         }
 
-        // Tracker recommendations — only when a tracker is linked
+        // Tracker recommendations — only when a tracker is linked.
         if (settings.showTracker && state.trackedOn.isNotEmpty()) {
-            item { Spacer(Modifier.height(8.dp)) }
+            item {
+                Spacer(Modifier.height(8.dp))
+            }
+
             if (state.trackerLoading) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                    )
+                item {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
                 }
             } else {
-                TrackerRecommendationsSection(
-                    trackedOn = state.trackedOn,
-                    message = state.trackerMessage,
-                    hasResults = state.trackerSuggestions.isNotEmpty(),
-                )
+                item {
+                    TrackerRecommendationsSection(
+                        trackedOn = state.trackedOn,
+                        message = state.trackerMessage,
+                        hasResults = state.trackerSuggestions.isNotEmpty(),
+                    )
+                }
             }
+
             if (state.trackerSuggestions.isNotEmpty()) {
                 item {
                     SuggestionRow(
@@ -445,9 +578,16 @@ private fun CheckableMenuItem(
 ) {
     DropdownMenuItem(
         text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = checked, onCheckedChange = null)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = checked,
+                    onCheckedChange = null,
+                )
+
                 Spacer(Modifier.width(12.dp))
+
                 Text(
                     text = label,
                     maxLines = 1,
@@ -473,6 +613,7 @@ private fun SectionHeaderWithMenu(
     onMaxRowsChange: (Int) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+
     val available = rowLabels.size.coerceAtLeast(1)
     val shown = maxRows.coerceIn(1, available)
 
@@ -489,10 +630,15 @@ private fun SectionHeaderWithMenu(
                 .weight(1f)
                 .padding(vertical = 8.dp),
         )
+
         Box {
             IconButton(onClick = { expanded = true }) {
-                Icon(Icons.Outlined.Tune, contentDescription = "Customize rows")
+                Icon(
+                    Icons.Outlined.Tune,
+                    contentDescription = "Customize rows",
+                )
             }
+
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
@@ -506,30 +652,49 @@ private fun SectionHeaderWithMenu(
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.weight(1f),
                     )
+
                     IconButton(
-                        onClick = { onMaxRowsChange((shown - 1).coerceAtLeast(1)) },
+                        onClick = {
+                            onMaxRowsChange((shown - 1).coerceAtLeast(1))
+                        },
                         enabled = shown > 1,
                     ) {
-                        Icon(Icons.Outlined.Remove, contentDescription = "Fewer rows")
+                        Icon(
+                            Icons.Outlined.Remove,
+                            contentDescription = "Fewer rows",
+                        )
                     }
+
                     Text(
                         text = "$shown",
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
+
                     IconButton(
-                        onClick = { onMaxRowsChange((shown + 1).coerceAtMost(available)) },
+                        onClick = {
+                            onMaxRowsChange(
+                                (shown + 1).coerceAtMost(available),
+                            )
+                        },
                         enabled = shown < available,
                     ) {
-                        Icon(Icons.Outlined.Add, contentDescription = "More rows")
+                        Icon(
+                            Icons.Outlined.Add,
+                            contentDescription = "More rows",
+                        )
                     }
                 }
+
                 Spacer(Modifier.height(4.dp))
+
                 rowLabels.forEach { label ->
                     CheckableMenuItem(
                         label = label,
                         checked = label !in hiddenRows,
-                        onClick = { onToggleRow(label) },
+                        onClick = {
+                            onToggleRow(label)
+                        },
                     )
                 }
             }
@@ -538,8 +703,12 @@ private fun SectionHeaderWithMenu(
 }
 
 @Composable
-private fun MangaHero(manga: Manga, sourceName: String) {
+private fun MangaHero(
+    manga: Manga,
+    sourceName: String,
+) {
     val context = LocalContext.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -558,7 +727,9 @@ private fun MangaHero(manga: Manga, sourceName: String) {
                 .aspectRatio(2f / 3f)
                 .clip(RoundedCornerShape(10.dp)),
         )
+
         Spacer(Modifier.width(14.dp))
+
         Column(Modifier.weight(1f)) {
             Text(
                 text = manga.title,
@@ -566,6 +737,7 @@ private fun MangaHero(manga: Manga, sourceName: String) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+
             if (manga.author != null) {
                 Text(
                     text = "by ${manga.author}",
@@ -576,6 +748,7 @@ private fun MangaHero(manga: Manga, sourceName: String) {
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
+
             if (sourceName.isNotBlank()) {
                 Text(
                     text = sourceName,
@@ -599,8 +772,13 @@ private fun SuggestionRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        items(suggestions, key = { "${it.source}_${it.id}" }) { manga ->
-            Box(modifier = Modifier.width(110.dp)) {
+        items(
+            suggestions,
+            key = { "${it.source}_${it.id}" },
+        ) { manga ->
+            Box(
+                modifier = Modifier.width(110.dp),
+            ) {
                 MangaComfortableGridItem(
                     isSelected = false,
                     title = manga.title,
@@ -614,7 +792,9 @@ private fun SuggestionRow(
                     coverBadgeStart = {},
                     coverBadgeEnd = {},
                     onLongClick = {},
-                    onClick = { onMangaClick(manga) },
+                    onClick = {
+                        onMangaClick(manga)
+                    },
                     onClickContinueReading = null,
                     titleMaxLines = 2,
                 )
@@ -630,10 +810,15 @@ private fun AiPicksSection(
     message: String?,
     onMangaClick: (Manga) -> Unit,
 ) {
-    Column(Modifier.padding(vertical = 4.dp)) {
+    Column(
+        Modifier.padding(vertical = 4.dp),
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(
+                horizontal = 16.dp,
+                vertical = 4.dp,
+            ),
         ) {
             Icon(
                 imageVector = Icons.Outlined.AutoAwesome,
@@ -641,13 +826,16 @@ private fun AiPicksSection(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(18.dp),
             )
+
             Spacer(Modifier.width(8.dp))
+
             Column(Modifier.weight(1f)) {
                 Text(
                     text = "AI picks for this novel",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
+
                 Text(
                     text = "based on your reading history",
                     style = MaterialTheme.typography.labelSmall,
@@ -665,7 +853,10 @@ private fun AiPicksSection(
                     items(picks.size) { idx ->
                         val manga = picks[idx]
                         val score = scores.getOrNull(idx)
-                        Box(modifier = Modifier.width(100.dp)) {
+
+                        Box(
+                            modifier = Modifier.width(100.dp),
+                        ) {
                             MangaComfortableGridItem(
                                 isSelected = false,
                                 title = manga.title,
@@ -679,10 +870,13 @@ private fun AiPicksSection(
                                 coverBadgeStart = {},
                                 coverBadgeEnd = {},
                                 onLongClick = {},
-                                onClick = { onMangaClick(manga) },
+                                onClick = {
+                                    onMangaClick(manga)
+                                },
                                 onClickContinueReading = null,
                                 titleMaxLines = 2,
                             )
+
                             if (score != null) {
                                 Box(
                                     modifier = Modifier
@@ -697,7 +891,10 @@ private fun AiPicksSection(
                                                 ),
                                             ),
                                         )
-                                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                                        .padding(
+                                            horizontal = 4.dp,
+                                            vertical = 2.dp,
+                                        ),
                                 ) {
                                     Text(
                                         text = "$score%",
@@ -711,12 +908,16 @@ private fun AiPicksSection(
                     }
                 }
             }
+
             message != null -> {
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(
+                        horizontal = 16.dp,
+                        vertical = 4.dp,
+                    ),
                 )
             }
         }
@@ -729,10 +930,15 @@ private fun TrackerRecommendationsSection(
     message: String?,
     hasResults: Boolean,
 ) {
-    Column(Modifier.padding(vertical = 4.dp)) {
+    Column(
+        Modifier.padding(vertical = 4.dp),
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            modifier = Modifier.padding(
+                horizontal = 16.dp,
+                vertical = 4.dp,
+            ),
         ) {
             Icon(
                 imageVector = Icons.Outlined.Sync,
@@ -740,21 +946,26 @@ private fun TrackerRecommendationsSection(
                 tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.size(18.dp),
             )
+
             Spacer(Modifier.width(8.dp))
+
             Text(
                 text = "Tracker recommendations",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.secondary,
             )
         }
+
         Text(
             text = "Linked via: ${trackedOn.joinToString(", ")}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
+
         if (!hasResults && message != null) {
             Spacer(Modifier.height(4.dp))
+
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodySmall,
@@ -762,6 +973,7 @@ private fun TrackerRecommendationsSection(
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
+
         Spacer(Modifier.height(8.dp))
     }
 }
