@@ -8,7 +8,6 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.model.SMangaUpdate
-import eu.kanade.tachiyomi.source.model.copy
 import eu.kanade.tachiyomi.source.online.HttpSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -59,8 +58,10 @@ class MergedSource : HttpSource() {
     override fun fetchChapterList(manga: SManga) =
         throw UnsupportedOperationException()
 
-    override suspend fun getImage(page: Page): Response =
-        throw UnsupportedOperationException()
+    override suspend fun getImage(
+        page: Page,
+        existingSize: Long,
+    ): Response = throw UnsupportedOperationException()
 
     @Deprecated(
         "Use the suspend API instead",
@@ -128,7 +129,7 @@ class MergedSource : HttpSource() {
      * selected, the first reference that is not the virtual merge entry
      * is used as a fallback.
      */
-    private suspend fun getMangaDetails(manga: SManga): SManga =
+    override suspend fun getMangaDetails(manga: SManga): SManga =
         withIOContext {
             val mergedManga = requireNotNull(
                 getMangaByUrlAndSourceId.await(manga.url, id),
@@ -160,9 +161,13 @@ class MergedSource : HttpSource() {
                     ?.toSManga()
             }
 
-            (infoManga ?: mergedManga.toSManga()).copy(
-                url = manga.url,
-            )
+            val result = infoManga ?: mergedManga.toSManga()
+
+            // Keep the virtual merged entry's URL rather than the real
+            // source manga URL used for its information.
+            result.url = manga.url
+
+            result
         }
 
     /**
