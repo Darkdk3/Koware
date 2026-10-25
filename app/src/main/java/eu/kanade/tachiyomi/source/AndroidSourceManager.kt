@@ -56,7 +56,8 @@ class AndroidSourceManager(
 
     private val stubSourcesMap = ConcurrentHashMap<Long, StubSource>()
 
-    override val sources: Flow<List<Source>> = sourcesMapFlow.map { it.values.toList() }
+    override val sources: Flow<List<Source>> =
+        sourcesMapFlow.map { it.values.toList() }
 
     init {
         scope.launch {
@@ -97,14 +98,20 @@ class AndroidSourceManager(
                 mutableMap
             }.collectLatest { sources ->
                 sourcesMapFlow.value = sources
-                // Keeps PerHostDynamicRateLimitInterceptor's per-host state bounded by "hosts with a currently installed source" instead of growing for the app's whole process lifetime - fires on every source-set change (extension install/uninstall/enable/disable, custom sources, JS plugins), not just uninstalls.
+
+                // Keep per-host rate-limit state bounded to hosts with
+                // currently installed sources.
                 networkHelper.rateLimitInterceptor.pruneToHosts(
-                    sources.values.mapNotNullTo(mutableSetOf()) { it.rateLimitHost() },
+                    sources.values.mapNotNullTo(mutableSetOf()) {
+                        it.rateLimitHost()
+                    },
                 )
+
                 if (!_isInitialized.value) {
                     extensionManager.isInitialized.first { it }
                     jsPluginManager.isInitialized.first { it }
                 }
+
                 _isInitialized.value = true
             }
         }
@@ -126,36 +133,45 @@ class AndroidSourceManager(
 
     override fun getOrStub(sourceKey: Long): Source {
         return sourcesMapFlow.value[sourceKey] ?: stubSourcesMap.getOrPut(sourceKey) {
-            runBlocking { createStubSource(sourceKey) }
+            runBlocking {
+                createStubSource(sourceKey)
+            }
         }
     }
 
     override fun getAll() = sourcesMapFlow.value.values.toList()
 
-    override fun getOnlineSources() = sourcesMapFlow.value.values.filterIsInstance<HttpSource>()
+    override fun getOnlineSources() =
+        sourcesMapFlow.value.values.filterIsInstance<HttpSource>()
 
     override fun getRateLimitCandidates(): List<RateLimitCandidate> {
         return sourcesMapFlow.value.values.mapNotNull { source ->
-            val baseUrl = source.rateLimitBaseUrl() ?: return@mapNotNull null
+            val baseUrl = source.rateLimitBaseUrl()
+                ?: return@mapNotNull null
+
             RateLimitCandidate(
                 sourceId = source.id,
                 baseUrl = baseUrl,
                 isNovel = source.isNovelSource(),
                 isUnmetered = source is UnmeteredSource,
-                declaredMinimumMillis = (source as? RateLimited)?.minimumDelayMillis ?: 0L,
+                declaredMinimumMillis =
+                    (source as? RateLimited)?.minimumDelayMillis ?: 0L,
             )
         }
     }
 
     override fun getStubSources(): List<StubSource> {
         val onlineSourceIds = getOnlineSources().map { it.id }
-        return stubSourcesMap.values.filterNot { it.id in onlineSourceIds }
+        return stubSourcesMap.values.filterNot {
+            it.id in onlineSourceIds
+        }
     }
 
     private fun registerStubSource(source: StubSource) {
         scope.launch {
             val dbSource = sourceRepository.getStubSource(source.id)
             if (dbSource == source) return@launch
+
             sourceRepository.upsertStubSource(
                 source.id,
                 source.lang,
@@ -163,6 +179,7 @@ class AndroidSourceManager(
                 source.isNovelSource,
                 source.isJsSource,
             )
+
             if (dbSource != null) {
                 downloadManager.renameSource(dbSource, source)
             }
@@ -171,19 +188,26 @@ class AndroidSourceManager(
 
     private suspend fun createStubSource(id: Long): StubSource {
         sourceRepository.getStubSource(id)?.let { dbSource ->
-            // Rows seeded from is_novel by migration 34 marked Kotlin novel extensions as JS. An id
-            // the extension manager lists is an APK extension, so clear the marker and persist it.
-            if (dbSource.isJsSource && extensionManager.getSourceData(id) != null) {
+            // Rows seeded from is_novel by migration 34 marked Kotlin novel
+            // extensions as JS. An ID listed by the extension manager is
+            // an APK extension, so clear the marker and persist the correction.
+            if (
+                dbSource.isJsSource &&
+                extensionManager.getSourceData(id) != null
+            ) {
                 val corrected = dbSource.copy(isJsSource = false)
                 registerStubSource(corrected)
                 return corrected
             }
+
             return dbSource
         }
+
         extensionManager.getSourceData(id)?.let {
             registerStubSource(it)
             return it
         }
+
         return StubSource(id = id, lang = "", name = "")
     }
 }
