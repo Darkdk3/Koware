@@ -2,14 +2,15 @@ package tachiyomi.domain.merged.interactor
 
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
-import tachiyomi.domain.manga.interactor.UpdateManga
 import tachiyomi.domain.manga.model.Manga
+import tachiyomi.domain.manga.model.MangaUpdate
+import tachiyomi.domain.manga.repository.MangaRepository
 import tachiyomi.domain.merged.model.MergedMangaReference
 import tachiyomi.domain.merged.repository.MergedMangaRepository
 
 class AddMergeSource(
     private val mergedMangaRepository: MergedMangaRepository,
-    private val updateManga: UpdateManga,
+    private val mangaRepository: MangaRepository,
 ) {
 
     suspend fun await(
@@ -49,8 +50,15 @@ class AddMergeSource(
 
             mergedMangaRepository.insert(reference)
 
+            // A manga linked to a merge should no longer remain separately
+            // favourited in the library.
             if (manga.favorite) {
-                updateManga.awaitUpdateFavorite(manga.id, false)
+                mangaRepository.update(
+                    MangaUpdate(
+                        id = manga.id,
+                        favorite = false,
+                    ),
+                )
             }
 
             Result.Success
