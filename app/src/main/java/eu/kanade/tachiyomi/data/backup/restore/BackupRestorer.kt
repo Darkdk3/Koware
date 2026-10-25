@@ -8,6 +8,7 @@ import eu.kanade.tachiyomi.data.backup.BackupProtoReader
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
+import eu.kanade.tachiyomi.data.backup.models.BackupMergedReference
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
 import eu.kanade.tachiyomi.data.backup.models.BackupSource
 import eu.kanade.tachiyomi.data.backup.models.BackupSourcePreferences
@@ -27,6 +28,9 @@ import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.data.Database
 import tachiyomi.domain.manga.interactor.GetLibraryManga
+import tachiyomi.domain.manga.interactor.GetMangaByUrlAndSourceId
+import tachiyomi.domain.merged.model.MergedMangaReference
+import tachiyomi.domain.merged.repository.MergedMangaRepository
 import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -52,6 +56,8 @@ class BackupRestorer(
     private val mangaRestorer: MangaRestorer = MangaRestorer(),
     private val parser: ProtoBuf = Injekt.get(),
     private val getLibraryManga: GetLibraryManga = Injekt.get(),
+    private val getMangaByUrlAndSourceId: GetMangaByUrlAndSourceId = Injekt.get(),
+    private val mergedMangaRepository: MergedMangaRepository = Injekt.get(),
 ) {
 
     companion object {
@@ -64,7 +70,7 @@ class BackupRestorer(
     private val restoredMangaIds = mutableListOf<Long>()
 
     /**
-     * Mapping of source ID to source name from backup data
+     * Mapping of source ID to source name from backup data.
      */
     private var sourceMapping: Map<Long, String> = emptyMap()
 
@@ -85,17 +91,18 @@ class BackupRestorer(
             }
         }
 
-        // Invalidate download cache to ensure UI reflects any restored downloads
+        // Invalidate download cache to ensure UI reflects any restored downloads.
         if (options.libraryEntries) {
             try {
                 Injekt.get<DownloadCache>().invalidateCache()
             } catch (e: Exception) {
-                logcat(LogPriority.ERROR, e) { "Failed to invalidate download cache after restore" }
+                logcat(LogPriority.ERROR, e) {
+                    "Failed to invalidate download cache after restore"
+                }
             }
         }
 
         val time = System.currentTimeMillis() - startTime
-
         val logFile = writeErrorLog()
 
         notifier.showRestoreComplete(
@@ -110,8 +117,10 @@ class BackupRestorer(
     private suspend fun restoreFromFile(uri: Uri, options: RestoreOptions) {
         val summary = readBackupSummary(uri)
 
-        // Store source mapping for error messages
-        sourceMapping = summary.backupSources.associate { it.sourceId to it.name }
+        // Store source mapping for error messages.
+        sourceMapping = summary.backupSources.associate {
+            it.sourceId to it.name
+        }
 
         if (options.libraryEntries) {
             restoreAmount += summary.mangaCount
@@ -130,30 +139,44 @@ class BackupRestorer(
         }
 
         coroutineScope {
-            // Categories MUST be restored before preferences because preference restoration
-            // maps backup category IDs → current DB category IDs by name.  Running both
-            // concurrently causes restoreAppPreferences to see an empty categories table.
+            // Categories must be restored before preferences because preference
+            // restoration maps backup category IDs to current DB category IDs.
             val categoriesJob = if (options.categories) {
                 restoreCategories(summary.backupCategories)
             } else {
                 null
             }
+
             categoriesJob?.join()
 
             if (options.appSettings) {
-                restoreAppPreferences(summary.backupPreferences, summary.backupCategories.takeIf { options.categories })
+                restoreAppPreferences(
+                    summary.backupPreferences,
+                    summary.backupCategories.takeIf { options.categories },
+                )
             }
+
             if (options.sourceSettings) {
                 restoreSourcePreferences(summary.backupSourcePreferences)
             }
+
             if (options.libraryEntries) {
-                restoreMangaStream(uri, if (options.categories) summary.backupCategories else emptyList(), options)
+                // Wait for manga restoration to finish before restoring merge
+                // references, because their database IDs may have changed.
+                restoreMangaStream(
+                    uri,
+                    if (options.categories) summary.backupCategories else emptyList(),
+                    options,
+                ).join()
+
+                restoreMergedReferences(summary.backupMergedReferences)
             }
+
             if (options.extensionStores) {
                 restoreExtensionStores(summary.backupExtensionStores)
             }
 
-            // TODO: optionally trigger online library + tracker update
+            // TODO: optionally trigger online library + tracker update.
         }
     }
 
@@ -163,22 +186,55 @@ class BackupRestorer(
         val backupPreferences = mutableListOf<BackupPreference>()
         val backupSourcePreferences = mutableListOf<BackupSourcePreferences>()
         val backupExtensionStores = mutableListOf<BackupExtensionStore>()
+        val backupMergedReferences = mutableListOf<BackupMergedReference>()
+
         var mangaCount = 0
 
         val reader = BackupProtoReader(context)
         reader.read(uri) { fieldNumber, data ->
             when (fieldNumber) {
                 1 -> mangaCount++
-                2 -> backupCategories.add(parser.decodeFromByteArray(BackupCategory.serializer(), data))
-                101 -> backupSources.add(parser.decodeFromByteArray(BackupSource.serializer(), data))
-                104 -> backupPreferences.add(parser.decodeFromByteArray(BackupPreference.serializer(), data))
-                105 -> backupSourcePreferences.add(
-                    parser.decodeFromByteArray(BackupSourcePreferences.serializer(), data),
+
+                2 -> backupCategories.add(
+                    parser.decodeFromByteArray(
+                        BackupCategory.serializer(),
+                        data,
+                    ),
                 )
+
+                101 -> backupSources.add(
+                    parser.decodeFromByteArray(
+                        BackupSource.serializer(),
+                        data,
+                    ),
+                )
+
+                104 -> backupPreferences.add(
+                    parser.decodeFromByteArray(
+                        BackupPreference.serializer(),
+                        data,
+                    ),
+                )
+
+                105 -> backupSourcePreferences.add(
+                    parser.decodeFromByteArray(
+                        BackupSourcePreferences.serializer(),
+                        data,
+                    ),
+                )
+
                 106 -> backupExtensionStores.add(
                     parser.decodeFromByteArray(
                         BackupExtensionStore.serializer(),
                         BackupProtoMigration.migrateExtensionStore(data),
+                    ),
+                )
+
+                // Field 107: merge-reference records.
+                107 -> backupMergedReferences.add(
+                    parser.decodeFromByteArray(
+                        BackupMergedReference.serializer(),
+                        data,
                     ),
                 )
             }
@@ -191,6 +247,7 @@ class BackupRestorer(
             backupPreferences = backupPreferences,
             backupSourcePreferences = backupSourcePreferences,
             backupExtensionStores = backupExtensionStores,
+            backupMergedReferences = backupMergedReferences,
         )
     }
 
@@ -200,26 +257,124 @@ class BackupRestorer(
         options: RestoreOptions,
     ) = launch {
         val reader = BackupProtoReader(context)
+
         reader.read(uri) { fieldNumber, data ->
             if (fieldNumber != 1) return@read
+
             ensureActive()
 
             val backupManga = parser.decodeFromByteArray(
                 BackupManga.serializer(),
                 BackupProtoMigration.migrateManga(data),
             )
-            if ((!backupManga.isNovel && options.includeManga) || (backupManga.isNovel && options.includeNovels)) {
+
+            if (
+                (!backupManga.isNovel && options.includeManga) ||
+                (backupManga.isNovel && options.includeNovels)
+            ) {
                 try {
-                    restoredMangaIds.add(mangaRestorer.restore(backupManga, backupCategories))
+                    restoredMangaIds.add(
+                        mangaRestorer.restore(
+                            backupManga,
+                            backupCategories,
+                        ),
+                    )
                 } catch (e: Exception) {
-                    val sourceName = sourceMapping[backupManga.source] ?: backupManga.source.toString()
-                    errors.add(Date() to "${backupManga.title} [$sourceName]: ${e.message}")
+                    val sourceName = sourceMapping[backupManga.source]
+                        ?: backupManga.source.toString()
+
+                    errors.add(
+                        Date() to "${backupManga.title} [$sourceName]: ${e.message}",
+                    )
                 }
             }
 
             val progress = restoreProgress.incrementAndFetch()
+
             if (progress % NOTIFY_INTERVAL == 0 || progress == restoreAmount) {
-                notifier.showRestoreProgress(backupManga.title, progress, restoreAmount, isSync)
+                notifier.showRestoreProgress(
+                    backupManga.title,
+                    progress,
+                    restoreAmount,
+                    isSync,
+                )
+            }
+        }
+    }
+
+    /**
+     * Restores the merge relationships from the backup.
+     *
+     * The backup stores source IDs and URLs instead of database IDs. This
+     * method resolves the current database IDs after the manga entries have
+     * been restored, then inserts the merge references using those IDs.
+     */
+    private suspend fun restoreMergedReferences(
+        backupReferences: List<BackupMergedReference>,
+    ) {
+        if (backupReferences.isEmpty()) return
+
+        val referencesByMergeId = mutableMapOf<Long, MutableList<MergedMangaReference>>()
+
+        backupReferences.forEach { backupReference ->
+            try {
+                val mergeManga = getMangaByUrlAndSourceId.await(
+                    backupReference.mergeMangaUrl,
+                    backupReference.mergeMangaSourceId,
+                )
+
+                val originalManga = getMangaByUrlAndSourceId.await(
+                    backupReference.mangaUrl,
+                    backupReference.mangaSourceId,
+                )
+
+                if (mergeManga == null || originalManga == null) {
+                    val missingManga = if (mergeManga == null) {
+                        backupReference.mergeMangaUrl
+                    } else {
+                        backupReference.mangaUrl
+                    }
+
+                    errors.add(
+                        Date() to "Could not restore merge reference: manga not found ($missingManga)",
+                    )
+
+                    return@forEach
+                }
+
+                val reference = MergedMangaReference(
+                    id = 0L,
+                    isInfoManga = backupReference.isInfoManga,
+                    getChapterUpdates = backupReference.getChapterUpdates,
+                    chapterSortMode = backupReference.chapterSortMode,
+                    chapterPriority = backupReference.chapterPriority,
+                    downloadChapters = backupReference.downloadChapters,
+                    mergeId = mergeManga.id,
+                    mangaId = originalManga.id,
+                    mangaUrl = backupReference.mangaUrl,
+                    mangaSourceId = backupReference.mangaSourceId,
+                )
+
+                referencesByMergeId
+                    .getOrPut(mergeManga.id) { mutableListOf() }
+                    .add(reference)
+            } catch (e: Exception) {
+                errors.add(
+                    Date() to "Failed to restore merge reference " +
+                        "${backupReference.mergeMangaUrl} -> ${backupReference.mangaUrl}: ${e.message}",
+                )
+            }
+        }
+
+        // Replace the merge references for each restored merge manga.
+        referencesByMergeId.forEach { (mergeId, references) ->
+            try {
+                mergedMangaRepository.deleteByMergeId(mergeId)
+                mergedMangaRepository.insertAll(references)
+            } catch (e: Exception) {
+                errors.add(
+                    Date() to "Failed to insert merge references for merge ID $mergeId: ${e.message}",
+                )
             }
         }
     }
@@ -231,13 +386,18 @@ class BackupRestorer(
         val backupPreferences: List<BackupPreference>,
         val backupSourcePreferences: List<BackupSourcePreferences>,
         val backupExtensionStores: List<BackupExtensionStore>,
+        val backupMergedReferences: List<BackupMergedReference>,
     )
 
-    private fun CoroutineScope.restoreCategories(backupCategories: List<BackupCategory>) = launch {
+    private fun CoroutineScope.restoreCategories(
+        backupCategories: List<BackupCategory>,
+    ) = launch {
         ensureActive()
+
         categoriesRestorer(backupCategories)
 
         val progress = restoreProgress.incrementAndFetch()
+
         notifier.showRestoreProgress(
             context.stringResource(MR.strings.categories),
             progress,
@@ -251,12 +411,14 @@ class BackupRestorer(
         categories: List<BackupCategory>?,
     ) = launch {
         ensureActive()
+
         preferenceRestorer.restoreApp(
             preferences,
             categories,
         )
 
         val progress = restoreProgress.incrementAndFetch()
+
         notifier.showRestoreProgress(
             context.stringResource(MR.strings.app_settings),
             progress,
@@ -265,11 +427,15 @@ class BackupRestorer(
         )
     }
 
-    private fun CoroutineScope.restoreSourcePreferences(preferences: List<BackupSourcePreferences>) = launch {
+    private fun CoroutineScope.restoreSourcePreferences(
+        preferences: List<BackupSourcePreferences>,
+    ) = launch {
         ensureActive()
+
         preferenceRestorer.restoreSource(preferences)
 
         val progress = restoreProgress.incrementAndFetch()
+
         notifier.showRestoreProgress(
             context.stringResource(MR.strings.source_settings),
             progress,
@@ -291,12 +457,15 @@ class BackupRestorer(
                         try {
                             extensionStoreRestorer(it)
                         } catch (e: Exception) {
-                            errors.add(Date() to "Error Adding Repo: ${it.name} : ${e.message}")
+                            errors.add(
+                                Date() to "Error Adding Repo: ${it.name} : ${e.message}",
+                            )
                         }
 
                         restoreProgress.incrementAndFetch()
                     }
                 }
+
                 notifier.showRestoreProgress(
                     context.stringResource(MR.strings.extensionStores),
                     restoreProgress.load(),
@@ -309,19 +478,27 @@ class BackupRestorer(
     private fun writeErrorLog(): File {
         try {
             if (errors.isNotEmpty()) {
-                val file = context.createFileInCacheDir("tsundoku_restore_error.txt")
-                val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
+                val file = context.createFileInCacheDir(
+                    "tsundoku_restore_error.txt",
+                )
+
+                val sdf = SimpleDateFormat(
+                    "yyyy-MM-dd HH:mm:ss.SSS",
+                    Locale.getDefault(),
+                )
 
                 file.bufferedWriter().use { out ->
                     errors.forEach { (date, message) ->
                         out.write("[${sdf.format(date)}] $message\n")
                     }
                 }
+
                 return file
             }
         } catch (_: Exception) {
-            // Empty
+            // Empty.
         }
+
         return File("")
     }
 }
