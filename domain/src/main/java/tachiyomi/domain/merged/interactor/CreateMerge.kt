@@ -1,3 +1,4 @@
+
 package tachiyomi.domain.merged.interactor
 
 import logcat.LogPriority
@@ -84,7 +85,23 @@ class CreateMerge(
             ),
         )
 
-        val references = mangaToLink.mapIndexed { index, manga ->
+        // A merged manga must reference itself as its virtual entry.
+        // This is separate from the references to the original manga.
+        val selfReference = MergedMangaReference(
+            id = 0L,
+            isInfoManga = false,
+            getChapterUpdates = false,
+            chapterSortMode = 0,
+            chapterPriority = -1,
+            downloadChapters = false,
+            mergeId = virtualManga.id,
+            mangaId = virtualManga.id,
+            mangaUrl = virtualManga.url,
+            mangaSourceId = MERGED_SOURCE_ID,
+        )
+
+        // Create references for the original manga.
+        val originalReferences = mangaToLink.mapIndexed { index, manga ->
             MergedMangaReference(
                 id = 0L,
                 isInfoManga = index == 0,
@@ -99,9 +116,12 @@ class CreateMerge(
             )
         }
 
-        // Persist all source references before favoriting the virtual entry.
-        mergedMangaRepository.insertAll(references)
+        // Persist the self-reference and original references together.
+        mergedMangaRepository.insertAll(
+            listOf(selfReference) + originalReferences,
+        )
 
+        // Add the virtual merged entry to the library.
         val addedToLibrary = mangaRepository.update(
             MangaUpdate(
                 id = virtualManga.id,
@@ -124,7 +144,9 @@ class CreateMerge(
             }
 
         if (originalsToUnfavorite.isNotEmpty()) {
-            val updated = mangaRepository.updateAll(originalsToUnfavorite)
+            val updated = mangaRepository.updateAll(
+                originalsToUnfavorite,
+            )
 
             check(updated) {
                 "The merge was created, but the original manga could not " +
@@ -142,7 +164,9 @@ class CreateMerge(
             "Select at least two manga to merge."
         }
 
-        require(mangaToLink.map { it.id }.distinct().size == mangaToLink.size) {
+        require(
+            mangaToLink.map { it.id }.distinct().size == mangaToLink.size,
+        ) {
             "The same manga cannot be selected more than once."
         }
 
