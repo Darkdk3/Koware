@@ -6,12 +6,12 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.by
 import androidx.compose.ui.util.fastAny
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.CreationExtras
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.lifecycle.ViewModel.CreationExtras
+import androidx.lifecycle.ViewModel.initializer
+import androidx.lifecycle.ViewModel.viewModelFactory
 import eu.kanade.core.preference.asState
 import eu.kanade.core.util.addOrRemove
 import eu.kanade.core.util.insertSeparators
@@ -69,7 +69,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import logcat.LogPriority
-import mihon.core.viewmodel.StateViewModel
+import mihon.coreviewModel.StateViewModel
 import mihon.domain.chapter.interactor.FilterChaptersForDownload
 import mihon.domain.manga.model.toDomainManga
 import mihon.domain.source.interactor.UpdateMangaFromRemote
@@ -96,6 +96,7 @@ import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.FindDuplicateNovels
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
+import eu.kanade.domain.merged.interactor.CreateMerge
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
@@ -1482,7 +1483,7 @@ class MangaViewModel(
         viewModelScope.launchIO {
             combine(
                 getTracks.subscribe(manga.id).catch { logcat(LogPriority.ERROR, it) },
-                trackerManager.loggedInTrackersFlow(),
+                trackerManager loggedInTrackersFlow(),
             ) { mangaTracks, loggedInTrackers ->
                 // Show only if the service supports this manga's source
                 val supportedTrackers = loggedInTrackers.filter { (it as? EnhancedTracker)?.accept(source!!) ?: true }
@@ -1543,6 +1544,56 @@ class MangaViewModel(
                 }
             }
         }
+    }
+
+    sealed interface Dialog {
+        data class ChangeCategory(
+            val manga: Manga,
+            val initialSelection: List<CheckboxState<Category>>,
+        ) : Dialog
+
+        data class DeleteChapters(val chapters: List<Chapter>) : Dialog
+
+        data class RemoveChaptersFromDb(val chapters: List<Chapter>) : Dialog
+
+        data class DuplicateManga(
+            val manga: Manga,
+            val duplicates: List<MangaWithChapterCount>,
+            val canAddAnyway: Boolean,
+        ) : Dialog
+
+        data class SimilarNovels(
+            val similarNovels: List<MangaWithChapterCount>,
+            val categories: List<Category>,
+        ) : Dialog
+
+        data class Migrate(val target: Manga, val current: Manga) : Dialog
+
+        data class SetFetchInterval(val manga: Manga) : Dialog
+
+        data class Edit(val manga: Manga) : Dialog
+
+        data object ClearCustomInfo : Dialog
+
+        data class TranslateMangaDetails(val manga: Manga) : Dialog
+
+        data class ExportEpub(
+            val manga: Manga,
+            val chapters: List<Chapter>,
+        ) : Dialog
+
+        /** [result] is null while counting is in progress. */
+        data class WordCount(
+            val checkedChapters: Int,
+            val chaptersToCount: Int,
+            val result: WordDensity? = null,
+        ) : Dialog
+
+        data object SettingsSheet : Dialog
+
+        data object TrackSheet : Dialog
+
+        data object FullCover : Dialog
     }
 
     fun dismissDialog() {
