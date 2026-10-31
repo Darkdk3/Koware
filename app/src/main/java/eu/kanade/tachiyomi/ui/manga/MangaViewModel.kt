@@ -96,7 +96,6 @@ import tachiyomi.domain.chapter.service.getChapterSort
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.interactor.FindDuplicateNovels
 import tachiyomi.domain.manga.interactor.GetDuplicateLibraryManga
-import tachiyomi.domain.merged.interactor.CreateMerge
 import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.GetMangaWithChapters
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
@@ -783,9 +782,7 @@ class MangaViewModel(
      *    The first non-empty result wins.
      *
      * Every attempt has a timeout, and every failure is logged (filter logcat for "Suggestions")
-     * instead of being silently turned into an empty list. The current title is removed by
-     * comparing normalized paths, so a leading/trailing slash difference (see the URL normalizing
-     * in [toggleFavorite]) can't let it through or create a duplicate database row.
+     * instead of being silently turned into an empty list. The manga being viewed is always removed from the result.
      *
      * Each result is converted to a real local database entry so the row can reuse
      * the same [MangaComfortableGridItem] card everywhere. The previous list stays in the state
@@ -1515,72 +1512,37 @@ class MangaViewModel(
     // Track sheet - end
 
     /**
- * Links the selected duplicate to the manga currently open under a new merged library entry.
- * On success, emits the new merged manga ID so the UI can navigate to it.
- */
-fun mergeManga(duplicate: Manga) {
-    val manga = successState?.manga ?: return
+     * Links the selected duplicate to the manga currently open under a new merged library entry.
+     * On success, emits the new merged manga ID so the UI can navigate to it.
+     */
+    fun mergeManga(duplicate: Manga) {
+        val manga = successState?.manga ?: return
 
-    if (manga.id == duplicate.id) return
+        if (manga.id == duplicate.id) return
 
-    viewModelScope.launchIO {
-        when (val result = createMerge.await(listOf(manga, duplicate))) {
-            is CreateMerge.Result.Success -> {
-                withUIContext {
-                    snackbarHostState.showSnackbar(
-                        message = "Merged \"${duplicate.title}\" into one entry",
-                    )
+        viewModelScope.launchIO {
+            when (val result = createMerge.await(listOf(manga, duplicate))) {
+                is CreateMerge.Result.Success -> {
+                    withUIContext {
+                        snackbarHostState.showSnackbar(
+                            message = "Merged \"${duplicate.title}\" into one entry",
+                        )
+                    }
+
+                    _mergeCompletedEvent.send(result.mergedMangaId)
                 }
 
-                _mergeCompletedEvent.send(result.mergedMangaId)
-            }
+                is CreateMerge.Result.InternalError -> {
+                    logcat(LogPriority.ERROR, result.error)
 
-            is CreateMerge.Result.InternalError -> {
-                logcat(LogPriority.ERROR, result.error)
-
-                withUIContext {
-                    snackbarHostState.showSnackbar(
-                        message = "Something went wrong merging",
-                    )
+                    withUIContext {
+                        snackbarHostState.showSnackbar(
+                            message = "Something went wrong merging",
+                        )
+                    }
                 }
             }
         }
-    }
-}
-
-sealed interface Dialog {
-        data class ChangeCategory(
-            val manga: Manga,
-            val initialSelection: List<CheckboxState<Category>>,
-        ) : Dialog
-        data class DeleteChapters(val chapters: List<Chapter>) : Dialog
-        data class RemoveChaptersFromDb(val chapters: List<Chapter>) : Dialog
-        data class DuplicateManga(
-            val manga: Manga,
-            val duplicates: List<MangaWithChapterCount>,
-            // False for an entry already in the library, where toggling favorite would remove it.
-            val canAddAnyway: Boolean,
-        ) : Dialog
-        data class SimilarNovels(
-            val similarNovels: List<MangaWithChapterCount>,
-            val categories: List<Category>,
-        ) : Dialog
-        data class Migrate(val target: Manga, val current: Manga) : Dialog
-        data class SetFetchInterval(val manga: Manga) : Dialog
-        data class Edit(val manga: Manga) : Dialog
-        data object ClearCustomInfo : Dialog
-        data class TranslateMangaDetails(val manga: Manga) : Dialog
-        data class ExportEpub(val manga: Manga, val chapters: List<Chapter>) : Dialog
-
-        /** [result] is null while counting is in progress. */
-        data class WordCount(
-            val checkedChapters: Int,
-            val chaptersToCount: Int,
-            val result: WordDensity? = null,
-        ) : Dialog
-        data object SettingsSheet : Dialog
-        data object TrackSheet : Dialog
-        data object FullCover : Dialog
     }
 
     fun dismissDialog() {
@@ -1663,16 +1625,32 @@ sealed interface Dialog {
      */
     fun showFindDuplicatesDialog() {
         val manga = successState?.manga ?: return
+
+        // Open the duplicate sheet immediately instead of waiting for a library search.
+        updateSuccessState {
+            it.copy(
+                dialog = Dialog.DuplicateManga(
+                    manga = manga,
+                    duplicates = emptyList(),
+                    canAddAnyway = !manga.favorite,
+                ),
+            )
+        }
+
+        // Search the library after the sheet has opened.
         viewModelScope.launchIO {
             val duplicates = getDuplicateLibraryManga(manga, force = true)
+
             withUIContext {
-                if (duplicates.isNotEmpty()) {
-                    updateSuccessState {
-                        it.copy(dialog = Dialog.DuplicateManga(manga, duplicates, canAddAnyway = !manga.favorite))
+                updateSuccessState { state ->
+                    val currentDialog = state.dialog
+                    if (currentDialog is Dialog.DuplicateManga) {
+                        state.copy(
+                            dialog = currentDialog.copy(duplicates = duplicates),
+                        )
+                    } else {
+                        state
                     }
-                } else {
-                    // Show a snackbar or toast instead of dialog if no duplicates found
-                    snackbarHostState.showSnackbar(context.stringResource(MR.strings.duplicate_no_duplicates))
                 }
             }
         }
@@ -1833,7 +1811,7 @@ sealed interface Dialog {
                 else -> details.translatedGenres
             }
 
-            if (details.addToAltTitles && !details.translatedTitle.isNullOrBlank() &&
+            if (details.addToAltTitles && !details.translatedTitle.isNullOrBlank() && 
                 details.translatedTitle != manga.title
             ) {
                 val currentAltTitles = manga.alternativeTitles.toMutableList()
@@ -1849,14 +1827,14 @@ sealed interface Dialog {
 
             var newNotes = manga.notes
             if (details.translatedDescription != null) {
-                val descBlock = "Translated Description:\n${details.translatedDescription}"
-                val descRegex = Regex("""Translated Description:\n[\s\S]*?(?=\n\nTranslated Tags:|$)""")
+                val descBlock = "Translated Description:\\n${details.translatedDescription}"
+                val descRegex = Regex("""Translated Description:\\n[\\s\\S]*?(?=\\n\\nTranslated Tags:|$)""")
                 newNotes = if (newNotes.isBlank()) {
                     descBlock
                 } else if (descRegex.containsMatchIn(newNotes)) {
                     descRegex.replace(newNotes, descBlock)
                 } else {
-                    "$newNotes\n\n$descBlock"
+                    "$newNotes\\n\\n$descBlock"
                 }
             }
 
@@ -1868,7 +1846,7 @@ sealed interface Dialog {
                 } else if (tagsRegex.containsMatchIn(newNotes)) {
                     tagsRegex.replace(newNotes, tagsString)
                 } else {
-                    "$newNotes\n\n$tagsString"
+                    "$newNotes\\n\\n$tagsString"
                 }
             }
 
