@@ -131,7 +131,6 @@ fun DuplicateMangaDialog(
                     DuplicateMangaListItem(
                         duplicate = it,
                         getSource = { sourceManager.getOrStub(it.manga.source) },
-                        onMigrate = { onMigrate(it.manga) },
                         onDismissRequest = onDismissRequest,
                         onOpenManga = { onOpenManga(it.manga) },
                         onMerge = onMerge,
@@ -180,11 +179,11 @@ private fun DuplicateMangaListItem(
     getSource: () -> Source,
     onDismissRequest: () -> Unit,
     onOpenManga: () -> Unit,
-    onMigrate: () -> Unit,
     onMerge: (Manga) -> Unit = {},
 ) {
     val source = getSource()
     val manga = duplicate.manga
+
     Column(
         modifier = Modifier
             .width(MangaCardWidth)
@@ -194,7 +193,7 @@ private fun DuplicateMangaListItem(
                 onLongClick = { onOpenManga() },
                 onClick = {
                     onDismissRequest()
-                    onMigrate()
+                    onOpenManga()
                 },
             )
             .padding(MaterialTheme.padding.small),
@@ -207,6 +206,7 @@ private fun DuplicateMangaListItem(
                     .build(),
                 modifier = Modifier.fillMaxWidth(),
             )
+
             BadgeGroup(
                 modifier = Modifier
                     .padding(4.dp)
@@ -284,6 +284,7 @@ private fun DuplicateMangaListItem(
                     tint = MaterialTheme.colorScheme.error,
                 )
             }
+
             Text(
                 text = source.name,
                 style = MaterialTheme.typography.labelSmall,
@@ -321,6 +322,7 @@ private fun MangaDetailRow(
             contentDescription = null,
             modifier = Modifier.size(MangaDetailsIconWidth),
         )
+
         Text(
             text = text,
             style = MaterialTheme.typography.bodySmall,
@@ -331,20 +333,34 @@ private fun MangaDetailRow(
 }
 
 @Composable
-private fun getMaximumMangaCardHeight(duplicates: List<MangaWithChapterCount>): Dp {
+private fun getMaximumMangaCardHeight(
+    duplicates: List<MangaWithChapterCount>,
+): Dp {
     val density = LocalDensity.current
     val typography = MaterialTheme.typography
     val textMeasurer = rememberTextMeasurer()
 
-    val smallPadding = with(density) { MaterialTheme.padding.small.roundToPx() }
-    val extraSmallPadding = with(density) { MaterialTheme.padding.extraSmall.roundToPx() }
+    val smallPadding = with(density) {
+        MaterialTheme.padding.small.roundToPx()
+    }
 
-    val width = with(density) { MangaCardWidth.roundToPx() - (2 * smallPadding) }
-    val iconWidth = with(density) { MangaDetailsIconWidth.roundToPx() }
+    val extraSmallPadding = with(density) {
+        MaterialTheme.padding.extraSmall.roundToPx()
+    }
+
+    val width = with(density) {
+        MangaCardWidth.roundToPx() - (2 * smallPadding)
+    }
+
+    val iconWidth = with(density) {
+        MangaDetailsIconWidth.roundToPx()
+    }
 
     val coverHeight = width / MangaCover.Book.ratio
     val constraints = Constraints(maxWidth = width)
-    val detailsConstraints = Constraints(maxWidth = width - iconWidth - extraSmallPadding)
+    val detailsConstraints = Constraints(
+        maxWidth = width - iconWidth - extraSmallPadding,
+    )
 
     return remember(
         duplicates,
@@ -369,8 +385,7 @@ private fun getMaximumMangaCardHeight(duplicates: List<MangaWithChapterCount>): 
                 constraints = constraints,
                 detailsConstraints = detailsConstraints,
             )
-        }
-            ?: 0.dp
+        } ?: 0.dp
     }
 }
 
@@ -385,22 +400,63 @@ private fun calculateMangaCardHeight(
     constraints: Constraints,
     detailsConstraints: Constraints,
 ): Dp {
-    val titleHeight = textMeasurer.measureHeight(manga.title, typography.titleSmall, 2, constraints)
-    val authorHeight = if (!manga.author.isNullOrBlank()) {
-        textMeasurer.measureHeight(manga.author!!, typography.bodySmall, 2, detailsConstraints)
-    } else {
-        0
-    }
-    val artistHeight = if (!manga.artist.isNullOrBlank() && manga.author != manga.artist) {
-        textMeasurer.measureHeight(manga.artist!!, typography.bodySmall, 2, detailsConstraints)
-    } else {
-        0
-    }
-    val statusHeight = textMeasurer.measureHeight("", typography.bodySmall, 2, detailsConstraints)
-    val sourceHeight = textMeasurer.measureHeight("", typography.labelSmall, 1, constraints)
+    val titleHeight = textMeasurer.measureHeight(
+        manga.title,
+        typography.titleSmall,
+        2,
+        constraints,
+    )
 
-    val totalHeight = coverHeight + titleHeight + authorHeight + artistHeight + statusHeight + sourceHeight
-    return with(density) { ((2 * smallPadding) + totalHeight + (5 * extraSmallPadding)).toDp() }
+    val authorHeight = if (!manga.author.isNullOrBlank()) {
+        textMeasurer.measureHeight(
+            manga.author!!,
+            typography.bodySmall,
+            2,
+            detailsConstraints,
+        )
+    } else {
+        0
+    }
+
+    val artistHeight = if (
+        !manga.artist.isNullOrBlank() &&
+        manga.author != manga.artist
+    ) {
+        textMeasurer.measureHeight(
+            manga.artist!!,
+            typography.bodySmall,
+            2,
+            detailsConstraints,
+        )
+    } else {
+        0
+    }
+
+    val statusHeight = textMeasurer.measureHeight(
+        "",
+        typography.bodySmall,
+        2,
+        detailsConstraints,
+    )
+
+    val sourceHeight = textMeasurer.measureHeight(
+        "",
+        typography.labelSmall,
+        1,
+        constraints,
+    )
+
+    val totalHeight =
+        coverHeight +
+            titleHeight +
+            authorHeight +
+            artistHeight +
+            statusHeight +
+            sourceHeight
+
+    return with(density) {
+        ((2 * smallPadding) + totalHeight + (5 * extraSmallPadding)).toDp()
+    }
 }
 
 private fun TextMeasurer.measureHeight(
@@ -414,9 +470,7 @@ private fun TextMeasurer.measureHeight(
     overflow = TextOverflow.Ellipsis,
     maxLines = maxLines,
     constraints = constraints,
-)
-    .size
-    .height
+).size.height
 
 private val MangaCardWidth = 150.dp
 private val MangaDetailsIconWidth = 16.dp
@@ -472,7 +526,9 @@ fun SimilarNovelsDialog(
                     SimilarNovelListItem(
                         similar = it,
                         novelCategories = categories,
-                        getSource = { sourceManager.getOrStub(it.manga.source) },
+                        getSource = {
+                            sourceManager.getOrStub(it.manga.source)
+                        },
                         onMigrate = { onMigrate(it.manga) },
                         onDismissRequest = onDismissRequest,
                         onOpenManga = { onOpenManga(it.manga) },
@@ -542,8 +598,11 @@ private fun SimilarNovelListItem(
                     .secondaryItemAlpha(),
                 tint = MaterialTheme.colorScheme.onSurface,
             )
+
             Text(
-                text = manga.author.orEmpty().ifBlank { stringResource(MR.strings.unknown_author) },
+                text = manga.author.orEmpty().ifBlank {
+                    stringResource(MR.strings.unknown_author)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .secondaryItemAlpha(),
@@ -566,6 +625,7 @@ private fun SimilarNovelListItem(
                         similar.chapterCount.toInt(),
                     ),
                 )
+
                 if (source is StubSource) {
                     Badge(text = stringResource(MR.strings.not_installed))
                 } else {
